@@ -1,21 +1,25 @@
 BEGIN;
 
-CREATE OR REPLACE VIEW dataset_quality_summary AS
-SELECT
-    ds.source_name,
-    dv.dataset_version_id,
-    dv.extracted_at,
-    dv.source_observed_from,
-    dv.source_observed_to,
-    dv.quality_pass_rate,
-    dv.quality_status,
-    dv.integration_status,
-    CASE
-        WHEN dv.quality_pass_rate >= 95 THEN TRUE
-        ELSE FALSE
-    END AS passed_quality_gate
-FROM dataset_version AS dv
-JOIN dataset_source AS ds ON ds.source_id = dv.source_id;
+DO $migration$
+BEGIN
+    IF EXISTS (
+        SELECT 1
+        FROM information_schema.columns
+        WHERE table_schema = CURRENT_SCHEMA()
+          AND table_name = 'dataset_quality_summary'
+          AND column_name = 'passed_kpi_1_gate'
+    ) AND NOT EXISTS (
+        SELECT 1
+        FROM information_schema.columns
+        WHERE table_schema = CURRENT_SCHEMA()
+          AND table_name = 'dataset_quality_summary'
+          AND column_name = 'passed_quality_gate'
+    ) THEN
+        ALTER VIEW dataset_quality_summary
+            RENAME COLUMN passed_kpi_1_gate TO passed_quality_gate;
+    END IF;
+END
+$migration$;
 
 CREATE OR REPLACE VIEW application_ready_cost_estimate AS
 SELECT

@@ -28,6 +28,21 @@ class MigrationFileTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 expanded_sql(path)
 
+    def test_cost_migration_conditionally_renames_legacy_quality_column(self):
+        migration = next(
+            path for version, path in migration_files() if version == 13
+        )
+        sql = expanded_sql(migration)
+        self.assertIn("information_schema.columns", sql)
+        self.assertIn("column_name = 'passed_kpi_1_gate'", sql)
+        self.assertIn("column_name = 'passed_quality_gate'", sql)
+        self.assertIn(
+            "RENAME COLUMN passed_kpi_1_gate TO passed_quality_gate", sql
+        )
+        self.assertNotIn(
+            "CREATE OR REPLACE VIEW dataset_quality_summary", sql
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

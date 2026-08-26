@@ -120,8 +120,8 @@ FROM get_property_baseline('1 COLLINS STREET', 5);
 
 | Output | Current result | Quality/status |
 | --- | ---: | --- |
-| Applied migrations | 001–012 | Applied |
-| Automated tests | 55/55 | Passed locally |
+| Applied migrations | 001–013 | Applied |
+| Automated tests | 56/56 | Passed locally |
 | Greater Melbourne Address records | 3,007,474 | 100% boundary membership |
 | Greater Melbourne Property records | 3,001,053 | 100% boundary membership |
 | Address–Property source-key matches | 3,007,470 of 3,007,474 | 99.999867% |
@@ -129,7 +129,7 @@ FROM get_property_baseline('1 COLLINS STREET', 5);
 | Application-ready canopy baseline | 37,146 unique 500 m cells | All baseline checks passed |
 | BOM weather observations | 155 | 100% source quality pass rate |
 | Vicmap Tree Urban | 10,473,773 Greater Melbourne points | 100% record-quality and boundary-membership pass rates |
-| Cost estimates | 0 in AWS; 8 prepared locally | 100% local quality pass; AWS ingestion pending |
+| Cost estimates | 8 in AWS | 100% quality pass; 0 rejected, 0 missing source URLs and 0 expired |
 | Validated scenario measure results | 0 | Prototype model is deliberately blocked from application output |
 
 The Tree Urban raw extract was obtained from the official Vicmap ArcGIS Feature Service, contains 10,580,207 bbox records, is approximately 435 MB compressed, and records a source edit timestamp of 4 June 2025. The application-ready version `558e07b7-f2d3-47b4-ade4-7f9c53ad02a6` contains 10,473,773 points inside the official ABS `2GMEL` boundary; 106,434 outside-boundary points were excluded and no record failed the configured quality gate.
@@ -145,7 +145,7 @@ The Tree Urban raw extract was obtained from the official Vicmap ArcGIS Feature 
 | Vicmap Vegetation – Tree Extent | Melbourne neighbourhood canopy baseline |
 | USGS Landsat Collection 2 Surface Temperature | Spatial land-surface-temperature baseline |
 | BOM Melbourne observations | Recent station air-temperature context |
-| Reviewed Melbourne supplier prices | Indicative residential and community greening cost ranges; not yet loaded |
+| Reviewed Melbourne-accessible supplier prices | Indicative residential and community greening cost ranges exposed through `application_ready_cost_estimate` |
 
 All source versions retain extraction time, observation period, checksum, source URL, row counts, quality state and publication state.
 
