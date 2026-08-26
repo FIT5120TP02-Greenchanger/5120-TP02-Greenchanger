@@ -41,10 +41,13 @@
       {"code": "CONFIDENCE_RANGE", "type": "range", "field": "confidence_score", "minimum": 0, "maximum": 100, "allow_blank": true}
     ],
     "cost_estimate": [
-      {"code": "COST_REQUIRED", "type": "required", "fields": ["option_code", "cost_context", "cost_basis", "minimum_cost", "maximum_cost", "source_name", "valid_from", "last_verified_at"]},
+      {"code": "COST_REQUIRED", "type": "required", "fields": ["option_code", "cost_context", "cost_basis", "minimum_cost", "maximum_cost", "currency", "includes_installation", "source_name", "source_reference", "source_url", "valid_from", "valid_to", "last_verified_at", "confidence_level"]},
+      {"code": "COST_UNIQUE", "type": "unique", "fields": ["option_code", "cost_context", "cost_basis", "source_name", "valid_from", "source_reference"]},
       {"code": "MINIMUM_COST_NONNEGATIVE", "type": "range", "field": "minimum_cost", "minimum": 0},
       {"code": "MAXIMUM_COST_NONNEGATIVE", "type": "range", "field": "maximum_cost", "minimum": 0},
       {"code": "COST_ORDER", "type": "field_order", "lower_field": "minimum_cost", "upper_field": "maximum_cost"},
+      {"code": "OPTION_CODE_ALLOWED", "type": "allowed", "field": "option_code", "values": ["backyard_tree_diy", "backyard_tree_installed", "container_tree", "potted_plants", "garden_bed", "green_wall", "green_roof", "community_tree"]},
+      {"code": "CURRENCY_AUD", "type": "allowed", "field": "currency", "values": ["AUD"]},
       {"code": "CONFIDENCE_ALLOWED", "type": "allowed", "field": "confidence_level", "values": ["low", "medium", "high"]}
     ]
   }

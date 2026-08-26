@@ -92,7 +92,9 @@ python greenchanger_script/clip_to_melbourne.py --confirm-shared
 python greenchanger_script/build_heat_baseline.py --confirm-shared
 python greenchanger_script/build_canopy_baseline.py --confirm-shared
 
-# 7. Load reviewed cost references when available
+# 7. Validate and load reviewed cost references
+python greenchanger_script/validate_csv.py cost_estimate \
+  data/reference/cost_estimates.csv
 python greenchanger_script/ingestion.py costs \
   --cost-file data/reference/cost_estimates.csv --confirm-shared
 
@@ -119,7 +121,7 @@ FROM get_property_baseline('1 COLLINS STREET', 5);
 | Output | Current result | Quality/status |
 | --- | ---: | --- |
 | Applied migrations | 001–012 | Applied |
-| Automated tests | 51/51 | Passed |
+| Automated tests | 55/55 | Passed locally |
 | Greater Melbourne Address records | 3,007,474 | 100% boundary membership |
 | Greater Melbourne Property records | 3,001,053 | 100% boundary membership |
 | Address–Property source-key matches | 3,007,470 of 3,007,474 | 99.999867% |
@@ -127,7 +129,7 @@ FROM get_property_baseline('1 COLLINS STREET', 5);
 | Application-ready canopy baseline | 37,146 unique 500 m cells | All baseline checks passed |
 | BOM weather observations | 155 | 100% source quality pass rate |
 | Vicmap Tree Urban | 10,473,773 Greater Melbourne points | 100% record-quality and boundary-membership pass rates |
-| Cost estimates | 0 | Source research and ingestion still required |
+| Cost estimates | 0 in AWS; 8 prepared locally | 100% local quality pass; AWS ingestion pending |
 | Validated scenario measure results | 0 | Prototype model is deliberately blocked from application output |
 
 The Tree Urban raw extract was obtained from the official Vicmap ArcGIS Feature Service, contains 10,580,207 bbox records, is approximately 435 MB compressed, and records a source edit timestamp of 4 June 2025. The application-ready version `558e07b7-f2d3-47b4-ade4-7f9c53ad02a6` contains 10,473,773 points inside the official ABS `2GMEL` boundary; 106,434 outside-boundary points were excluded and no record failed the configured quality gate.
@@ -174,8 +176,33 @@ All source versions retain extraction time, observation period, checksum, source
 ### Cost
 
 - No suitable government dataset provides current Melbourne residential greening prices.
-- Cost records must use reviewed supplier sources, min/max ranges, verification dates, inclusions and confidence levels.
+- The version-controlled file `data/reference/cost_estimates.csv` uses current advertised supplier prices and clearly labelled composite scenarios.
+- Exact advertised retail prices are high confidence; transparent multi-source calculations are medium confidence; broad installed-market guidance is low confidence.
+- The current coverage includes DIY and installed backyard trees, a container tree, potted plants, an installed garden bed, DIY and installed green walls, and an installed advanced/community tree context.
+- Green-roof and unsupported annual-maintenance values remain absent rather than being invented.
+- Every record includes its source, assumptions, validity window, verification timestamp, inclusions and confidence level.
 - Outputs are indicative estimates, not quotations, and should be rechecked approximately every three months.
+- Applications should query `application_ready_cost_estimate` and display its disclaimer.
+
+#### Cost sources and assumptions
+
+The prices below were verified on 26 August 2026 and have a review date of
+26 November 2026. Full component fields and source notes are stored in
+`data/reference/cost_estimates.csv`.
+
+| Greening option | Indicative range | Source-backed assumption | Confidence |
+| --- | ---: | --- | --- |
+| DIY small backyard tree | $25–$85 per tree | [Plants Melbourne Nursery](https://plantsmelb.com/store/page/2/) advertised 200–300 mm Ficus stock; delivery, soil, stakes and labour are excluded. | High |
+| Professionally planted small tree | $109–$169 per tree | $25–$85 plant plus one $84 advertised landscaping hour from [Landscaping for Melbourne](https://landscapingformelbourne.com/pricing/); assumes a prepared and accessible site. | Medium |
+| Container tree | $67.99–$185.68 per tree | [Diaco's Lemon Eureka](https://diacos.com.au/product/lemon-eureka/) at $49–$139 plus a 400 mm pot from [Ladybird Nursery](https://ladybirdnursery.com.au/products/plastic-pot-400mm-pick-up-only) or [Bunnings](https://www.bunnings.com.au/elho-40cm-terracotta-vibia-outdoor-plant-pot_p0366936) at $18.99–$46.68; potting mix, delivery and labour are excluded. | Medium |
+| Potted plants | $49–$175 per pot | Melbourne-accessible plants with decorative pots or multi-planters from [The Indoor Plant Co](https://www.theindoorplantco.com.au/collections/all-plants); delivery and ongoing care are excluded. | High |
+| Installed garden bed | $105–$190 per m² | Published Melbourne installed garden-construction range from [Landscaping for Melbourne](https://landscapingformelbourne.com/pricing/); the final price depends on site conditions and inclusions. | Medium |
+| DIY living green-wall kit | $94.95 per m² | [Vertical Gardens Direct](https://www.verticalgardensdirect.com.au/products/wallgarden-original-vertical-garden-wall-planter-kit-5-pots-1-square-meter) five-pot kit covering 1 m²; plants, growing media, irrigation, fixings and shipping are excluded. | High |
+| Professionally installed green wall | $400–$700 per m² | [Green Wall Australia](https://greenwallaustralia.com.au/) Australian outdoor modular-system guide; this is market guidance rather than a Melbourne supplier quotation. | Low |
+| Installed advanced/community tree | $425–$600 per tree | Featured starting prices from [Nursery Direct](https://nurserydirect.com.au/), including tree, delivery and standard installation; Melbourne availability and group pricing require confirmation. | Medium |
+
+Blank GST, delivery, setup or annual-maintenance fields mean that the source did
+not publish a reliable value. They must not be interpreted as zero.
 
 ### Property and boundary
 

@@ -21,7 +21,8 @@ greenchanger_sql/
 │   ├── 009_canopy_baseline.sql
 │   ├── 010_property_baseline_lookup.sql
 │   ├── 011_tree_urban_quality_scope.sql
-│   └── 012_property_tree_limitations.sql
+│   ├── 012_property_tree_limitations.sql
+│   └── 013_cost_estimate_delivery.sql
 ├── seeds/001_reference_data.sql
 └── analytics/001_views.sql
 ```
@@ -43,6 +44,7 @@ greenchanger_sql/
 | `migrations/010_property_baseline_lookup.sql` | Adds model validation gates and the application-facing property baseline lookup. |
 | `migrations/011_tree_urban_quality_scope.sql` | Adds Tree Urban record quality status and the dataset-version index required by API ingestion. |
 | `migrations/012_property_tree_limitations.sql` | Restricts property tree lookup to the current `2GMEL` version and always returns the machine-derived-data warning. |
+| `migrations/013_cost_estimate_delivery.sql` | Publishes current source-backed cost contexts with greening-option labels, confidence and an indicative-estimate disclaimer. |
 | `seeds/001_reference_data.sql` | Defines sources, greening options, analytical measures, model metadata and sample test cases. |
 | `analytics/001_views.sql` | Defines reusable analytical views for dataset quality, site baselines and scenario comparison. |
 
@@ -102,7 +104,8 @@ mapped Tree Urban counts when an integrated tree version exists.
   `latest_greater_melbourne_canopy_baseline` view exposes the current version.
 - `vegetation_observation`, `canopy_patch`, `urban_tree`: canopy and greenery.
 - `species_profile`, `greening_option`: available intervention definitions.
-- `cost_estimate`: versioned indicative cost ranges.
+- `cost_estimate`: dated, source-backed indicative cost ranges.
+- `application_ready_cost_estimate`: current cost contexts joined to greening-option labels with confidence, inclusions and the mandatory not-a-quote disclaimer.
 - `model_version.validation_status`: explicit model gate. Only `validated`
   models can appear in `application_ready_measure_result`.
 - Scenario, intervention, result and community entities store model inputs and

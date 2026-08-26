@@ -166,6 +166,13 @@ The shared database write is one transaction per named job. If a command raises
 an exception, it rolls back its database work. Large API extracts are reusable
 files, so an insertion retry can use `--address-file` or `--property-file`.
 
+The cost file is reviewed evidence rather than scraped application state. Run
+`validate_csv.py cost_estimate data/reference/cost_estimates.csv` before its
+ingestion job. Each record has a three-month validity window, source reference,
+inclusion flags and confidence label. Blank delivery, setup, GST or maintenance
+fields mean the source did not publish a reliable value; they must not be
+interpreted as zero.
+
 ## Failure guide
 
 | Symptom | Cause and response |

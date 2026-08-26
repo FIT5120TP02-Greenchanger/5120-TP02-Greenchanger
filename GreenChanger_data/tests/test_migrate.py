@@ -9,7 +9,7 @@ class MigrationFileTests(unittest.TestCase):
     def test_migrations_are_numbered_and_ordered(self):
         self.assertEqual(
             [version for version, _ in migration_files()],
-            [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12],
+            [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13],
         )
 
     def test_include_is_expanded(self):
