@@ -32,7 +32,7 @@ repository.
 | `inspect_canopy.py` | Inspect raster CRS, bands, values and dimensions before ingestion. |
 | `prepare_vector.py` | Repair/reproject/clip a general vector source. |
 | `validate_csv.py` | Apply configured quality rules to a staging CSV and write rejected rows. |
-| `calculate_measures.py` | Calculate KPI 2 outputs or print all formulas with sample results. |
+| `calculate_measures.py` | Calculate Data Analytics & Insight Development outputs or print all formulas with sample results. |
 | `clip_to_melbourne.py` | Create audited `2GMEL`-only Address, Property, heat and canopy dataset versions without deleting parent versions. |
 | `build_heat_baseline.py` | Resolve overlapping Landsat observations into one versioned, application-ready baseline cell per location. |
 | `build_canopy_baseline.py` | Publish one quality-checked, versioned 500 m canopy baseline and verify exact alignment with the heat grid. |

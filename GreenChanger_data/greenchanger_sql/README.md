@@ -59,7 +59,7 @@ must be added as the next numbered migration.
   quality state and publication state. Derived versions also store their parent,
   analysis area and derivation method.
 - `spatial_asset`: source/raw asset path, API URL, CRS, checksum and metadata.
-- `data_quality_rule`, `data_quality_run`, `data_quality_result`: KPI 1 evidence.
+- `data_quality_rule`, `data_quality_run`, `data_quality_result`: Data Quality & Preparation evidence.
 - `transformation_run`, `integration_run`: cleaning and load audit history.
 - `data_limitation`: known currency, coverage, join and interpretation issues.
 

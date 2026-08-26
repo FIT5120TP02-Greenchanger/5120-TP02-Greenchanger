@@ -1,4 +1,4 @@
-"""Validate a staging CSV and produce a KPI 1 quality report."""
+"""Validate a staging CSV and produce a Data Quality & Preparation report."""
 
 from __future__ import annotations
 

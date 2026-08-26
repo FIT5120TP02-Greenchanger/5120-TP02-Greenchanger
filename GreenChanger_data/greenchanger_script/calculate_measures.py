@@ -1,4 +1,4 @@
-"""Calculate GreenChanger KPI 2 measures from command-line inputs."""
+"""Calculate GreenChanger Data Analytics & Insight Development measures."""
 
 from __future__ import annotations
 

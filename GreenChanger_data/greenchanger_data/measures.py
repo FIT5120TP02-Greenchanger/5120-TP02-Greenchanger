@@ -1,4 +1,4 @@
-"""Validated analytical measures for GreenChanger KPI 2."""
+"""Validated measures for GreenChanger Data Analytics & Insight Development."""
 
 from __future__ import annotations
 

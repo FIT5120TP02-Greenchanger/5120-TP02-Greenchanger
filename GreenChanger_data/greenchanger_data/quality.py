@@ -1,4 +1,4 @@
-"""Record-level data-quality checks used by GreenChanger KPI 1."""
+"""Record-level checks for GreenChanger Data Quality & Preparation."""
 
 from __future__ import annotations
 
