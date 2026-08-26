@@ -1,0 +1,51 @@
+{
+  "quality_threshold_pct": 95.0,
+  "datasets": {
+    "analysis_area": [
+      {"code": "ANALYSIS_AREA_REQUIRED", "type": "required", "fields": ["source_area_code", "area_name", "source_year", "geometry_wkt"]},
+      {"code": "ANALYSIS_AREA_CODE_UNIQUE", "type": "unique", "fields": ["source_area_code", "source_year"]},
+      {"code": "ANALYSIS_AREA_SIZE_POSITIVE", "type": "range", "field": "area_m2", "minimum": 0, "inclusive_minimum": false}
+    ],
+    "address": [
+      {"code": "ADDRESS_REQUIRED", "type": "required", "fields": ["source_address_id", "full_address", "geometry_wkt"]},
+      {"code": "ADDRESS_UNIQUE", "type": "unique", "fields": ["source_address_id"]}
+    ],
+    "parcel": [
+      {"code": "PARCEL_REQUIRED", "type": "required", "fields": ["source_parcel_id", "geometry_wkt"]},
+      {"code": "PARCEL_UNIQUE", "type": "unique", "fields": ["source_parcel_id"]},
+      {"code": "PARCEL_AREA_POSITIVE", "type": "range", "field": "parcel_area_m2", "minimum": 0, "inclusive_minimum": false, "allow_blank": true}
+    ],
+    "urban_tree": [
+      {"code": "URBAN_TREE_REQUIRED", "type": "required", "fields": ["source_tree_id", "geometry_wkt"]},
+      {"code": "URBAN_TREE_UNIQUE", "type": "unique", "fields": ["source_tree_id"]},
+      {"code": "URBAN_TREE_CANOPY_RADIUS_POSITIVE", "type": "range", "field": "canopy_radius_m", "minimum": 0, "inclusive_minimum": false, "allow_blank": true},
+      {"code": "URBAN_TREE_HEIGHT_POSITIVE", "type": "range", "field": "height_m", "minimum": 0, "inclusive_minimum": false, "allow_blank": true}
+    ],
+    "weather_observation": [
+      {"code": "WEATHER_REQUIRED", "type": "required", "fields": ["station_code", "observed_at", "air_temperature_c"]},
+      {"code": "WEATHER_UNIQUE", "type": "unique", "fields": ["station_code", "observed_at"]},
+      {"code": "HUMIDITY_RANGE", "type": "range", "field": "humidity_pct", "minimum": 0, "maximum": 100, "allow_blank": true},
+      {"code": "WIND_NONNEGATIVE", "type": "range", "field": "wind_speed_ms", "minimum": 0, "allow_blank": true},
+      {"code": "RAINFALL_NONNEGATIVE", "type": "range", "field": "rainfall_since_9am_mm", "minimum": 0, "allow_blank": true}
+    ],
+    "heat_observation": [
+      {"code": "HEAT_REQUIRED", "type": "required", "fields": ["observed_on", "heat_value", "measurement_type", "unit", "geometry_wkt"]},
+      {"code": "HEAT_CELL_UNIQUE", "type": "unique", "fields": ["source_scene_id", "geometry_wkt"]},
+      {"code": "HEAT_TEMPERATURE_RANGE", "type": "range", "field": "heat_value", "minimum": -50, "maximum": 80},
+      {"code": "CLOUD_RANGE", "type": "range", "field": "cloud_cover_pct", "minimum": 0, "maximum": 100, "allow_blank": true}
+    ],
+    "vegetation_observation": [
+      {"code": "VEGETATION_REQUIRED", "type": "required", "fields": ["observed_on", "vegetation_type", "vegetation_percentage", "geometry_wkt"]},
+      {"code": "VEGETATION_CELL_UNIQUE", "type": "unique", "fields": ["observed_on", "geometry_wkt"]},
+      {"code": "VEGETATION_PERCENT_RANGE", "type": "range", "field": "vegetation_percentage", "minimum": 0, "maximum": 100, "allow_blank": true},
+      {"code": "CONFIDENCE_RANGE", "type": "range", "field": "confidence_score", "minimum": 0, "maximum": 100, "allow_blank": true}
+    ],
+    "cost_estimate": [
+      {"code": "COST_REQUIRED", "type": "required", "fields": ["option_code", "cost_context", "cost_basis", "minimum_cost", "maximum_cost", "source_name", "valid_from", "last_verified_at"]},
+      {"code": "MINIMUM_COST_NONNEGATIVE", "type": "range", "field": "minimum_cost", "minimum": 0},
+      {"code": "MAXIMUM_COST_NONNEGATIVE", "type": "range", "field": "maximum_cost", "minimum": 0},
+      {"code": "COST_ORDER", "type": "field_order", "lower_field": "minimum_cost", "upper_field": "maximum_cost"},
+      {"code": "CONFIDENCE_ALLOWED", "type": "allowed", "field": "confidence_level", "values": ["low", "medium", "high"]}
+    ]
+  }
+}

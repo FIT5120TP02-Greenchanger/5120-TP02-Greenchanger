@@ -1,0 +1,122 @@
+{
+  "target_srid": 7855,
+  "quality_threshold_pct": 95.0,
+  "datasets": [
+    {
+      "key": "abs_greater_melbourne_2026",
+      "name": "ABS ASGS Edition 4 Greater Capital City Statistical Areas 2026",
+      "publisher": "Australian Bureau of Statistics",
+      "url": "https://www.abs.gov.au/statistics/standards/australian-statistical-geography-standard-asgs/edition-4-july-2026-june-2031/access-and-downloads/digital-boundary-files",
+      "category": "boundary",
+      "coverage": "Australia; filtered to Greater Melbourne (GCCSA 2GMEL)",
+      "observation_period": "2026",
+      "access_method": "ABS ArcGIS REST API and download",
+      "licence": "Creative Commons Attribution 4.0 International",
+      "update_frequency": "ASGS edition",
+      "target_entities": ["analysis_area"]
+    },
+    {
+      "key": "vicmap_property",
+      "name": "Vicmap Property",
+      "publisher": "Victorian Government",
+      "url": "https://data.gov.au/data/dataset/vicmap-property1",
+      "category": "property",
+      "coverage": "Victoria",
+      "observation_period": "continuously maintained",
+      "access_method": "download and spatial web services",
+      "target_entities": ["parcel", "site"]
+    },
+    {
+      "key": "vicmap_address",
+      "name": "Vicmap Address",
+      "publisher": "Victorian Government",
+      "url": "https://www.data.gov.au/data/dataset/vicmap-address1",
+      "category": "address",
+      "coverage": "Victoria",
+      "observation_period": "continuously maintained",
+      "access_method": "download and spatial web services",
+      "target_entities": ["address", "site"]
+    },
+    {
+      "key": "vicmap_tree_urban",
+      "name": "Vicmap Vegetation - Tree Urban Point",
+      "publisher": "Victorian Government",
+      "url": "https://discover.data.vic.gov.au/dataset/vicmap-vegetation-tree-urban-point",
+      "category": "canopy",
+      "coverage": "Metropolitan Melbourne",
+      "observation_period": "2019-2020",
+      "access_method": "WFS, WMS, REST and download",
+      "target_entities": ["urban_tree"]
+    },
+    {
+      "key": "vicmap_tree_extent",
+      "name": "Vicmap Vegetation - Tree Extent",
+      "publisher": "Victorian Government",
+      "url": "https://discover.data.vic.gov.au/dataset/vicmap-vegetation-tree-extent",
+      "category": "canopy",
+      "coverage": "Victoria",
+      "observation_period": "varies by location up to 2020",
+      "access_method": "GeoTIFF, REST and download",
+      "licence": "Creative Commons Attribution 4.0 International",
+      "update_frequency": "irregular",
+      "target_entities": ["canopy_patch", "vegetation_observation"]
+    },
+    {
+      "key": "melbourne_canopy_2021",
+      "name": "Tree Canopies 2021 (Urban Forest)",
+      "publisher": "City of Melbourne",
+      "url": "https://discover.data.vic.gov.au/en_AU/dataset/tree-canopies-2021-urban-forest",
+      "category": "canopy",
+      "coverage": "City of Melbourne municipality",
+      "observation_period": "2021",
+      "access_method": "API and download",
+      "target_entities": ["canopy_patch", "vegetation_observation"]
+    },
+    {
+      "key": "dea_sentinel2",
+      "name": "DEA Sentinel-2 Surface Reflectance",
+      "publisher": "Geoscience Australia",
+      "url": "https://knowledge.dea.ga.gov.au/data/product/dea-surface-reflectance-sentinel-2a-msi/",
+      "category": "vegetation",
+      "coverage": "Australia",
+      "observation_period": "ongoing",
+      "access_method": "STAC, AWS, WMS and download",
+      "target_entities": ["vegetation_observation"]
+    },
+    {
+      "key": "landsat_surface_temperature",
+      "name": "USGS Landsat Collection 2 Surface Temperature",
+      "publisher": "United States Geological Survey",
+      "url": "https://www.usgs.gov/landsat-missions/landsat-collection-2-surface-temperature",
+      "category": "heat",
+      "coverage": "Global",
+      "observation_period": "ongoing",
+      "access_method": "Microsoft Planetary Computer STAC mirror of USGS Collection 2",
+      "licence": "USGS public-domain data; review source terms",
+      "update_frequency": "as Landsat scenes are processed",
+      "target_entities": ["heat_observation"]
+    },
+    {
+      "key": "melbourne_uhi_2018",
+      "name": "Metropolitan Melbourne Urban Heat Islands and Urban Vegetation 2018",
+      "publisher": "Victorian Government",
+      "url": "https://discover.data.vic.gov.au/en_AU/dataset/metropolitan-melbourne-urban-heat-islands-and-urban-vegetation-2018",
+      "category": "heat",
+      "coverage": "Metropolitan Melbourne",
+      "observation_period": "2018",
+      "access_method": "spatial download",
+      "target_entities": ["heat_observation"]
+    },
+    {
+      "key": "bom_melbourne_olympic_park",
+      "name": "BOM Melbourne Olympic Park observations",
+      "publisher": "Bureau of Meteorology",
+      "url": "https://www.bom.gov.au/fwo/IDV60901/IDV60901.95936.json",
+      "category": "weather",
+      "coverage": "Melbourne Olympic Park station",
+      "observation_period": "current observations",
+      "access_method": "JSON feed",
+      "target_entities": ["weather_observation"]
+    }
+  ]
+}

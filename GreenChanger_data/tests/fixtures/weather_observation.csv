@@ -1,0 +1,2 @@
+station_code,station_name,observed_at,air_temperature_c,apparent_temperature_c,humidity_pct,wind_speed_ms,rainfall_since_9am_mm,geometry_wkt,source_srid,quality_status
+95936,Melbourne (Olympic Park),2026-08-25T09:00:00+00:00,20.5,19.1,55,5.0,0.0,POINT(144.9816 -37.8255),4326,unreviewed

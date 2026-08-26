@@ -1,0 +1,37 @@
+{
+  "address": {
+    "grain": "one source address identifier per dataset version",
+    "business_key": ["source_address_id"],
+    "required_fields": ["source_address_id", "full_address", "geometry_wkt", "source_srid"]
+  },
+  "parcel": {
+    "grain": "one source parcel polygon per dataset version",
+    "business_key": ["source_parcel_id"],
+    "required_fields": ["source_parcel_id", "geometry_wkt", "source_srid"]
+  },
+  "urban_tree": {
+    "grain": "one mapped tree point per dataset version",
+    "business_key": ["source_tree_id"],
+    "required_fields": ["source_tree_id", "geometry_wkt", "source_srid"]
+  },
+  "weather_observation": {
+    "grain": "one weather station observation at one timestamp",
+    "business_key": ["station_code", "observed_at"],
+    "required_fields": ["station_code", "observed_at", "air_temperature_c"]
+  },
+  "heat_observation": {
+    "grain": "one spatial heat observation feature or summary for one observation date",
+    "business_key": ["source_scene_id", "observed_on", "geometry_wkt"],
+    "required_fields": ["observed_on", "heat_value", "measurement_type", "unit", "geometry_wkt", "source_srid"]
+  },
+  "vegetation_observation": {
+    "grain": "one vegetation feature or summary for one observation date",
+    "business_key": ["observed_on", "vegetation_type", "geometry_wkt"],
+    "required_fields": ["observed_on", "geometry_wkt", "source_srid"]
+  },
+  "cost_estimate": {
+    "grain": "one greening option, context, unit and validity period",
+    "business_key": ["option_code", "cost_context", "cost_basis", "valid_from", "source_name"],
+    "required_fields": ["option_code", "cost_context", "cost_basis", "minimum_cost", "maximum_cost", "source_name", "valid_from", "last_verified_at"]
+  }
+}

@@ -1,0 +1,21 @@
+.DS_Store
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.venv/
+venv/
+.env
+.env.*
+!.env.example
+
+# Raw and intermediate datasets can be large and may have redistribution limits.
+data/raw/**
+!data/raw/.gitkeep
+data/interim/**
+!data/interim/.gitkeep
+
+# Generated outputs are reproducible and should not be committed by default.
+data/processed/**
+!data/processed/.gitkeep
+data/quality/**
+!data/quality/.gitkeep

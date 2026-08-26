@@ -1,0 +1,2 @@
+-- Application-facing quality, cost and analytical result views.
+-- include: ../analytics/001_views.sql

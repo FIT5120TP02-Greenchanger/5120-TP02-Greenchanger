@@ -1,0 +1,8 @@
+{
+  "baseline_canopy_m2": 25,
+  "projected_canopy_m2": 40,
+  "baseline_greenery_pct": 18.5,
+  "projected_greenery_pct": 31,
+  "baseline_surface_temperature_c": 43.2,
+  "projected_surface_temperature_c": 40.7
+}
