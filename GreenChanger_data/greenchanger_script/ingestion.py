@@ -188,7 +188,7 @@ def quality_dimension(rule_type: str) -> str:
 
 
 def record_quality_run(connection, dataset_version_id, report: QualityReport) -> None:
-    """Save the record-level gate and each rule result for KPI 1 evidence."""
+    """Save evidence for Data Quality & Preparation."""
 
     run_status = "passed" if report.passed_gate else "failed"
     with connection.cursor() as cursor:

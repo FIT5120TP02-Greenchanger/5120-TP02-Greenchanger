@@ -16,7 +16,7 @@ functions and perform database writes.
 | `canopy_baseline.py` | Define versioned baseline and source-provenance rules, including analytical-versus-proxy classification. |
 | `landsat.py` | Search Landsat Collection 2, sign/download assets, mask unusable pixels and calculate land-surface temperature. |
 | `heat_baseline.py` | Define and reference-test the latest-date/same-day-overlap baseline mosaic rule. |
-| `measures.py` | KPI 2 calculations and sample outputs for canopy, greenery, heat and cost measures. |
+| `measures.py` | Data Analytics & Insight Development calculations and sample outputs for canopy, greenery, heat and cost measures. |
 | `property_baseline.py` | Reference-test the project-defined small, medium and large lot-size categories used by Priority 4. |
 | `quality.py` | Record-level completeness, uniqueness, validity and consistency rules, including memory-safe stream validation. |
 | `sources.py` | Load the source registry and calculate reproducibility checksums. |
@@ -153,5 +153,5 @@ python -m unittest discover -v
 ```
 
 The tests cover normalisation, cross-record uniqueness, the unrounded quality
-gate, geometry conversion, BOM extraction, raster checks, migrations and KPI 2
-calculations.
+gate, geometry conversion, BOM extraction, raster checks, migrations and Data
+Analytics & Insight Development calculations.

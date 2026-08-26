@@ -30,7 +30,7 @@ PostgreSQL 17 + PostGIS integration
 Versioned application-ready views and property lookup
 ```
 
-KPI 1 requires at least 95% of assessed records to pass the configured checks. Failed records are rejected or quarantined, and limitations are retained in the database. KPI 2 calculations separate observed values from modelled scenarios and expose precise projected heat results only from validated model versions.
+**Data Quality & Preparation** requires at least 95% of assessed records to pass the configured completeness, validity and consistency checks. Failed records are rejected or quarantined, and limitations are retained in the database. **Data Analytics & Insight Development** covers the analytical measures presented to users. Its calculations separate observed values from modelled scenarios and expose precise projected heat results only from validated model versions.
 
 ## Initial setup
 
@@ -101,7 +101,7 @@ python greenchanger_script/migrate.py --status
 python -m unittest discover -v
 ```
 
-To inspect every KPI 2 formula and sample output:
+To inspect every **Data Analytics & Insight Development** formula and sample output:
 
 ```bash
 python greenchanger_script/calculate_measures.py --sample
