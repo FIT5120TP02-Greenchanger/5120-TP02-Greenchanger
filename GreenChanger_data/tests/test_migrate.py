@@ -9,7 +9,7 @@ class MigrationFileTests(unittest.TestCase):
     def test_migrations_are_numbered_and_ordered(self):
         self.assertEqual(
             [version for version, _ in migration_files()],
-            [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13],
+            [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15],
         )
 
     def test_include_is_expanded(self):
@@ -42,6 +42,32 @@ class MigrationFileTests(unittest.TestCase):
         self.assertNotIn(
             "CREATE OR REPLACE VIEW dataset_quality_summary", sql
         )
+
+    def test_intervention_evidence_migration_separates_validation_and_precision(self):
+        migration = next(
+            path for version, path in migration_files() if version == 14
+        )
+        sql = expanded_sql(migration)
+        self.assertIn("CREATE TABLE intervention_evidence", sql)
+        self.assertIn("CREATE TABLE model_evidence", sql)
+        self.assertIn("output_precision", sql)
+        self.assertIn("indicative_range", sql)
+        self.assertIn("precise_point_estimate", sql)
+        self.assertIn("selected_intervention_evidence", sql)
+        self.assertIn("10.1016/j.landurbplan.2021.104046", sql)
+        self.assertIn("10.1007/s00704-015-1409-y", sql)
+
+    def test_intervention_validation_migration_starts_unvalidated(self):
+        migration = next(
+            path for version, path in migration_files() if version == 15
+        )
+        sql = expanded_sql(migration)
+        self.assertIn("CREATE TABLE intervention_model_parameter", sql)
+        self.assertIn("CREATE TABLE intervention_model_validation_run", sql)
+        self.assertIn("CREATE TABLE intervention_model_validation_result", sql)
+        self.assertIn("'validation_in_progress'", sql)
+        self.assertNotIn("SET validation_status = 'validated'", sql)
+        self.assertIn("literature-bounded-indicative-v1", sql)
 
 
 if __name__ == "__main__":

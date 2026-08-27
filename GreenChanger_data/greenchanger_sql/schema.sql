@@ -492,9 +492,116 @@ CREATE TABLE IF NOT EXISTS model_version (
     ),
     validation_completed_at TIMESTAMPTZ,
     validation_summary TEXT,
+    output_precision TEXT NOT NULL DEFAULT 'suppressed' CHECK (
+        output_precision IN (
+            'suppressed', 'indicative_range', 'precise_point_estimate'
+        )
+    ),
+    temperature_metric TEXT CHECK (
+        temperature_metric IS NULL OR temperature_metric IN (
+            'land_surface_temperature', 'air_temperature',
+            'wall_surface_temperature', 'mean_radiant_temperature',
+            'thermal_comfort_index'
+        )
+    ),
+    spatial_scope TEXT,
+    uncertainty_method TEXT,
+    evidence_reviewed_at DATE,
     created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     retired_at TIMESTAMPTZ,
     UNIQUE (model_name, version_label)
+);
+
+CREATE TABLE intervention_evidence (
+    evidence_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    citation_key TEXT NOT NULL UNIQUE,
+    title TEXT NOT NULL,
+    authors TEXT NOT NULL,
+    publication_year INTEGER NOT NULL CHECK (publication_year BETWEEN 1900 AND 2100),
+    doi TEXT UNIQUE,
+    source_url TEXT NOT NULL,
+    study_location TEXT NOT NULL,
+    study_design TEXT NOT NULL,
+    intervention_types TEXT[] NOT NULL,
+    outcome_types TEXT[] NOT NULL,
+    spatial_scale TEXT NOT NULL,
+    reported_effects JSONB NOT NULL,
+    evidence_grade TEXT NOT NULL CHECK (
+        evidence_grade IN (
+            'primary_field', 'primary_observational',
+            'validated_simulation', 'growth_model'
+        )
+    ),
+    transferability TEXT NOT NULL CHECK (
+        transferability IN ('direct', 'supporting', 'context_only')
+    ),
+    approved_use TEXT NOT NULL,
+    prohibited_use TEXT NOT NULL,
+    limitations TEXT NOT NULL,
+    selected_for_model BOOLEAN NOT NULL DEFAULT TRUE,
+    reviewed_at DATE NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE model_evidence (
+    model_version_id UUID NOT NULL REFERENCES model_version(model_version_id),
+    evidence_id UUID NOT NULL REFERENCES intervention_evidence(evidence_id),
+    evidence_role TEXT NOT NULL CHECK (
+        evidence_role IN (
+            'candidate_validation', 'calibration', 'external_validation',
+            'mechanism', 'limitation'
+        )
+    ),
+    notes TEXT,
+    PRIMARY KEY (model_version_id, evidence_id, evidence_role)
+);
+
+CREATE TABLE intervention_model_parameter (
+    parameter_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    model_version_id UUID NOT NULL REFERENCES model_version(model_version_id),
+    action_type TEXT NOT NULL CHECK (
+        action_type IN ('tree', 'potted_plants', 'garden_bed', 'green_wall')
+    ),
+    parameter_code TEXT NOT NULL,
+    parameter_name TEXT NOT NULL,
+    parameter_values JSONB NOT NULL,
+    output_metric TEXT,
+    outcome_scope TEXT,
+    parameter_role TEXT NOT NULL CHECK (
+        parameter_role IN (
+            'required_input', 'evidence_bound', 'supporting_evidence',
+            'model_guardrail'
+        )
+    ),
+    source_evidence_id UUID REFERENCES intervention_evidence(evidence_id),
+    assumptions_and_limitations TEXT NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE (model_version_id, action_type, parameter_code)
+);
+
+CREATE TABLE intervention_model_validation_run (
+    validation_run_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    model_version_id UUID NOT NULL REFERENCES model_version(model_version_id),
+    started_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    completed_at TIMESTAMPTZ,
+    case_count INTEGER NOT NULL CHECK (case_count > 0),
+    passed_count INTEGER NOT NULL CHECK (passed_count >= 0),
+    failed_count INTEGER NOT NULL CHECK (failed_count >= 0),
+    all_passed BOOLEAN NOT NULL,
+    validation_scope TEXT NOT NULL,
+    CHECK (passed_count + failed_count = case_count)
+);
+
+CREATE TABLE intervention_model_validation_result (
+    validation_result_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    validation_run_id UUID NOT NULL REFERENCES intervention_model_validation_run(validation_run_id),
+    case_code TEXT NOT NULL,
+    source_keys TEXT[] NOT NULL DEFAULT ARRAY[]::TEXT[],
+    expected_output JSONB NOT NULL,
+    actual_output JSONB NOT NULL,
+    passed BOOLEAN NOT NULL,
+    failure_messages TEXT[] NOT NULL DEFAULT ARRAY[]::TEXT[],
+    UNIQUE (validation_run_id, case_code)
 );
 
 CREATE TABLE IF NOT EXISTS analysis_run (
@@ -517,10 +624,26 @@ CREATE TABLE IF NOT EXISTS measure_result (
     measure_id UUID NOT NULL REFERENCES analytical_measure(measure_id),
     baseline_value NUMERIC,
     projected_value NUMERIC,
-    result_value NUMERIC NOT NULL,
+    result_value NUMERIC,
+    minimum_result_value NUMERIC,
+    maximum_result_value NUMERIC,
     output_unit TEXT NOT NULL,
     confidence_level TEXT CHECK (confidence_level IN ('low', 'medium', 'high')),
+    result_status TEXT NOT NULL DEFAULT 'internal_only' CHECK (
+        result_status IN (
+            'internal_only', 'indicative_range', 'validated_point_estimate'
+        )
+    ),
+    display_disclaimer TEXT,
     calculation_details JSONB,
+    CHECK (
+        result_value IS NOT NULL
+        OR (
+            minimum_result_value IS NOT NULL
+            AND maximum_result_value IS NOT NULL
+            AND maximum_result_value >= minimum_result_value
+        )
+    ),
     UNIQUE (analysis_run_id, measure_id)
 );
 
@@ -684,8 +807,63 @@ SELECT result.*
 FROM measure_result AS result
 JOIN analysis_run AS run USING (analysis_run_id)
 JOIN model_version AS model USING (model_version_id)
+JOIN analytical_measure AS measure USING (measure_id)
 WHERE model.validation_status = 'validated'
-  AND run.run_status = 'completed';
+  AND run.run_status = 'completed'
+  AND result.result_status <> 'internal_only'
+  AND (
+      measure.measure_code <> 'estimated_heat_reduction_c'
+      OR (
+          model.output_precision = 'precise_point_estimate'
+          AND result.result_status = 'validated_point_estimate'
+      )
+  );
+
+CREATE OR REPLACE VIEW selected_intervention_evidence AS
+SELECT
+    evidence_id,
+    citation_key,
+    title,
+    authors,
+    publication_year,
+    doi,
+    source_url,
+    study_location,
+    study_design,
+    intervention_types,
+    outcome_types,
+    spatial_scale,
+    reported_effects,
+    evidence_grade,
+    transferability,
+    approved_use,
+    prohibited_use,
+    limitations,
+    reviewed_at
+FROM intervention_evidence
+WHERE selected_for_model;
+
+CREATE OR REPLACE VIEW current_intervention_model_parameter AS
+SELECT
+    model.model_name,
+    model.version_label,
+    model.validation_status,
+    model.output_precision,
+    parameter.action_type,
+    parameter.parameter_code,
+    parameter.parameter_name,
+    parameter.parameter_values,
+    parameter.output_metric,
+    parameter.outcome_scope,
+    parameter.parameter_role,
+    evidence.citation_key AS source_key,
+    evidence.source_url,
+    parameter.assumptions_and_limitations
+FROM intervention_model_parameter AS parameter
+JOIN model_version AS model USING (model_version_id)
+LEFT JOIN intervention_evidence AS evidence
+  ON evidence.evidence_id = parameter.source_evidence_id
+WHERE model.retired_at IS NULL;
 
 CREATE OR REPLACE FUNCTION classify_residential_lot_size(p_area_m2 NUMERIC)
 RETURNS TEXT

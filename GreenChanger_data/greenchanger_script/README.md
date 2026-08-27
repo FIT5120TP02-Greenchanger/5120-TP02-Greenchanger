@@ -33,6 +33,7 @@ repository.
 | `prepare_vector.py` | Repair/reproject/clip a general vector source. |
 | `validate_csv.py` | Apply configured quality rules to a staging CSV and write rejected rows. |
 | `calculate_measures.py` | Calculate Data Analytics & Insight Development outputs or print all formulas with sample results. |
+| `validate_intervention_model.py` | Run source-linked intervention cases and update model status only after every case passes. |
 | `clip_to_melbourne.py` | Create audited `2GMEL`-only Address, Property, heat and canopy dataset versions without deleting parent versions. |
 | `build_heat_baseline.py` | Resolve overlapping Landsat observations into one versioned, application-ready baseline cell per location. |
 | `build_canopy_baseline.py` | Publish one quality-checked, versioned 500 m canopy baseline and verify exact alignment with the heat grid. |
@@ -159,8 +160,43 @@ PostgreSQL `COPY`, and publishes only points covered by the official ABS 2026
 
 Application code must read analytical outputs through
 `application_ready_measure_result`. That view excludes draft, prototype-only
-and in-validation models, preventing an unvalidated precise after-temperature
-from reaching the interface.
+and in-validation models. For temperature measures it also checks the separate
+precision gate, preventing a model validated only for ranges from exposing a
+precise after-temperature.
+
+Inspect the selected research and its usage restrictions after migration 014:
+
+```sql
+SELECT citation_key, intervention_types, outcome_types, transferability,
+       approved_use, prohibited_use
+FROM selected_intervention_evidence
+ORDER BY publication_year;
+```
+
+Print the shade-proxy example and the deliberately suppressed temperature
+example:
+
+```bash
+python greenchanger_script/calculate_measures.py --sample
+```
+
+Validate the four intervention types without database writes:
+
+```bash
+python greenchanger_script/validate_intervention_model.py
+```
+
+Persist the complete case report and promote the range model only after all
+tests pass:
+
+```bash
+python greenchanger_script/validate_intervention_model.py \
+  --update-status --confirm-shared
+```
+
+Migration 015 must be applied first. A failing case exits non-zero, records the
+failure when `--update-status` is used, and keeps the model at
+`validation_in_progress`.
 
 The shared database write is one transaction per named job. If a command raises
 an exception, it rolls back its database work. Large API extracts are reusable

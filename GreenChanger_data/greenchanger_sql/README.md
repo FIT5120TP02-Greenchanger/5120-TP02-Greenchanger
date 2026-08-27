@@ -23,6 +23,8 @@ greenchanger_sql/
 │   ├── 011_tree_urban_quality_scope.sql
 │   ├── 012_property_tree_limitations.sql
 │   └── 013_cost_estimate_delivery.sql
+│   ├── 014_intervention_evidence.sql
+│   └── 015_intervention_model_validation.sql
 ├── seeds/001_reference_data.sql
 └── analytics/001_views.sql
 ```
@@ -45,6 +47,8 @@ greenchanger_sql/
 | `migrations/011_tree_urban_quality_scope.sql` | Adds Tree Urban record quality status and the dataset-version index required by API ingestion. |
 | `migrations/012_property_tree_limitations.sql` | Restricts property tree lookup to the current `2GMEL` version and always returns the machine-derived-data warning. |
 | `migrations/013_cost_estimate_delivery.sql` | Publishes current source-backed cost contexts with greening-option labels, confidence and an indicative-estimate disclaimer. |
+| `migrations/014_intervention_evidence.sql` | Stores selected primary studies, approved/prohibited uses and independent validation/output-precision gates. |
+| `migrations/015_intervention_model_validation.sql` | Defines four-action parameters, the range-only model and auditable validation runs/results. |
 | `seeds/001_reference_data.sql` | Defines sources, greening options, analytical measures, model metadata and sample test cases. |
 | `analytics/001_views.sql` | Defines reusable analytical views for dataset quality, site baselines and scenario comparison. |
 
@@ -108,6 +112,19 @@ mapped Tree Urban counts when an integrated tree version exists.
 - `application_ready_cost_estimate`: current cost contexts joined to greening-option labels with confidence, inclusions and the mandatory not-a-quote disclaimer.
 - `model_version.validation_status`: explicit model gate. Only `validated`
   models can appear in `application_ready_measure_result`.
+- `model_version.output_precision`: independent precision gate. Validation can
+  authorise an indicative interval without authorising a precise
+  after-temperature.
+- `intervention_evidence`: reviewed primary research with outcome, scale,
+  reported effects, transferability and explicit approved/prohibited uses.
+- `model_evidence`: records how a model version uses each selected study.
+- `selected_intervention_evidence`: application/documentation-facing evidence
+  register without implying that reported maxima are model coefficients.
+- `intervention_model_parameter`: versioned required inputs, guardrails and
+  source-linked evidence bounds for trees, pots, garden beds and green walls.
+- `intervention_model_validation_run` and
+  `intervention_model_validation_result`: expected/actual evidence-case audit.
+- `current_intervention_model_parameter`: source-traceable parameter view.
 - Scenario, intervention, result and community entities store model inputs and
   outputs; they do not convert estimates into observed facts.
 
@@ -133,7 +150,7 @@ To add a schema change:
 5. Run `python -m unittest discover -v`.
 6. Check status before applying to shared Aurora.
 
-Never modify `001`–`012` after they have been applied. Their checksums are part
+Never modify `001`–`015` after they have been applied. Their checksums are part
 of the migration audit trail.
 
 ## Data preparation and database integration

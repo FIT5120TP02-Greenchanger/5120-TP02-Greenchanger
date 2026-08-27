@@ -16,7 +16,8 @@ functions and perform database writes.
 | `canopy_baseline.py` | Define versioned baseline and source-provenance rules, including analytical-versus-proxy classification. |
 | `landsat.py` | Search Landsat Collection 2, sign/download assets, mask unusable pixels and calculate land-surface temperature. |
 | `heat_baseline.py` | Define and reference-test the latest-date/same-day-overlap baseline mosaic rule. |
-| `measures.py` | Data Analytics & Insight Development calculations and sample outputs for canopy, greenery, heat and cost measures. |
+| `intervention_model.py` | Load source-backed action parameters, calculate non-guaranteed impact ranges and evaluate published-evidence cases. |
+| `measures.py` | Evidence-gated calculations and sample outputs for canopy, future shade proxy, greenery, surface heat and cost measures. |
 | `property_baseline.py` | Reference-test the project-defined small, medium and large lot-size categories used by Priority 4. |
 | `quality.py` | Record-level completeness, uniqueness, validity and consistency rules, including memory-safe stream validation. |
 | `sources.py` | Load the source registry and calculate reproducibility checksums. |
@@ -78,8 +79,22 @@ no canopy-radius outliers were found. This transformation is recorded in
 for audit.
 
 Unvalidated heat arithmetic is retained only for internal test cases. The
-display-safe calculation returns null point estimates until its model status is
-`validated`.
+display-safe calculation separates `validation_status` from `output_precision`.
+A validated indicative-range model still returns no precise after-temperature;
+an exact value requires explicit `precise_point_estimate` approval.
+
+`projected_canopy_proxy_shade_m2` discounts a supplied future crown area by
+survival probability, site suitability and canopy overlap. The output includes
+a maturity horizon and is deliberately labelled as a canopy proxy rather than
+a sun-angle shadow measurement. No generic literature maximum is used as a
+temperature coefficient.
+
+The versioned four-action registry is
+`config/intervention_model_parameters.json`. Trees, garden beds and green walls
+retain distinct outcome scopes. Potted plants deliberately return no
+temperature output. `evaluate_validation_cases` compares only expected subsets,
+so audit fields and disclaimers may be added without weakening the scientific
+checks.
 
 ## Vicmap Address and Property processing
 
@@ -143,6 +158,8 @@ domains.
 | Tree Extent source is only a rendered proxy | Publish neighbourhood canopy only and suppress property canopy percentage. |
 | Tree Urban API times out during a large extract | Retry/subdivide tiles, preserve `.partial`, and resume using a completed raw extract only. |
 | Heat model has not passed validation | Suppress precise projected temperature and reduction in application output. |
+| Study measures air, wall or globe temperature rather than Landsat LST | Retain the evidence for its named outcome only; prohibit cross-metric coefficient reuse. |
+| Study reports a maximum cooling effect | Store it as a reported effect and plausibility bound, never as the default prediction. |
 
 ## Tests
 

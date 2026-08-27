@@ -109,6 +109,23 @@ To inspect every **Data Analytics & Insight Development** formula and sample out
 python greenchanger_script/calculate_measures.py --sample
 ```
 
+Validate the source-bounded intervention ranges without changing the database:
+
+```bash
+python greenchanger_script/validate_intervention_model.py
+```
+
+After reviewing a passing report, record the test results and allow the script
+to promote only the range model on shared Aurora:
+
+```bash
+python greenchanger_script/validate_intervention_model.py \
+  --update-status --confirm-shared
+```
+
+The command cannot set `validation_status='validated'` when any evidence case
+fails. It never validates the precise arithmetic prototype.
+
 To test the application-facing property lookup:
 
 ```sql
@@ -131,6 +148,10 @@ FROM get_property_baseline('1 COLLINS STREET', 5);
 | Vicmap Tree Urban | 10,473,773 Greater Melbourne points | 100% record-quality and boundary-membership pass rates |
 | Cost estimates | 8 in AWS | 100% quality pass; 0 rejected, 0 missing source URLs and 0 expired |
 | Validated scenario measure results | 0 | Prototype model is deliberately blocked from application output |
+
+Seven peer-reviewed primary studies are versioned in the intervention evidence
+register added by migration 014. This is a completed evidence-selection step,
+not a claim that a local intervention coefficient has passed validation.
 
 The Tree Urban raw extract was obtained from the official Vicmap ArcGIS Feature Service, contains 10,580,207 bbox records, is approximately 435 MB compressed, and records a source edit timestamp of 4 June 2025. The application-ready version `558e07b7-f2d3-47b4-ade4-7f9c53ad02a6` contains 10,473,773 points inside the official ABS `2GMEL` boundary; 106,434 outside-boundary points were excluded and no record failed the configured quality gate.
 
@@ -171,7 +192,74 @@ All source versions retain extraction time, observation period, checksum, source
 - Landsat values are land-surface temperature, not the air temperature experienced by a resident.
 - BOM values are recent observations at the nearest available station, not property-level measurements.
 - The heat mosaic uses the newest usable cell and same-day overlap averaging; cells can come from different acquisition dates.
-- The prototype arithmetic intervention model has status `prototype_only`. Precise “after temperature” and heat-reduction values remain hidden until a model is validated.
+- The original arithmetic model remains suppressed. Migration 015 creates a
+  separate `literature-bounded-indicative-v1` model as
+  `validation_in_progress` with `indicative_range` precision.
+- Validation status and output precision are separate. A future validated model
+  can be restricted to `indicative_range`; only a separately approved
+  `precise_point_estimate` model may expose an exact after-temperature.
+- Literature maxima are never default coefficients. A Melbourne/comparable
+  study may constrain a plausible range, but a resident-facing range still
+  requires local calibration against the project's aligned Landsat and canopy
+  cells plus held-out validation.
+
+### Intervention evidence and output policy
+
+Migration 014 creates `intervention_evidence`, `model_evidence` and the
+`selected_intervention_evidence` view. Each record stores the study design,
+location, outcome type, spatial scale, reported effects, transferability,
+approved use, prohibited use and limitations.
+
+| Action/output | Selected evidence | Permitted model use |
+| --- | --- | --- |
+| Tree shade and comfort | [Coutts et al. 2016, Melbourne](https://doi.org/10.1007/s00704-015-1409-y) | Validate direction and local shade/comfort benefit; not a Landsat coefficient. |
+| Residential vegetation and LST | [Ossola et al. 2021, Adelaide](https://doi.org/10.1016/j.landurbplan.2021.104046) | Constrain daytime surface-cooling plausibility; observational maximum is not causal lift. |
+| Tree shade and grass surface cooling | [Armson et al. 2012](https://doi.org/10.1016/j.ufug.2012.05.002) | Mechanism and upper-envelope reasonableness check only. |
+| Melbourne future crown area | [Torquato et al. 2025](https://doi.org/10.1016/j.landurbplan.2024.105287) and [Cybula et al. 2026](https://doi.org/10.3390/f17010111) | Species/time-horizon canopy estimates and local growth plausibility. |
+| Green-wall surface effect | [Hoelscher et al. 2016](https://doi.org/10.1016/j.enbuild.2015.06.047) | Separately labelled wall-surface benefit only. |
+| Melbourne scenario cross-check | [Balany et al. 2022](https://doi.org/10.3390/su14159057) | Contextual ranking and mechanism; not a residential property coefficient. |
+
+The shade output is explicitly named `canopy_area_proxy_for_shade`. It applies
+survival, site-suitability and overlap discounts to a supplied future crown
+area and always includes a maturity horizon. It is not a sun-angle-specific
+shadow measurement. Potted plants receive greenery and directly supported
+shade-area outputs only; no temperature coefficient is assigned without
+fit-for-purpose outdoor evidence.
+
+#### Action parameters and uncertainty ranges
+
+The complete machine-readable registry is
+`config/intervention_model_parameters.json`. Migration 015 mirrors it into
+`intervention_model_parameter`, while
+`current_intervention_model_parameter` exposes each source and limitation.
+
+| Action | Required scenario parameters | Range output | Evidence boundary |
+| --- | --- | --- | --- |
+| Trees | Projected crown-area range—or starting crown plus source-supported growth range—survival range, site-suitability range, overlap range, site area and maturity horizon | Canopy-area proxy for shade; indicative daytime land-unit LST range | 0–6°C upper envelope from [Ossola et al.](https://doi.org/10.1016/j.landurbplan.2021.104046); 2.3 m²/year reported young-tree mean is only a plausibility check from [Cybula et al.](https://doi.org/10.3390/f17010111). |
+| Potted plants | Quantity and measured/supplier-supported foliage-area range per pot | Projected foliage-area range | No temperature range is emitted because no fit-for-purpose outdoor evidence was selected. |
+| Garden beds | Installed-area range, established-cover range and site area | Established vegetation-area range; conservative daytime land-unit LST range | Capped at the 0–6°C combined-vegetation envelope from [Ossola et al.](https://doi.org/10.1016/j.landurbplan.2021.104046). The 24°C direct-plot maximum from [Armson et al.](https://doi.org/10.1016/j.ufug.2012.05.002) is explicitly excluded from parcel output. |
+| Green walls | Installed wall-area range, established-cover range and target wall area | Established wall-cover range; exterior wall-surface-temperature range | 0–15.5°C exterior-wall envelope from [Hoelscher et al.](https://doi.org/10.1016/j.enbuild.2015.06.047); never labelled as air temperature or neighbourhood LST. |
+
+The lower cooling bound is zero because a cooling outcome is not guaranteed.
+For trees, garden beds and green walls, the evidence upper bound is scaled by
+the maximum intervention coverage and capped at the published maximum. Linear
+coverage scaling is a transparent project assumption, not a causal research
+finding.
+
+#### Published-evidence test cases
+
+`tests/fixtures/intervention_evidence_cases.json` contains four auditable cases:
+
+1. Melbourne young-tree crown growth and the Adelaide land-unit LST bound.
+2. Potted plants returning foliage area but no temperature claim.
+3. Garden-bed output remaining inside the conservative vegetation bound.
+4. Green-wall output retaining the wall-surface metric and 15.5°C ceiling.
+
+`validate_intervention_model.py` records the expected and actual JSON for every
+case. Only an all-pass run changes the range model to `validated`; a failed run
+keeps it at `validation_in_progress`. Here, “validated” means the calculations
+respect their selected literature bounds and output guardrails. It does not
+mean local causal validation or permission to display a precise after-temperature.
 
 ### Cost
 
