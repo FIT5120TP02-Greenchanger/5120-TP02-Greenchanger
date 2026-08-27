@@ -24,6 +24,11 @@ from .scenario_inputs import (
     load_input_contract,
     prepare_model_inputs,
 )
+from .residential_scenarios import (
+    estimate_action_costs,
+    evaluate_property_actions,
+    load_cost_rows,
+)
 
 __all__ = [
     "QualityReport",
@@ -33,13 +38,16 @@ __all__ = [
     "calculate_simulated_action",
     "classify_environmental_value",
     "estimated_heat_reduction_c",
+    "estimate_action_costs",
     "evaluate_validation_cases",
     "evaluate_property_scenario",
+    "evaluate_property_actions",
     "greening_gain_pct",
     "projected_canopy_proxy_shade_m2",
     "shade_projection_output",
     "load_parameter_registry",
     "load_input_contract",
+    "load_cost_rows",
     "prepare_model_inputs",
     "validate_records",
     "validate_scenario_set",

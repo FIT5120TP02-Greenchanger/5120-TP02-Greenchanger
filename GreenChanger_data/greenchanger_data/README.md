@@ -22,6 +22,7 @@ functions and perform database writes.
 | `melbourne_sanity.py` | Validate real-address parcel, 2GMEL boundary, heat, proxy-canopy, mapped-tree and weather-context outputs without requiring a database in unit tests. |
 | `property_baseline.py` | Reference-test the project-defined small, medium and large lot-size categories used by Priority 4. |
 | `quality.py` | Record-level completeness, uniqueness, validity and consistency rules, including memory-safe stream validation. |
+| `residential_scenarios.py` | Join real property baselines to four-action calculations and reviewed cost evidence while preserving measurement scope and warnings. |
 | `scenario_inputs.py` | Validate the versioned Residential Greening Scenario Simulation quantity, area, maturity, survival and suitability contract and translate it into evidence-bounded model inputs. |
 | `sources.py` | Load the source registry and calculate reproducibility checksums. |
 | `spatial.py` | Read, repair, reproject, clip and write general vector datasets. |
@@ -137,6 +138,14 @@ area at 10 years across Melbourne species/rainfall cases
 ([Torquato et al. 2024](https://doi.org/10.1016/j.ufug.2024.128268)). Other
 example dimensions are calculation fixtures rather than recommended defaults.
 
+`residential_scenarios.py` uses real parcel area as the denominator for tree and
+garden-bed land-unit heat ranges. It never adds an action's m² output to the
+500 m neighbourhood canopy percentage. Costs are scaled using their source
+basis (`per_tree`, `per_pot` or `per_m2`) and retain source, confidence and
+validity metadata. Output checks cover ordered ranges, supported temperature
+scope, potted-plant suppression, the exact-temperature prohibition and cost
+arithmetic. Passing these checks does not establish a causal cooling effect.
+
 ## Vicmap Address and Property processing
 
 The project boundary is the official ABS ASGS 2026 Greater Melbourne GCCSA,
@@ -212,5 +221,6 @@ python -m unittest discover -v
 
 The tests cover normalisation, cross-record uniqueness, the unrounded quality
 gate, geometry conversion, BOM extraction, raster checks, migration history,
-classification boundaries/missing/non-finite values, scenario-input constraints
-and analytical calculations. The current suite contains 94 tests.
+classification boundaries/missing/non-finite values, scenario-input constraints,
+real-property scenario output checks and analytical calculations. The current
+suite contains 98 tests.

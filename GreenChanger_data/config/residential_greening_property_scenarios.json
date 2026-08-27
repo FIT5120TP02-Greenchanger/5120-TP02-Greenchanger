@@ -1,0 +1,18 @@
+{
+  "scenario_set": "residential-greening-property-scenarios-v1",
+  "property_baseline_set": "greater-melbourne-property-baseline-v1",
+  "input_contract_version": "residential-greening-simulation-inputs-v1",
+  "property_scenario_codes": [
+    "INNER_SMALL",
+    "WEST_GROWTH_MEDIUM",
+    "EAST_LARGE"
+  ],
+  "action_types": [
+    "tree",
+    "potted_plants",
+    "garden_bed",
+    "green_wall"
+  ],
+  "selection_reason": "One real residential property in each project-defined small, medium and large lot category across inner, western and eastern Greater Melbourne.",
+  "output_policy": "Additional canopy/shade or vegetation area is reported in m2. Heat is an indicative reduction range only. No exact after-temperature is produced. Cost is an indicative range, not a quotation."
+}

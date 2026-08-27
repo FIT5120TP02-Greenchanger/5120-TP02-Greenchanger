@@ -132,6 +132,15 @@ Print real property-baseline outputs for six representative Melbourne scenarios:
 python greenchanger_script/sanity_check_melbourne.py
 ```
 
+Run the four greening actions against one real small, medium and large Melbourne
+property and print area gain, indicative heat ranges, cost ranges and output
+checks:
+
+```bash
+python greenchanger_script/run_residential_greening_scenarios.py
+python greenchanger_script/run_residential_greening_scenarios.py --json
+```
+
 The versioned scenario addresses and expected zones/lot categories are stored in
 `config/melbourne_sanity_scenarios.json`. The output prints the parcel area,
 official `2GMEL` boundary result, Landsat land-surface temperature and date,
@@ -155,7 +164,7 @@ FROM get_property_baseline('1 COLLINS STREET', 5);
 | Output | Current result | Quality/status |
 | --- | ---: | --- |
 | Applied migrations | 001–017 | Applied to shared Aurora |
-| Automated tests | 94/94 | Passed locally after range-bound and non-finite-value regression fixes |
+| Automated tests | 98/98 | Passed locally after representative property-scenario implementation |
 | Greater Melbourne Address records | 3,007,474 | 100% boundary membership |
 | Greater Melbourne Property records | 3,001,053 | 100% boundary membership |
 | Address–Property source-key matches | 3,007,470 of 3,007,474 | 99.999867% |
@@ -164,6 +173,7 @@ FROM get_property_baseline('1 COLLINS STREET', 5);
 | BOM weather observations | 1,557 from 10 stations | 100% source quality pass rate; version `greater-melbourne-bom-stations-v1` |
 | Vicmap Tree Urban | 10,473,773 Greater Melbourne points | 100% record-quality and boundary-membership pass rates |
 | Cost estimates | 8 in AWS | 100% quality pass; 0 rejected, 0 missing source URLs and 0 expired |
+| Representative residential simulations | 3 properties × 4 actions | 12/12 output checks passed; overall WARN from retained baseline caveats |
 | Validated scenario measure results | 0 | Prototype model is deliberately blocked from application output |
 
 ### Active environmental classifications
@@ -215,6 +225,15 @@ guaranteed mature canopy. The example survival/suitability ranges are transparen
 prototype sensitivity assumptions. Examples for pots, beds and walls test the
 calculations only and are not application defaults; their dimensions must come
 from a user's selection, measurement or supplier specification.
+
+The versioned real-property run uses Richmond (299.96 m², small), Werribee
+(600.06 m², medium) and Box Hill (999.34 m², large). Real parcel area scales the
+tree and garden-bed land-surface-temperature ranges; it does not change the
+green-wall wall-surface metric. All 12 action outputs pass range, unit,
+outcome-scope and cost checks. The report remains `WARN` because the proxy
+canopy is 0% for Werribee and 93.43% for Box Hill, some mapped-tree results are
+zero, and no integrated BOM observation is recent enough. These retained
+warnings are not calculation failures.
 
 The Tree Urban raw extract was obtained from the official Vicmap ArcGIS Feature Service, contains 10,580,207 bbox records, is approximately 435 MB compressed, and records a source edit timestamp of 4 June 2025. The application-ready version `558e07b7-f2d3-47b4-ade4-7f9c53ad02a6` contains 10,473,773 points inside the official ABS `2GMEL` boundary; 106,434 outside-boundary points were excluded and no record failed the configured quality gate.
 

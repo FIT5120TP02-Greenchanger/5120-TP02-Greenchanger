@@ -35,6 +35,7 @@ repository.
 | `calculate_measures.py` | Calculate Data Analytics & Insight Development outputs or print all formulas with sample results. |
 | `validate_intervention_model.py` | Run source-linked intervention cases and update model status only after every case passes. |
 | `validate_residential_greening_inputs.py` | Validate and print sample outputs for the four-action, versioned Residential Greening Scenario Simulation input contract without database writes. |
+| `run_residential_greening_scenarios.py` | Query representative small/medium/large Melbourne properties and print four-action area, heat, cost and output-check results. |
 | `sanity_check_melbourne.py` | Print real-address parcel, heat, canopy and mapped-tree outputs across six representative Greater Melbourne scenarios. |
 | `clip_to_melbourne.py` | Create audited `2GMEL`-only Address, Property, heat and canopy dataset versions without deleting parent versions. |
 | `build_heat_baseline.py` | Resolve overlapping Landsat observations into one versioned, application-ready baseline cell per location. |
@@ -85,6 +86,9 @@ python greenchanger_script/build_environmental_classifications.py --status
 # Validate quantity, area, maturity and uncertainty inputs for all four actions
 python greenchanger_script/validate_residential_greening_inputs.py
 
+# Run 12 actions against three real application-ready Melbourne properties
+python greenchanger_script/run_residential_greening_scenarios.py
+
 # After migration 010, test the application-ready property lookup in psql
 # SELECT * FROM get_property_baseline('1 COLLINS STREET MELBOURNE', 5);
 
@@ -104,6 +108,14 @@ examples prove validation and unit handling; they are not universal application
 defaults. The current tree example is fixed to one tree and uses the published
 Melbourne 10-year crown range. All outputs preserve maturity,
 survival/suitability ranges and the prohibition on exact after-temperature.
+
+`run_residential_greening_scenarios.py` is read-only against the database. It
+uses `config/residential_greening_property_scenarios.json`, queries current
+property baselines, scales land-unit ranges by real parcel area and loads
+reviewed costs from `data/reference/cost_estimates.csv`. Use `--json` for a
+machine-readable report. `Output checks: PASS` verifies range ordering, units,
+metric scope and cost arithmetic; it does not claim causal or precise model
+validation.
 
 Use a previously completed Vicmap raw extract without downloading again:
 
