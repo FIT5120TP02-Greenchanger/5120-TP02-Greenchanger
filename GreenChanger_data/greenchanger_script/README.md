@@ -182,6 +182,19 @@ larger values are `High`. Missing values or missing active thresholds always
 return `Unavailable`, never `Low`. `get_property_baseline` exposes both labels,
 the scheme version and the Melbourne-relative scope.
 
+The current `melbourne-terciles-v1` status is:
+
+| Metric | Lower/upper cutoffs | Low / Medium / High cells |
+| --- | --- | --- |
+| Landsat land-surface temperature | 9.508°C / 13.147°C | 11,741 / 11,742 / 11,735 |
+| 500 m canopy proxy | 28.8% / 73.533333% | 12,384 / 12,380 / 12,382 |
+
+Run `build_environmental_classifications.py --status` for a read-only database
+check. Run the write form only after publishing or deliberately selecting the
+input baselines. If source versions change, use a new label such as
+`melbourne-terciles-v2`; never overwrite an active historical scheme. Review
+the printed thresholds, counts and source-version IDs before application use.
+
 The `trees` job uses adaptive API tiles, preserves a reusable gzip JSON Lines
 extract, applies the record-quality gate, bulk-stages accepted records with
 PostgreSQL `COPY`, and publishes only points covered by the official ABS 2026

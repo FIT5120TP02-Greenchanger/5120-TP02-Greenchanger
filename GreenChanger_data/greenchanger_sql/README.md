@@ -22,10 +22,11 @@ greenchanger_sql/
 │   ├── 010_property_baseline_lookup.sql
 │   ├── 011_tree_urban_quality_scope.sql
 │   ├── 012_property_tree_limitations.sql
-│   ├── 017_environmental_classifications.sql
-│   └── 013_cost_estimate_delivery.sql
+│   ├── 013_cost_estimate_delivery.sql
 │   ├── 014_intervention_evidence.sql
-│   └── 015_intervention_model_validation.sql
+│   ├── 015_intervention_model_validation.sql
+│   ├── 016_multi_station_weather_context.sql
+│   └── 017_environmental_classifications.sql
 ├── seeds/001_reference_data.sql
 └── analytics/001_views.sql
 ```
@@ -47,10 +48,11 @@ greenchanger_sql/
 | `migrations/010_property_baseline_lookup.sql` | Adds model validation gates and the application-facing property baseline lookup. |
 | `migrations/011_tree_urban_quality_scope.sql` | Adds Tree Urban record quality status and the dataset-version index required by API ingestion. |
 | `migrations/012_property_tree_limitations.sql` | Restricts property tree lookup to the current `2GMEL` version and always returns the machine-derived-data warning. |
-| `migrations/017_environmental_classifications.sql` | Adds versioned Greater Melbourne tercile thresholds, missing-safe classification and property-lookup labels. |
 | `migrations/013_cost_estimate_delivery.sql` | Publishes current source-backed cost contexts with greening-option labels, confidence and an indicative-estimate disclaimer. |
 | `migrations/014_intervention_evidence.sql` | Stores selected primary studies, approved/prohibited uses and independent validation/output-precision gates. |
 | `migrations/015_intervention_model_validation.sql` | Defines four-action parameters, the range-only model and auditable validation runs/results. |
+| `migrations/016_multi_station_weather_context.sql` | Adds recent nearest-station BOM context, distance-status rules and suppression of stale or overly distant temperatures. |
+| `migrations/017_environmental_classifications.sql` | Adds versioned Greater Melbourne tercile thresholds, missing-safe classification and property-lookup labels. |
 | `seeds/001_reference_data.sql` | Defines sources, greening options, analytical measures, model metadata and sample test cases. |
 | `analytics/001_views.sql` | Defines reusable analytical views for dataset quality, site baselines and scenario comparison. |
 
@@ -114,6 +116,18 @@ uses inclusive lower boundaries and returns `Unavailable` whenever the source
 value or an active threshold is missing. The property lookup returns heat and
 canopy labels together with the exact scheme version.
 
+The active `melbourne-terciles-v1` thresholds and cell distributions are:
+
+| Metric | Low | Medium | High | Low / Medium / High count |
+| --- | --- | --- | --- | --- |
+| Landsat land-surface temperature | ≤9.508°C | >9.508°C and ≤13.147°C | >13.147°C | 11,741 / 11,742 / 11,735 |
+| 500 m neighbourhood canopy proxy | ≤28.8% | >28.8% and ≤73.533333% | >73.533333% | 12,384 / 12,380 / 12,382 |
+
+These are Melbourne-relative dataset classifications, not regulatory or health
+standards. Threshold rows are tied to specific source dataset-version IDs.
+Rebuilt baselines must produce a new reviewed scheme version rather than
+changing historical values.
+
 ### Environmental and analytical data
 
 - `weather_observation`: BOM station air observations.
@@ -168,8 +182,8 @@ To add a schema change:
 5. Run `python -m unittest discover -v`.
 6. Check status before applying to shared Aurora.
 
-Never modify `001`–`015` after they have been applied. Their checksums are part
-of the migration audit trail.
+The next migration number is `018`. Never modify `001`–`017` after they have
+been applied. Their checksums are part of the migration audit trail.
 
 ## Data preparation and database integration
 

@@ -14,6 +14,7 @@ functions and perform database writes.
 | `bom.py` | Validate the Greater Melbourne station registry, download each official BOM feed, verify feed identity, flatten and normalise observations. |
 | `canopy.py` | Inspect and aggregate a binary tree-extent raster into Melbourne grid summaries. |
 | `canopy_baseline.py` | Define versioned baseline and source-provenance rules, including analytical-versus-proxy classification. |
+| `classification.py` | Calculate and apply versioned Melbourne-relative heat/canopy tercile thresholds with explicit missing-data handling. |
 | `landsat.py` | Search Landsat Collection 2, sign/download assets, mask unusable pixels and calculate land-surface temperature. |
 | `heat_baseline.py` | Define and reference-test the latest-date/same-day-overlap baseline mosaic rule. |
 | `intervention_model.py` | Load source-backed action parameters, calculate non-guaranteed impact ranges and evaluate published-evidence cases. |
@@ -51,6 +52,24 @@ The current asset role `canopy_api_tile_mosaic` maps to `api_tile_proxy`; it is
 never labelled as an analytical GeoTIFF. `coverage_confidence_pct` describes
 complete source-raster coverage, not classification accuracy. The source's
 multi-year imagery period and proxy resolution are recorded as limitations.
+
+## Environmental classification logic
+
+`classification.py` supports the versioned `melbourne-terciles-v1` scheme. It
+uses the 33.33rd and 66.67th percentiles of the application-ready Greater
+Melbourne cells, calculated separately for Landsat land-surface temperature and
+the 500 m neighbourhood canopy proxy. The active results are:
+
+| Metric | Low | Medium | High | Distribution |
+| --- | --- | --- | --- | --- |
+| Heat | ≤9.508°C | >9.508°C and ≤13.147°C | >13.147°C | 11,741 / 11,742 / 11,735 |
+| Canopy | ≤28.8% | >28.8% and ≤73.533333% | >73.533333% | 12,384 / 12,380 / 12,382 |
+
+Inclusive threshold handling is intentional: the lower cutoff belongs to
+`Low`, and the upper cutoff belongs to `Medium`. Null measurements, absent
+cells and missing active thresholds return `Unavailable`; they are never
+treated as environmental `Low`. A replacement baseline requires a new scheme
+version and review of its distribution rather than mutation of v1.
 
 ## Property baseline integration
 
@@ -177,5 +196,6 @@ python -m unittest discover -v
 ```
 
 The tests cover normalisation, cross-record uniqueness, the unrounded quality
-gate, geometry conversion, BOM extraction, raster checks, migrations and Data
-Analytics & Insight Development calculations.
+gate, geometry conversion, BOM extraction, raster checks, migration history,
+classification boundaries/missing values and analytical calculations. The
+current suite contains 86 tests.

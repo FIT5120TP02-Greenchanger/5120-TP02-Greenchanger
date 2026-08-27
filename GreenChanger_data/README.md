@@ -185,6 +185,13 @@ active threshold returns `Unavailable`, never `Low`. Inspect the active scheme:
 python greenchanger_script/build_environmental_classifications.py --status
 ```
 
+The scheme is tied to the exact heat and canopy baseline dataset versions used
+to calculate it. If either baseline changes, create and review a new version
+label (for example `melbourne-terciles-v2`) instead of overwriting v1. The
+labels describe a property's relative position within the current Melbourne
+baseline; they do not mean safe/unsafe temperature or adequate/inadequate
+canopy.
+
 Seven peer-reviewed primary studies are versioned in the intervention evidence
 register added by migration 014. This is a completed evidence-selection step,
 not a claim that a local intervention coefficient has passed validation.
@@ -335,6 +342,35 @@ not publish a reliable value. They must not be interpreted as zero.
 - Small/medium/large lot categories are project assumptions, not statutory planning classifications.
 - API extraction uses a reproducible bounding box, while application-ready spatial data are filtered to the official ABS 2026 `2GMEL` boundary.
 - Address–Property joins use Vicmap Address `property_pfi` to Vicmap Property `prop_pfi`; unmatched records remain documented rather than silently removed.
+
+## Iteration 1 readiness and next data work
+
+The data component can support Epic 1 property lookup and the baseline parts of
+Epic 2: address/parcel context, Melbourne boundary membership, relative heat and
+canopy classifications, mapped-tree context, recent weather when available and
+source-backed indicative cost ranges. The environmental and weather values are
+application-ready only with the limitations and labels documented above.
+
+The next data-science work, in recommended order, is:
+
+1. Define and review source-backed scenario assumptions for simulated trees and
+   other greening actions; keep uncertainty ranges and the maturity horizon in
+   every result.
+2. Update any remaining legacy Clayton-only acceptance criteria, fixtures or
+   presentation text to the official Greater Melbourne `2GMEL` scope.
+3. Obtain the original analytical Vicmap Tree Extent GeoTIFF, rebuild the canopy
+   baseline, and publish a newly versioned classification scheme after quality
+   and imagery checks. Do not silently replace the current proxy-derived v1.
+4. Add 10 m and 25 m buffered mapped-tree counts so property context does not
+   rely only on parcel intersection.
+5. Refresh BOM observations before demonstrations, rerun the six Melbourne
+   sanity scenarios, investigate every warning, and retain the generated
+   quality/validation evidence.
+
+An exact resident-facing “after temperature” remains out of scope until a
+locally calibrated intervention model passes held-out validation and receives
+separate `precise_point_estimate` approval. Until then, expose only clearly
+labelled indicative ranges where the selected evidence supports them.
 
 ## Safety and reproducibility
 
