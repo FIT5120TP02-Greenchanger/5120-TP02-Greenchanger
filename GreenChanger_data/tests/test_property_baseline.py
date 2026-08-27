@@ -35,6 +35,16 @@ class PropertyBaselineTests(unittest.TestCase):
         self.assertIn("application_ready_measure_result", migration)
         self.assertIn("model.validation_status = 'validated'", migration)
 
+    def test_property_lookup_exposes_environmental_classifications(self):
+        migration = (
+            Path(__file__).resolve().parents[1]
+            / "greenchanger_sql/migrations/017_environmental_classifications.sql"
+        ).read_text(encoding="utf-8")
+        self.assertIn("heat_classification TEXT", migration)
+        self.assertIn("canopy_classification TEXT", migration)
+        self.assertIn("classification_scheme_version TEXT", migration)
+        self.assertIn("classification_scope TEXT", migration)
+
 
 if __name__ == "__main__":
     unittest.main()

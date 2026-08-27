@@ -1,6 +1,15 @@
+import json
+from pathlib import Path
+import tempfile
 import unittest
 
-from greenchanger_data.bom import extract_rows, normalise_rows
+from greenchanger_data.bom import (
+    DEFAULT_STATION_REGISTRY,
+    extract_rows,
+    extract_station_rows,
+    load_station_registry,
+    normalise_rows,
+)
 
 
 class BomTests(unittest.TestCase):
@@ -35,6 +44,50 @@ class BomTests(unittest.TestCase):
     def test_missing_observation_list_is_rejected(self):
         with self.assertRaises(ValueError):
             extract_rows({"observations": {}})
+
+    def test_station_registry_covers_greater_melbourne_regions(self):
+        registry = load_station_registry(DEFAULT_STATION_REGISTRY)
+        self.assertGreaterEqual(len(registry["stations"]), 10)
+        roles = {station["coverage_role"] for station in registry["stations"]}
+        self.assertIn("central_melbourne", roles)
+        self.assertIn("western_melbourne", roles)
+        self.assertIn("northern_growth_area", roles)
+        self.assertIn("eastern_melbourne", roles)
+        self.assertIn("bayside_and_southeastern_melbourne", roles)
+        self.assertIn("frankston_and_mornington_gateway", roles)
+        self.assertTrue(
+            all(
+                station["source_url"].startswith("https://www.bom.gov.au/fwo/")
+                for station in registry["stations"]
+            )
+        )
+
+    def test_duplicate_station_code_is_rejected(self):
+        registry = load_station_registry(DEFAULT_STATION_REGISTRY)
+        registry["stations"].append(dict(registry["stations"][0]))
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "stations.json"
+            path.write_text(json.dumps(registry), encoding="utf-8")
+            with self.assertRaisesRegex(ValueError, "duplicate BOM station code"):
+                load_station_registry(path)
+
+    def test_multi_station_document_flattens_to_observation_rows(self):
+        row = {
+            "wmo": 95936,
+            "aifstime_utc": "20260825090000",
+            "air_temp": 20.5,
+        }
+        document = {
+            "station_feeds": [
+                {"document": {"observations": {"data": [row]}}},
+                {
+                    "document": {
+                        "observations": {"data": [{**row, "wmo": 94865}]}
+                    }
+                },
+            ]
+        }
+        self.assertEqual(len(extract_station_rows(document)), 2)
 
 
 if __name__ == "__main__":

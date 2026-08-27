@@ -26,6 +26,72 @@ def canopy_gain_m2(baseline_canopy_m2: float, projected_canopy_m2: float) -> flo
     return projected - baseline
 
 
+def projected_canopy_proxy_shade_m2(
+    projected_canopy_m2: float,
+    *,
+    survival_probability: float = 1.0,
+    site_suitability_factor: float = 1.0,
+    overlap_factor: float = 1.0,
+) -> float:
+    """Return an indicative canopy-area proxy for future shade.
+
+    This is not a sun-angle shadow model. It discounts a supplied future crown
+    area for establishment survival, site suitability and overlap with other
+    crowns so the result cannot silently assume that every planted tree reaches
+    its full, independent mature crown.
+    """
+
+    canopy = _number("projected_canopy_m2", projected_canopy_m2)
+    if canopy < 0:
+        raise ValueError("projected_canopy_m2 cannot be negative")
+
+    factors = {
+        "survival_probability": survival_probability,
+        "site_suitability_factor": site_suitability_factor,
+        "overlap_factor": overlap_factor,
+    }
+    checked: dict[str, float] = {}
+    for name, value in factors.items():
+        checked[name] = _number(name, value)
+        if not 0 <= checked[name] <= 1:
+            raise ValueError(f"{name} must be between 0 and 1")
+
+    return canopy * checked["survival_probability"] * checked[
+        "site_suitability_factor"
+    ] * checked["overlap_factor"]
+
+
+def shade_projection_output(
+    projected_canopy_m2: float,
+    maturity_horizon_years: int,
+    *,
+    survival_probability: float = 1.0,
+    site_suitability_factor: float = 1.0,
+    overlap_factor: float = 1.0,
+) -> dict[str, float | int | str]:
+    """Return a display-safe future shade proxy with its required horizon."""
+
+    horizon = _number("maturity_horizon_years", maturity_horizon_years)
+    if horizon <= 0 or not horizon.is_integer():
+        raise ValueError("maturity_horizon_years must be a positive whole number")
+    shade = projected_canopy_proxy_shade_m2(
+        projected_canopy_m2,
+        survival_probability=survival_probability,
+        site_suitability_factor=site_suitability_factor,
+        overlap_factor=overlap_factor,
+    )
+    return {
+        "status": "indicative_planning_estimate",
+        "measurement_type": "canopy_area_proxy_for_shade",
+        "projected_shade_m2": round(shade, 2),
+        "maturity_horizon_years": int(horizon),
+        "message": (
+            "Canopy-area proxy at the stated horizon; not an immediate or "
+            "sun-angle-specific shadow measurement."
+        ),
+    }
+
+
 def greening_gain_pct(baseline_greenery_pct: float, projected_greenery_pct: float) -> float:
     """Return the percentage-point change in total greenery."""
 
@@ -53,15 +119,18 @@ def estimated_heat_reduction_c(
 
 def heat_projection_output(
     baseline_surface_temperature_c: float,
-    projected_surface_temperature_c: float,
+    projected_surface_temperature_c: float | None = None,
     *,
     model_validation_status: str = "prototype_only",
+    output_precision: str = "suppressed",
+    cooling_range_min_c: float | None = None,
+    cooling_range_max_c: float | None = None,
 ) -> dict[str, float | str | None]:
     """Return a display-safe heat projection.
 
-    A point estimate is exposed only for a model explicitly marked validated.
-    Prototype arithmetic remains testable internally but cannot become a
-    resident-facing temperature claim by accident.
+    Validation and output precision are separate gates. A validated model may
+    expose an indicative interval without being authorised to expose a precise
+    after-temperature. Prototype arithmetic remains internally testable.
     """
 
     allowed = {
@@ -69,17 +138,52 @@ def heat_projection_output(
     }
     if model_validation_status not in allowed:
         raise ValueError("unsupported model_validation_status")
-    if model_validation_status != "validated":
-        return {
-            "status": "indicative_model_not_validated",
-            "measurement_type": "land_surface_temperature",
-            "projected_surface_temperature_c": None,
-            "estimated_heat_reduction_c": None,
-            "message": "A precise after-temperature is suppressed until model validation passes.",
-        }
-    return {
-        "status": "validated_model_output",
+    allowed_precision = {"suppressed", "indicative_range", "precise_point_estimate"}
+    if output_precision not in allowed_precision:
+        raise ValueError("unsupported output_precision")
+
+    base = {
         "measurement_type": "land_surface_temperature",
+        "projected_surface_temperature_c": None,
+        "estimated_heat_reduction_c": None,
+        "cooling_range_min_c": None,
+        "cooling_range_max_c": None,
+    }
+    if model_validation_status != "validated" or output_precision == "suppressed":
+        return {
+            **base,
+            "status": "indicative_model_not_validated",
+            "message": (
+                "Surface-cooling output is suppressed until a locally calibrated "
+                "model passes validation and declares an approved precision."
+            ),
+        }
+
+    if output_precision == "indicative_range":
+        minimum = _number("cooling_range_min_c", cooling_range_min_c)
+        maximum = _number("cooling_range_max_c", cooling_range_max_c)
+        if minimum < 0 or maximum < minimum:
+            raise ValueError(
+                "cooling range must be non-negative and maximum must be at least minimum"
+            )
+        return {
+            **base,
+            "status": "validated_indicative_range",
+            "cooling_range_min_c": minimum,
+            "cooling_range_max_c": maximum,
+            "message": (
+                "Indicative daytime land-surface cooling under comparable "
+                "hot-weather conditions; not a guaranteed air-temperature change."
+            ),
+        }
+
+    if projected_surface_temperature_c is None:
+        raise ValueError(
+            "projected_surface_temperature_c is required for a precise point estimate"
+        )
+    return {
+        **base,
+        "status": "validated_model_output",
         "projected_surface_temperature_c": _number(
             "projected_surface_temperature_c", projected_surface_temperature_c
         ),

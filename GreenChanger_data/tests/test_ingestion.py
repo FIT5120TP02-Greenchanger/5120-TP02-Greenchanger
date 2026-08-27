@@ -25,6 +25,7 @@ class IngestionHelperTests(unittest.TestCase):
         source = inspect.getsource(ingest_bom)
         self.assertIn("%s::text IS NULL", source)
         self.assertIn("ST_GeomFromText(%s::text, %s::integer)", source)
+        self.assertIn('"application_ready" if multi_station_run else "internal"', source)
 
 
 if __name__ == "__main__":

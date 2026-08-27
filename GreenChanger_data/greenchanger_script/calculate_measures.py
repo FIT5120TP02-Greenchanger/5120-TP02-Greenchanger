@@ -17,12 +17,17 @@ from greenchanger_data.measures import (  # noqa: E402
     estimated_heat_reduction_c,
     greening_gain_pct,
     heat_projection_output,
+    shade_projection_output,
 )
 
 
 SAMPLE_INPUTS = {
     "baseline_canopy_m2": 25,
     "projected_canopy_m2": 40,
+    "maturity_horizon_years": 10,
+    "survival_probability": 0.9,
+    "site_suitability_factor": 0.85,
+    "overlap_factor": 0.95,
     "baseline_greenery_pct": 18.5,
     "projected_greenery_pct": 31,
     "baseline_surface_temperature_c": 43.2,
@@ -56,10 +61,20 @@ def calculate_all(values: dict) -> dict:
         "greening_gain_pct": greening_gain_pct(
             values["baseline_greenery_pct"], values["projected_greenery_pct"]
         ),
+        "shade_projection": shade_projection_output(
+            values["projected_canopy_m2"],
+            values.get("maturity_horizon_years", 10),
+            survival_probability=values.get("survival_probability", 1.0),
+            site_suitability_factor=values.get("site_suitability_factor", 1.0),
+            overlap_factor=values.get("overlap_factor", 1.0),
+        ),
         "heat_projection": heat_projection_output(
             values["baseline_surface_temperature_c"],
             values["projected_surface_temperature_c"],
             model_validation_status=values.get("model_validation_status", "prototype_only"),
+            output_precision=values.get("output_precision", "suppressed"),
+            cooling_range_min_c=values.get("cooling_range_min_c"),
+            cooling_range_max_c=values.get("cooling_range_max_c"),
         ),
         "result_type": "modelled_scenario",
     }
@@ -93,7 +108,22 @@ def sample_report() -> dict:
                 "sample_output": outputs["greening_gain_pct"],
                 "unit": "percentage_points",
             },
-            "estimated_heat_reduction_c": {
+            "projected_canopy_proxy_shade_m2": {
+                "formula": (
+                    "projected_canopy_m2 * survival_probability * "
+                    "site_suitability_factor * overlap_factor"
+                ),
+                "sample_inputs": {
+                    "projected_canopy_m2": 40,
+                    "survival_probability": 0.9,
+                    "site_suitability_factor": 0.85,
+                    "overlap_factor": 0.95,
+                    "maturity_horizon_years": 10,
+                },
+                "sample_output": outputs["shade_projection"],
+                "unit": "m2",
+            },
+            "surface_cooling_output": {
                 "formula": "baseline_surface_temperature_c - projected_surface_temperature_c",
                 "sample_inputs": {
                     "baseline_surface_temperature_c": 43.2,
@@ -101,7 +131,10 @@ def sample_report() -> dict:
                 },
                 "sample_output": outputs["heat_projection"],
                 "unit": "degC",
-                "note": "Precise output is suppressed because the prototype model is not validated.",
+                "note": (
+                    "No coefficient is inferred from literature maxima. Output stays "
+                    "suppressed until local calibration passes validation."
+                ),
             },
             "cost_per_canopy_m2": {
                 "formula": "total_cost / canopy_gain_m2",
@@ -130,7 +163,7 @@ def main() -> None:
         "input",
         nargs="?",
         type=Path,
-        help="Optional JSON file containing all six measure inputs.",
+        help="Optional JSON file containing the required measure inputs.",
     )
     parser.add_argument("--baseline-canopy-m2", type=float)
     parser.add_argument("--projected-canopy-m2", type=float)

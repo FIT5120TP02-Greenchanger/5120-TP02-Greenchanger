@@ -1,0 +1,93 @@
+{
+  "model_version": "literature-bounded-indicative-v1",
+  "tolerance": 0.001,
+  "cases": [
+    {
+      "case_code": "TREE_CYBULA_CROWN_AND_OSSOLA_BOUND",
+      "description": "A 9.2 m2 four-year young-tree crown example reproduces 2.3 m2/year growth and does not exceed the 6 C land-unit evidence envelope.",
+      "action_type": "tree",
+      "source_keys": [
+        "cybula_2026_melbourne_young_crowns",
+        "ossola_2021_adelaide_vegetated_patches"
+      ],
+      "inputs": {
+        "initial_canopy_m2": {"minimum": 0.0, "maximum": 0.0},
+        "annual_crown_growth_m2_per_year": {"minimum": 2.3, "maximum": 2.3},
+        "survival_probability": {"minimum": 1.0, "maximum": 1.0},
+        "site_suitability_factor": {"minimum": 1.0, "maximum": 1.0},
+        "overlap_factor": {"minimum": 1.0, "maximum": 1.0},
+        "site_area_m2": 9.2,
+        "maturity_horizon_years": 4
+      },
+      "expected": {
+        "status": "indicative_range",
+        "impact_area_type": "canopy_area_proxy_for_shade",
+        "projected_canopy_range_m2": {"minimum": 9.2, "maximum": 9.2},
+        "impact_area_range_m2": {"minimum": 9.2, "maximum": 9.2},
+        "temperature_change_range_c": {
+          "minimum": 0.0,
+          "maximum": 6.0,
+          "metric": "land_surface_temperature"
+        }
+      }
+    },
+    {
+      "case_code": "POTTED_PLANTS_NO_TEMPERATURE_CLAIM",
+      "description": "Potted plants calculate a foliage range but return no unsupported outdoor temperature result.",
+      "action_type": "potted_plants",
+      "source_keys": [],
+      "inputs": {
+        "quantity": 4,
+        "foliage_area_per_pot_m2": {"minimum": 0.15, "maximum": 0.3}
+      },
+      "expected": {
+        "status": "evidence_insufficient_for_temperature",
+        "impact_area_type": "projected_foliage_area",
+        "impact_area_range_m2": {"minimum": 0.6, "maximum": 1.2},
+        "temperature_change_range_c": null
+      }
+    },
+    {
+      "case_code": "GARDEN_BED_WITHIN_OSSOLA_BOUND",
+      "description": "A garden bed covering at most 20 percent of a land unit remains within the conservative 6 C evidence envelope.",
+      "action_type": "garden_bed",
+      "source_keys": ["ossola_2021_adelaide_vegetated_patches"],
+      "inputs": {
+        "planted_area_m2": {"minimum": 20.0, "maximum": 20.0},
+        "established_cover_fraction": {"minimum": 0.8, "maximum": 1.0},
+        "site_area_m2": 100.0
+      },
+      "expected": {
+        "status": "indicative_range",
+        "impact_area_type": "established_vegetated_area",
+        "impact_area_range_m2": {"minimum": 16.0, "maximum": 20.0},
+        "temperature_change_range_c": {
+          "minimum": 0.0,
+          "maximum": 1.2,
+          "metric": "land_surface_temperature"
+        }
+      }
+    },
+    {
+      "case_code": "GREEN_WALL_HOELSCHER_BOUND",
+      "description": "Full established coverage reaches but does not exceed the published 15.5 C exterior-wall maximum and retains the wall metric.",
+      "action_type": "green_wall",
+      "source_keys": ["hoelscher_2016_facade_greening"],
+      "inputs": {
+        "installed_wall_area_m2": {"minimum": 10.0, "maximum": 10.0},
+        "established_cover_fraction": {"minimum": 0.8, "maximum": 1.0},
+        "target_wall_area_m2": 10.0
+      },
+      "expected": {
+        "status": "indicative_range",
+        "impact_area_type": "established_green_wall_area",
+        "impact_area_range_m2": {"minimum": 8.0, "maximum": 10.0},
+        "temperature_change_range_c": {
+          "minimum": 0.0,
+          "maximum": 15.5,
+          "metric": "wall_surface_temperature"
+        }
+      }
+    }
+  ]
+}

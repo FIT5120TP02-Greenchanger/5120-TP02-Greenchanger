@@ -11,14 +11,18 @@ functions and perform database writes.
 | --- | --- |
 | `__init__.py` | Marks this directory as the reusable `greenchanger_data` Python package. |
 | `boundary.py` | Download, preserve and normalise the official ABS ASGS 2026 Greater Melbourne GCCSA boundary. |
-| `bom.py` | Download, preserve and normalise current BOM observations. |
+| `bom.py` | Validate the Greater Melbourne station registry, download each official BOM feed, verify feed identity, flatten and normalise observations. |
 | `canopy.py` | Inspect and aggregate a binary tree-extent raster into Melbourne grid summaries. |
 | `canopy_baseline.py` | Define versioned baseline and source-provenance rules, including analytical-versus-proxy classification. |
+| `classification.py` | Calculate and apply versioned Melbourne-relative heat/canopy tercile thresholds with explicit missing-data handling. |
 | `landsat.py` | Search Landsat Collection 2, sign/download assets, mask unusable pixels and calculate land-surface temperature. |
 | `heat_baseline.py` | Define and reference-test the latest-date/same-day-overlap baseline mosaic rule. |
-| `measures.py` | Data Analytics & Insight Development calculations and sample outputs for canopy, greenery, heat and cost measures. |
+| `intervention_model.py` | Load source-backed action parameters, calculate non-guaranteed impact ranges and evaluate published-evidence cases. |
+| `measures.py` | Evidence-gated calculations and sample outputs for canopy, future shade proxy, greenery, surface heat and cost measures. |
+| `melbourne_sanity.py` | Validate real-address parcel, 2GMEL boundary, heat, proxy-canopy, mapped-tree and weather-context outputs without requiring a database in unit tests. |
 | `property_baseline.py` | Reference-test the project-defined small, medium and large lot-size categories used by Priority 4. |
 | `quality.py` | Record-level completeness, uniqueness, validity and consistency rules, including memory-safe stream validation. |
+| `scenario_inputs.py` | Validate the versioned Residential Greening Scenario Simulation quantity, area, maturity, survival and suitability contract and translate it into evidence-bounded model inputs. |
 | `sources.py` | Load the source registry and calculate reproducibility checksums. |
 | `spatial.py` | Read, repair, reproject, clip and write general vector datasets. |
 | `vicmap_features.py` | Extract, clean and normalise current Vicmap Address, Property and Tree Urban features from official ArcGIS APIs. |
@@ -50,6 +54,24 @@ never labelled as an analytical GeoTIFF. `coverage_confidence_pct` describes
 complete source-raster coverage, not classification accuracy. The source's
 multi-year imagery period and proxy resolution are recorded as limitations.
 
+## Environmental classification logic
+
+`classification.py` supports the versioned `melbourne-terciles-v1` scheme. It
+uses the 33.33rd and 66.67th percentiles of the application-ready Greater
+Melbourne cells, calculated separately for Landsat land-surface temperature and
+the 500 m neighbourhood canopy proxy. The active results are:
+
+| Metric | Low | Medium | High | Distribution |
+| --- | --- | --- | --- | --- |
+| Heat | ≤9.508°C | >9.508°C and ≤13.147°C | >13.147°C | 11,741 / 11,742 / 11,735 |
+| Canopy | ≤28.8% | >28.8% and ≤73.533333% | >73.533333% | 12,384 / 12,380 / 12,382 |
+
+Inclusive threshold handling is intentional: the lower cutoff belongs to
+`Low`, and the upper cutoff belongs to `Medium`. Null measurements, absent
+cells and missing active thresholds return `Unavailable`; they are never
+treated as environmental `Low`. A replacement baseline requires a new scheme
+version and review of its distribution rather than mutation of v1.
+
 ## Property baseline integration
 
 Priority 4 uses the source-defined Address–Property relationship first, then
@@ -70,6 +92,12 @@ The same lookup keeps three different evidence scopes separate:
 - Temperature: Landsat land-surface temperature and BOM station air temperature
   are separate named fields with their own time and spatial metadata.
 
+The BOM registry is `config/bom_stations.json`. It contains ten station codes,
+official source URLs and coverage roles. Feed station identity must match the
+registry before rows are combined. Air-temperature records require station
+name, timestamp, temperature and coordinates; a wind-only feed cannot pass the
+weather quality gate.
+
 Tree Urban cleaning retains points with valid identifiers and locations while
 suppressing optional machine-derived canopy radii outside 0.25–50 m and heights
 outside 0.5–100 m. The current API version suppressed 172,179 height outliers;
@@ -78,8 +106,36 @@ no canopy-radius outliers were found. This transformation is recorded in
 for audit.
 
 Unvalidated heat arithmetic is retained only for internal test cases. The
-display-safe calculation returns null point estimates until its model status is
-`validated`.
+display-safe calculation separates `validation_status` from `output_precision`.
+A validated indicative-range model still returns no precise after-temperature;
+an exact value requires explicit `precise_point_estimate` approval.
+
+`projected_canopy_proxy_shade_m2` discounts a supplied future crown area by
+survival probability, site suitability and canopy overlap. The output includes
+a maturity horizon and is deliberately labelled as a canopy proxy rather than
+a sun-angle shadow measurement. No generic literature maximum is used as a
+temperature coefficient.
+
+The versioned four-action registry is
+`config/intervention_model_parameters.json`. Trees, garden beds and green walls
+retain distinct outcome scopes. Potted plants deliberately return no
+temperature output. `evaluate_validation_cases` compares only expected subsets,
+so audit fields and disclaimers may be added without weakening the scientific
+checks.
+
+The separate `config/residential_greening_simulation_inputs.json` file defines the scenario
+input contract. `scenario_inputs.py` requires positive whole-number quantities
+and maturity horizons, ordered probability/suitability ranges between zero and
+one, and action-specific area fields. It locks the Iteration 1 tree quantity to
+one, aggregates per-unit areas, applies survival and site-suitability uncertainty
+before calling the evidence-bounded impact model, and retains the contract
+version in every output. Missing required inputs raise a validation error so the
+application can display `Unavailable` instead of inventing a result.
+
+Only the tree example has a published prototype size range: 6.6–43.7 m² crown
+area at 10 years across Melbourne species/rainfall cases
+([Torquato et al. 2024](https://doi.org/10.1016/j.ufug.2024.128268)). Other
+example dimensions are calculation fixtures rather than recommended defaults.
 
 ## Vicmap Address and Property processing
 
@@ -143,6 +199,8 @@ domains.
 | Tree Extent source is only a rendered proxy | Publish neighbourhood canopy only and suppress property canopy percentage. |
 | Tree Urban API times out during a large extract | Retry/subdivide tiles, preserve `.partial`, and resume using a completed raw extract only. |
 | Heat model has not passed validation | Suppress precise projected temperature and reduction in application output. |
+| Study measures air, wall or globe temperature rather than Landsat LST | Retain the evidence for its named outcome only; prohibit cross-metric coefficient reuse. |
+| Study reports a maximum cooling effect | Store it as a reported effect and plausibility bound, never as the default prediction. |
 
 ## Tests
 
@@ -153,5 +211,6 @@ python -m unittest discover -v
 ```
 
 The tests cover normalisation, cross-record uniqueness, the unrounded quality
-gate, geometry conversion, BOM extraction, raster checks, migrations and Data
-Analytics & Insight Development calculations.
+gate, geometry conversion, BOM extraction, raster checks, migration history,
+classification boundaries/missing/non-finite values, scenario-input constraints
+and analytical calculations. The current suite contains 94 tests.

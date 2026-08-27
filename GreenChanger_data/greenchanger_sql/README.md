@@ -21,7 +21,12 @@ greenchanger_sql/
 │   ├── 009_canopy_baseline.sql
 │   ├── 010_property_baseline_lookup.sql
 │   ├── 011_tree_urban_quality_scope.sql
-│   └── 012_property_tree_limitations.sql
+│   ├── 012_property_tree_limitations.sql
+│   ├── 013_cost_estimate_delivery.sql
+│   ├── 014_intervention_evidence.sql
+│   ├── 015_intervention_model_validation.sql
+│   ├── 016_multi_station_weather_context.sql
+│   └── 017_environmental_classifications.sql
 ├── seeds/001_reference_data.sql
 └── analytics/001_views.sql
 ```
@@ -43,6 +48,11 @@ greenchanger_sql/
 | `migrations/010_property_baseline_lookup.sql` | Adds model validation gates and the application-facing property baseline lookup. |
 | `migrations/011_tree_urban_quality_scope.sql` | Adds Tree Urban record quality status and the dataset-version index required by API ingestion. |
 | `migrations/012_property_tree_limitations.sql` | Restricts property tree lookup to the current `2GMEL` version and always returns the machine-derived-data warning. |
+| `migrations/013_cost_estimate_delivery.sql` | Publishes current source-backed cost contexts with greening-option labels, confidence and an indicative-estimate disclaimer. |
+| `migrations/014_intervention_evidence.sql` | Stores selected primary studies, approved/prohibited uses and independent validation/output-precision gates. |
+| `migrations/015_intervention_model_validation.sql` | Defines four-action parameters, the range-only model and auditable validation runs/results. |
+| `migrations/016_multi_station_weather_context.sql` | Adds recent nearest-station BOM context, distance-status rules and suppression of stale or overly distant temperatures. |
+| `migrations/017_environmental_classifications.sql` | Adds versioned Greater Melbourne tercile thresholds, missing-safe classification and property-lookup labels. |
 | `seeds/001_reference_data.sql` | Defines sources, greening options, analytical measures, model metadata and sample test cases. |
 | `analytics/001_views.sql` | Defines reusable analytical views for dataset quality, site baselines and scenario comparison. |
 
@@ -85,10 +95,38 @@ selective `get_property_baseline(address, limit)` function. It attaches current
 heat and canopy cells at the parcel point-on-surface without materialising
 millions of repeated environmental values.
 
+Migration 016 wraps the property lookup with nearest-station selection across
+the application-ready multi-station BOM observations. Only observations no
+older than three hours are eligible. Distance statuses are `good_local_context`
+(at most 10 km), `regional_context_warning` (10–25 km), and
+`too_distant_temperature_suppressed` (over 25 km); no eligible station is
+`unavailable_no_observation_within_3_hours`. Station name, time and distance
+remain traceable, while temperature is null beyond 25 km.
+
 The function separates Landsat land-surface temperature from recent BOM station
 air temperature and labels the distance to that station. It exposes the canopy
 proxy only at `neighbourhood_500m` scope, keeps property canopy null, and adds
 mapped Tree Urban counts when an integrated tree version exists.
+
+Migration 017 adds `environmental_classification_scheme` and
+`environmental_classification_threshold`. The active
+`current_environmental_classification_threshold` view exposes source-version
+IDs, tercile cutoffs, sample counts, scope and explanations. The SQL classifier
+uses inclusive lower boundaries and returns `Unavailable` whenever the source
+value or an active threshold is missing. The property lookup returns heat and
+canopy labels together with the exact scheme version.
+
+The active `melbourne-terciles-v1` thresholds and cell distributions are:
+
+| Metric | Low | Medium | High | Low / Medium / High count |
+| --- | --- | --- | --- | --- |
+| Landsat land-surface temperature | ≤9.508°C | >9.508°C and ≤13.147°C | >13.147°C | 11,741 / 11,742 / 11,735 |
+| 500 m neighbourhood canopy proxy | ≤28.8% | >28.8% and ≤73.533333% | >73.533333% | 12,384 / 12,380 / 12,382 |
+
+These are Melbourne-relative dataset classifications, not regulatory or health
+standards. Threshold rows are tied to specific source dataset-version IDs.
+Rebuilt baselines must produce a new reviewed scheme version rather than
+changing historical values.
 
 ### Environmental and analytical data
 
@@ -102,11 +140,32 @@ mapped Tree Urban counts when an integrated tree version exists.
   `latest_greater_melbourne_canopy_baseline` view exposes the current version.
 - `vegetation_observation`, `canopy_patch`, `urban_tree`: canopy and greenery.
 - `species_profile`, `greening_option`: available intervention definitions.
-- `cost_estimate`: versioned indicative cost ranges.
+- `cost_estimate`: dated, source-backed indicative cost ranges.
+- `application_ready_cost_estimate`: current cost contexts joined to greening-option labels with confidence, inclusions and the mandatory not-a-quote disclaimer.
 - `model_version.validation_status`: explicit model gate. Only `validated`
   models can appear in `application_ready_measure_result`.
+- `model_version.output_precision`: independent precision gate. Validation can
+  authorise an indicative interval without authorising a precise
+  after-temperature.
+- `intervention_evidence`: reviewed primary research with outcome, scale,
+  reported effects, transferability and explicit approved/prohibited uses.
+- `model_evidence`: records how a model version uses each selected study.
+- `selected_intervention_evidence`: application/documentation-facing evidence
+  register without implying that reported maxima are model coefficients.
+- `intervention_model_parameter`: versioned required inputs, guardrails and
+  source-linked evidence bounds for trees, pots, garden beds and green walls.
+- `intervention_model_validation_run` and
+  `intervention_model_validation_result`: expected/actual evidence-case audit.
+- `current_intervention_model_parameter`: source-traceable parameter view.
 - Scenario, intervention, result and community entities store model inputs and
   outputs; they do not convert estimates into observed facts.
+
+The versioned Residential Greening Scenario Simulation input contract currently lives in
+`config/residential_greening_simulation_inputs.json` and is validated before these scenario
+entities are written. This keeps input/UI assumptions separate from the
+database's literature evidence bounds. No database migration is required for
+the contract itself; persisted scenario rows must retain its
+`residential-greening-simulation-inputs-v1` version in their assumptions/provenance metadata.
 
 ## Migration workflow
 
@@ -130,8 +189,8 @@ To add a schema change:
 5. Run `python -m unittest discover -v`.
 6. Check status before applying to shared Aurora.
 
-Never modify `001`–`012` after they have been applied. Their checksums are part
-of the migration audit trail.
+The next migration number is `018`. Never modify `001`–`017` after they have
+been applied. Their checksums are part of the migration audit trail.
 
 ## Data preparation and database integration
 

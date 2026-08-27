@@ -492,9 +492,116 @@ CREATE TABLE IF NOT EXISTS model_version (
     ),
     validation_completed_at TIMESTAMPTZ,
     validation_summary TEXT,
+    output_precision TEXT NOT NULL DEFAULT 'suppressed' CHECK (
+        output_precision IN (
+            'suppressed', 'indicative_range', 'precise_point_estimate'
+        )
+    ),
+    temperature_metric TEXT CHECK (
+        temperature_metric IS NULL OR temperature_metric IN (
+            'land_surface_temperature', 'air_temperature',
+            'wall_surface_temperature', 'mean_radiant_temperature',
+            'thermal_comfort_index'
+        )
+    ),
+    spatial_scope TEXT,
+    uncertainty_method TEXT,
+    evidence_reviewed_at DATE,
     created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     retired_at TIMESTAMPTZ,
     UNIQUE (model_name, version_label)
+);
+
+CREATE TABLE intervention_evidence (
+    evidence_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    citation_key TEXT NOT NULL UNIQUE,
+    title TEXT NOT NULL,
+    authors TEXT NOT NULL,
+    publication_year INTEGER NOT NULL CHECK (publication_year BETWEEN 1900 AND 2100),
+    doi TEXT UNIQUE,
+    source_url TEXT NOT NULL,
+    study_location TEXT NOT NULL,
+    study_design TEXT NOT NULL,
+    intervention_types TEXT[] NOT NULL,
+    outcome_types TEXT[] NOT NULL,
+    spatial_scale TEXT NOT NULL,
+    reported_effects JSONB NOT NULL,
+    evidence_grade TEXT NOT NULL CHECK (
+        evidence_grade IN (
+            'primary_field', 'primary_observational',
+            'validated_simulation', 'growth_model'
+        )
+    ),
+    transferability TEXT NOT NULL CHECK (
+        transferability IN ('direct', 'supporting', 'context_only')
+    ),
+    approved_use TEXT NOT NULL,
+    prohibited_use TEXT NOT NULL,
+    limitations TEXT NOT NULL,
+    selected_for_model BOOLEAN NOT NULL DEFAULT TRUE,
+    reviewed_at DATE NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE model_evidence (
+    model_version_id UUID NOT NULL REFERENCES model_version(model_version_id),
+    evidence_id UUID NOT NULL REFERENCES intervention_evidence(evidence_id),
+    evidence_role TEXT NOT NULL CHECK (
+        evidence_role IN (
+            'candidate_validation', 'calibration', 'external_validation',
+            'mechanism', 'limitation'
+        )
+    ),
+    notes TEXT,
+    PRIMARY KEY (model_version_id, evidence_id, evidence_role)
+);
+
+CREATE TABLE intervention_model_parameter (
+    parameter_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    model_version_id UUID NOT NULL REFERENCES model_version(model_version_id),
+    action_type TEXT NOT NULL CHECK (
+        action_type IN ('tree', 'potted_plants', 'garden_bed', 'green_wall')
+    ),
+    parameter_code TEXT NOT NULL,
+    parameter_name TEXT NOT NULL,
+    parameter_values JSONB NOT NULL,
+    output_metric TEXT,
+    outcome_scope TEXT,
+    parameter_role TEXT NOT NULL CHECK (
+        parameter_role IN (
+            'required_input', 'evidence_bound', 'supporting_evidence',
+            'model_guardrail'
+        )
+    ),
+    source_evidence_id UUID REFERENCES intervention_evidence(evidence_id),
+    assumptions_and_limitations TEXT NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE (model_version_id, action_type, parameter_code)
+);
+
+CREATE TABLE intervention_model_validation_run (
+    validation_run_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    model_version_id UUID NOT NULL REFERENCES model_version(model_version_id),
+    started_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    completed_at TIMESTAMPTZ,
+    case_count INTEGER NOT NULL CHECK (case_count > 0),
+    passed_count INTEGER NOT NULL CHECK (passed_count >= 0),
+    failed_count INTEGER NOT NULL CHECK (failed_count >= 0),
+    all_passed BOOLEAN NOT NULL,
+    validation_scope TEXT NOT NULL,
+    CHECK (passed_count + failed_count = case_count)
+);
+
+CREATE TABLE intervention_model_validation_result (
+    validation_result_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    validation_run_id UUID NOT NULL REFERENCES intervention_model_validation_run(validation_run_id),
+    case_code TEXT NOT NULL,
+    source_keys TEXT[] NOT NULL DEFAULT ARRAY[]::TEXT[],
+    expected_output JSONB NOT NULL,
+    actual_output JSONB NOT NULL,
+    passed BOOLEAN NOT NULL,
+    failure_messages TEXT[] NOT NULL DEFAULT ARRAY[]::TEXT[],
+    UNIQUE (validation_run_id, case_code)
 );
 
 CREATE TABLE IF NOT EXISTS analysis_run (
@@ -517,10 +624,26 @@ CREATE TABLE IF NOT EXISTS measure_result (
     measure_id UUID NOT NULL REFERENCES analytical_measure(measure_id),
     baseline_value NUMERIC,
     projected_value NUMERIC,
-    result_value NUMERIC NOT NULL,
+    result_value NUMERIC,
+    minimum_result_value NUMERIC,
+    maximum_result_value NUMERIC,
     output_unit TEXT NOT NULL,
     confidence_level TEXT CHECK (confidence_level IN ('low', 'medium', 'high')),
+    result_status TEXT NOT NULL DEFAULT 'internal_only' CHECK (
+        result_status IN (
+            'internal_only', 'indicative_range', 'validated_point_estimate'
+        )
+    ),
+    display_disclaimer TEXT,
     calculation_details JSONB,
+    CHECK (
+        result_value IS NOT NULL
+        OR (
+            minimum_result_value IS NOT NULL
+            AND maximum_result_value IS NOT NULL
+            AND maximum_result_value >= minimum_result_value
+        )
+    ),
     UNIQUE (analysis_run_id, measure_id)
 );
 
@@ -684,8 +807,63 @@ SELECT result.*
 FROM measure_result AS result
 JOIN analysis_run AS run USING (analysis_run_id)
 JOIN model_version AS model USING (model_version_id)
+JOIN analytical_measure AS measure USING (measure_id)
 WHERE model.validation_status = 'validated'
-  AND run.run_status = 'completed';
+  AND run.run_status = 'completed'
+  AND result.result_status <> 'internal_only'
+  AND (
+      measure.measure_code <> 'estimated_heat_reduction_c'
+      OR (
+          model.output_precision = 'precise_point_estimate'
+          AND result.result_status = 'validated_point_estimate'
+      )
+  );
+
+CREATE OR REPLACE VIEW selected_intervention_evidence AS
+SELECT
+    evidence_id,
+    citation_key,
+    title,
+    authors,
+    publication_year,
+    doi,
+    source_url,
+    study_location,
+    study_design,
+    intervention_types,
+    outcome_types,
+    spatial_scale,
+    reported_effects,
+    evidence_grade,
+    transferability,
+    approved_use,
+    prohibited_use,
+    limitations,
+    reviewed_at
+FROM intervention_evidence
+WHERE selected_for_model;
+
+CREATE OR REPLACE VIEW current_intervention_model_parameter AS
+SELECT
+    model.model_name,
+    model.version_label,
+    model.validation_status,
+    model.output_precision,
+    parameter.action_type,
+    parameter.parameter_code,
+    parameter.parameter_name,
+    parameter.parameter_values,
+    parameter.output_metric,
+    parameter.outcome_scope,
+    parameter.parameter_role,
+    evidence.citation_key AS source_key,
+    evidence.source_url,
+    parameter.assumptions_and_limitations
+FROM intervention_model_parameter AS parameter
+JOIN model_version AS model USING (model_version_id)
+LEFT JOIN intervention_evidence AS evidence
+  ON evidence.evidence_id = parameter.source_evidence_id
+WHERE model.retired_at IS NULL;
 
 CREATE OR REPLACE FUNCTION classify_residential_lot_size(p_area_m2 NUMERIC)
 RETURNS TEXT
@@ -701,6 +879,163 @@ END;
 
 COMMENT ON FUNCTION classify_residential_lot_size(NUMERIC) IS
     'Project-defined prototype categories: small <400 m2, medium 400-800 m2, large >800 m2. Not a statutory classification.';
+
+CREATE TABLE IF NOT EXISTS environmental_classification_scheme (
+    classification_scheme_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    version_label TEXT NOT NULL UNIQUE,
+    analysis_area_id UUID NOT NULL REFERENCES analysis_area(analysis_area_id),
+    method TEXT NOT NULL CHECK (method = 'tercile_percentile_cont'),
+    classification_scope TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'draft'
+        CHECK (status IN ('draft', 'active', 'retired')),
+    calculated_at TIMESTAMPTZ,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    notes TEXT
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS environmental_classification_one_active_area
+    ON environmental_classification_scheme(analysis_area_id)
+    WHERE status = 'active';
+
+CREATE TABLE IF NOT EXISTS environmental_classification_threshold (
+    classification_threshold_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    classification_scheme_id UUID NOT NULL
+        REFERENCES environmental_classification_scheme(classification_scheme_id)
+        ON DELETE CASCADE,
+    metric_code TEXT NOT NULL CHECK (metric_code IN ('heat', 'canopy')),
+    source_dataset_version_id UUID NOT NULL REFERENCES dataset_version(dataset_version_id),
+    lower_threshold NUMERIC NOT NULL,
+    upper_threshold NUMERIC NOT NULL,
+    unit TEXT NOT NULL,
+    sample_count BIGINT NOT NULL CHECK (sample_count > 0),
+    low_label TEXT NOT NULL DEFAULT 'Low',
+    medium_label TEXT NOT NULL DEFAULT 'Medium',
+    high_label TEXT NOT NULL DEFAULT 'High',
+    missing_label TEXT NOT NULL DEFAULT 'Unavailable',
+    explanation TEXT NOT NULL,
+    CHECK (lower_threshold <= upper_threshold),
+    UNIQUE (classification_scheme_id, metric_code)
+);
+
+CREATE OR REPLACE VIEW current_environmental_classification_threshold AS
+SELECT
+    scheme.classification_scheme_id,
+    scheme.version_label,
+    scheme.analysis_area_id,
+    scheme.method,
+    scheme.classification_scope,
+    scheme.calculated_at,
+    threshold.metric_code,
+    threshold.source_dataset_version_id,
+    threshold.lower_threshold,
+    threshold.upper_threshold,
+    threshold.unit,
+    threshold.sample_count,
+    threshold.low_label,
+    threshold.medium_label,
+    threshold.high_label,
+    threshold.missing_label,
+    threshold.explanation
+FROM environmental_classification_scheme AS scheme
+JOIN environmental_classification_threshold AS threshold
+  USING (classification_scheme_id)
+WHERE scheme.status = 'active';
+
+CREATE OR REPLACE FUNCTION refresh_environmental_classifications(p_version_label TEXT)
+RETURNS UUID
+LANGUAGE plpgsql
+AS $function$
+DECLARE
+    v_scheme_id UUID;
+    v_analysis_area_id UUID;
+    v_threshold_count INTEGER;
+BEGIN
+    IF p_version_label IS NULL OR BTRIM(p_version_label) = '' THEN
+        RAISE EXCEPTION 'classification version label is required';
+    END IF;
+    IF EXISTS (
+        SELECT 1 FROM environmental_classification_scheme
+        WHERE version_label = BTRIM(p_version_label)
+    ) THEN
+        RAISE EXCEPTION 'classification version % already exists', BTRIM(p_version_label);
+    END IF;
+
+    SELECT analysis_area_id INTO STRICT v_analysis_area_id
+    FROM analysis_area
+    WHERE source_area_code = '2GMEL' AND source_year = 2026;
+
+    INSERT INTO environmental_classification_scheme (
+        version_label, analysis_area_id, method, classification_scope, status, notes
+    ) VALUES (
+        BTRIM(p_version_label), v_analysis_area_id, 'tercile_percentile_cont',
+        'relative_to_greater_melbourne_application_ready_baseline', 'draft',
+        'Low is the bottom third, Medium the middle third and High the top third. Missing values are Unavailable.'
+    ) RETURNING classification_scheme_id INTO v_scheme_id;
+
+    INSERT INTO environmental_classification_threshold (
+        classification_scheme_id, metric_code, source_dataset_version_id,
+        lower_threshold, upper_threshold, unit, sample_count, explanation
+    )
+    SELECT v_scheme_id, 'heat', dataset_version_id,
+           PERCENTILE_CONT(1.0 / 3.0) WITHIN GROUP (ORDER BY baseline_surface_temperature_c)::NUMERIC,
+           PERCENTILE_CONT(2.0 / 3.0) WITHIN GROUP (ORDER BY baseline_surface_temperature_c)::NUMERIC,
+           'degC_land_surface_temperature', COUNT(*),
+           'Relative to application-ready Greater Melbourne Landsat 500 m baseline cells; land-surface temperature, not air temperature.'
+    FROM latest_greater_melbourne_heat_baseline
+    WHERE baseline_surface_temperature_c IS NOT NULL
+    GROUP BY dataset_version_id;
+
+    INSERT INTO environmental_classification_threshold (
+        classification_scheme_id, metric_code, source_dataset_version_id,
+        lower_threshold, upper_threshold, unit, sample_count, explanation
+    )
+    SELECT v_scheme_id, 'canopy', dataset_version_id,
+           PERCENTILE_CONT(1.0 / 3.0) WITHIN GROUP (ORDER BY canopy_percentage)::NUMERIC,
+           PERCENTILE_CONT(2.0 / 3.0) WITHIN GROUP (ORDER BY canopy_percentage)::NUMERIC,
+           'percent_neighbourhood_canopy', COUNT(*),
+           'Relative to application-ready Greater Melbourne 500 m neighbourhood canopy cells; current source is a proxy.'
+    FROM latest_greater_melbourne_canopy_baseline
+    WHERE canopy_percentage IS NOT NULL
+    GROUP BY dataset_version_id;
+
+    SELECT COUNT(*) INTO v_threshold_count
+    FROM environmental_classification_threshold
+    WHERE classification_scheme_id = v_scheme_id;
+    IF v_threshold_count <> 2 THEN
+        RAISE EXCEPTION 'expected heat and canopy thresholds but calculated % row(s)', v_threshold_count;
+    END IF;
+
+    UPDATE environmental_classification_scheme
+    SET status = 'retired'
+    WHERE analysis_area_id = v_analysis_area_id AND status = 'active';
+    UPDATE environmental_classification_scheme
+    SET status = 'active', calculated_at = CURRENT_TIMESTAMP
+    WHERE classification_scheme_id = v_scheme_id;
+    RETURN v_scheme_id;
+END;
+$function$;
+
+CREATE OR REPLACE FUNCTION classify_environmental_value(
+    p_metric_code TEXT, p_value NUMERIC, p_version_label TEXT DEFAULT NULL
+)
+RETURNS TEXT
+LANGUAGE SQL
+STABLE
+PARALLEL SAFE
+RETURN CASE
+    WHEN p_value IS NULL THEN 'Unavailable'
+    ELSE COALESCE((
+        SELECT CASE
+            WHEN p_value <= threshold.lower_threshold THEN threshold.low_label
+            WHEN p_value <= threshold.upper_threshold THEN threshold.medium_label
+            ELSE threshold.high_label
+        END
+        FROM current_environmental_classification_threshold AS threshold
+        WHERE threshold.metric_code = p_metric_code
+          AND (p_version_label IS NULL OR threshold.version_label = p_version_label)
+        LIMIT 1
+    ), 'Unavailable')
+END;
 
 CREATE OR REPLACE VIEW latest_greater_melbourne_address_property AS
 WITH latest_address_version AS (
@@ -801,7 +1136,11 @@ RETURNS TABLE (
     mapped_property_tree_count BIGINT,
     property_tree_data_status TEXT,
     data_quality_status TEXT,
-    limitations JSONB
+    limitations JSONB,
+    heat_classification TEXT,
+    canopy_classification TEXT,
+    classification_scheme_version TEXT,
+    classification_scope TEXT
 )
 LANGUAGE SQL
 STABLE
@@ -856,13 +1195,19 @@ SELECT
     CASE WHEN heat.cell_geometry IS NULL THEN NULL
          ELSE ST_AsGeoJSON(ST_Transform(heat.cell_geometry, 4326), 6)::JSONB
     END AS heat_cell_geojson,
-    weather.air_temperature_c AS current_air_temperature_c,
-    weather.apparent_temperature_c AS current_apparent_temperature_c,
+    CASE WHEN weather.distance_m <= 25000
+         THEN weather.air_temperature_c END AS current_air_temperature_c,
+    CASE WHEN weather.distance_m <= 25000
+         THEN weather.apparent_temperature_c END AS current_apparent_temperature_c,
     weather.station_name AS weather_station_name,
     weather.observed_at AS weather_observed_at,
     weather.distance_m / 1000.0 AS weather_station_distance_km,
-    CASE WHEN weather.weather_observation_id IS NULL THEN 'unavailable'
-         ELSE 'observed_station_context_not_property_estimate'
+    CASE
+        WHEN weather.weather_observation_id IS NULL
+            THEN 'unavailable_no_observation_within_3_hours'
+        WHEN weather.distance_m <= 10000 THEN 'good_local_context'
+        WHEN weather.distance_m <= 25000 THEN 'regional_context_warning'
+        ELSE 'too_distant_temperature_suppressed'
     END AS air_temperature_context_status,
     canopy.canopy_percentage AS neighbourhood_canopy_percentage,
     NULL::NUMERIC AS property_canopy_percentage,
@@ -893,8 +1238,15 @@ SELECT
         'lot_size_category', 'Project-defined; not a statutory property classification.',
         'heat', CASE WHEN heat.heat_baseline_cell_id IS NOT NULL
                      THEN 'Landsat land-surface temperature, not residential air temperature.' END,
-        'air_temperature', CASE WHEN weather.weather_observation_id IS NOT NULL
-                     THEN 'Nearest recent BOM station observation; not a property-level estimate.' END,
+        'air_temperature', CASE
+            WHEN weather.weather_observation_id IS NULL
+                THEN 'No integrated BOM station observation is available within the three-hour freshness window.'
+            WHEN weather.distance_m <= 10000
+                THEN 'Nearest BOM observation within 10 km; local station context, not a property-level estimate.'
+            WHEN weather.distance_m <= 25000
+                THEN 'Nearest BOM observation is 10-25 km away; regional context only, not a property-level estimate.'
+            ELSE 'Nearest recent BOM station is more than 25 km away; air and apparent temperatures are suppressed.'
+        END,
         'canopy', CASE WHEN canopy.source_is_proxy
                        THEN 'Neighbourhood-only rendered API proxy; property canopy percentage is deliberately suppressed.' END,
         'property_trees', CASE WHEN property_trees.tree_dataset_version_id IS NULL
@@ -902,7 +1254,23 @@ SELECT
                        ELSE 'Machine-derived mapped points from the 2019-2020 mapping program; not a current field inventory or proof of tree condition.' END,
         'canopy_source_period', CASE WHEN canopy.canopy_baseline_cell_id IS NOT NULL
                                      THEN 'Source imagery varies by location from 2013-12-07 to 2020-11-02.' END
-    )) AS limitations
+    )) AS limitations,
+    classify_environmental_value(
+        'heat', heat.baseline_surface_temperature_c
+    ) AS heat_classification,
+    classify_environmental_value(
+        'canopy', canopy.canopy_percentage
+    ) AS canopy_classification,
+    (
+        SELECT version_label
+        FROM current_environmental_classification_threshold
+        LIMIT 1
+    ) AS classification_scheme_version,
+    (
+        SELECT classification_scope
+        FROM current_environmental_classification_threshold
+        LIMIT 1
+    ) AS classification_scope
 FROM candidates AS candidate
 LEFT JOIN LATERAL (
     SELECT cell.*
@@ -929,9 +1297,14 @@ LEFT JOIN LATERAL (
         FROM weather_observation AS weather
         JOIN dataset_version AS version USING (dataset_version_id)
         WHERE version.integration_status = 'integrated'
+          AND version.publication_status = 'application_ready'
           AND weather.observation_location IS NOT NULL
-          AND weather.observed_at >= CURRENT_TIMESTAMP - INTERVAL '48 hours'
-        ORDER BY weather.station_code, weather.observed_at DESC
+          AND weather.observed_at >= CURRENT_TIMESTAMP - INTERVAL '3 hours'
+          AND weather.observed_at <= CURRENT_TIMESTAMP + INTERVAL '5 minutes'
+        ORDER BY
+            weather.station_code,
+            weather.observed_at DESC,
+            version.extracted_at DESC
     ) AS observation
     ORDER BY observation.observation_location <-> candidate.reference_point
     LIMIT 1
@@ -951,6 +1324,51 @@ LEFT JOIN LATERAL (
 $function$;
 
 COMMENT ON FUNCTION get_property_baseline(TEXT, INTEGER) IS
-    'Priority 4 prototype lookup: joins current Greater Melbourne Vicmap Address and Property, then attaches the current 500 m heat and canopy baselines.';
+    'Returns nearest application-ready BOM station context no older than three hours; air temperature is suppressed beyond 25 km and remains separate from Landsat land-surface temperature.';
+
+CREATE OR REPLACE VIEW application_ready_cost_estimate AS
+SELECT
+    ce.cost_estimate_id,
+    go.option_code,
+    go.option_name,
+    go.option_category,
+    go.cost_unit,
+    ce.cost_context,
+    ce.cost_basis,
+    ce.tree_size_category,
+    ce.planting_method,
+    ce.stock_size,
+    ce.minimum_cost,
+    ce.maximum_cost,
+    ce.material_min_cost,
+    ce.material_max_cost,
+    ce.installation_min_cost,
+    ce.installation_max_cost,
+    ce.delivery_min_cost,
+    ce.delivery_max_cost,
+    ce.setup_min_cost,
+    ce.setup_max_cost,
+    ce.currency,
+    ce.gst_included,
+    ce.includes_installation,
+    ce.annual_maintenance_cost,
+    ce.source_name,
+    ce.source_reference,
+    ce.source_url,
+    ce.valid_from,
+    ce.valid_to,
+    ce.last_verified_at,
+    ce.confidence_level,
+    'indicative_not_quote'::TEXT AS estimate_status,
+    'Indicative source-backed range only; confirm current price, availability, site conditions, delivery, installation and maintenance with the supplier.'::TEXT
+        AS display_disclaimer
+FROM cost_estimate AS ce
+JOIN greening_option AS go USING (greening_option_id)
+WHERE go.active
+  AND ce.valid_from <= CURRENT_DATE
+  AND ce.valid_to >= CURRENT_DATE;
+
+COMMENT ON VIEW application_ready_cost_estimate IS
+    'Current source-backed greening cost contexts with option labels, confidence and mandatory indicative-estimate disclaimer.';
 
 COMMIT;

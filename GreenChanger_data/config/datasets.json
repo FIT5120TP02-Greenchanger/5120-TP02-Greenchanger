@@ -108,14 +108,15 @@
       "target_entities": ["heat_observation"]
     },
     {
-      "key": "bom_melbourne_olympic_park",
-      "name": "BOM Melbourne Olympic Park observations",
+      "key": "bom_greater_melbourne_stations",
+      "name": "BOM Greater Melbourne station observations",
       "publisher": "Bureau of Meteorology",
-      "url": "https://www.bom.gov.au/fwo/IDV60901/IDV60901.95936.json",
+      "url": "https://www.bom.gov.au/fwo/IDV60901/",
       "category": "weather",
-      "coverage": "Melbourne Olympic Park station",
+      "coverage": "Ten stations covering central, western, northern, eastern, southeastern, bayside and Frankston/Mornington Melbourne",
       "observation_period": "current observations",
-      "access_method": "JSON feed",
+      "access_method": "Official station-specific IDV60901 JSON feeds listed in config/bom_stations.json",
+      "update_frequency": "approximately half-hourly where available",
       "target_entities": ["weather_observation"]
     }
   ]

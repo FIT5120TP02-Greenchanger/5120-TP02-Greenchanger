@@ -1,0 +1,95 @@
+{
+  "contract_name": "GreenChanger residential greening simulation inputs",
+  "contract_version": "residential-greening-simulation-inputs-v1",
+  "reviewed_at": "2026-08-27",
+  "scope": "User-created residential scenarios across Greater Melbourne",
+  "impact_model_version": "literature-bounded-indicative-v1",
+  "output_policy": {
+    "precision": "indicative_range",
+    "guaranteed_outcome": false,
+    "exact_after_temperature_permitted": false,
+    "missing_required_input_status": "Unavailable"
+  },
+  "common_inputs": {
+    "quantity": "Positive whole number. Iteration 1 tree placement is fixed to one active tree.",
+    "maturity_horizon_years": "Positive whole-number future horizon; never imply immediate maturity.",
+    "survival_probability": "Ordered uncertainty range from 0 to 1 supplied by the scenario; no universal default.",
+    "site_suitability_factor": "Ordered uncertainty range from 0 to 1 for available space, soil, water, light and maintenance; no universal default."
+  },
+  "actions": {
+    "tree": {
+      "quantity_constraints": {"minimum": 1, "maximum": 1, "whole_number": true},
+      "area_parameter": "projected_canopy_per_tree_m2",
+      "additional_required_inputs": ["overlap_factor", "site_area_m2"],
+      "iteration_1_example": {
+        "quantity": 1,
+        "projected_canopy_per_tree_m2": {"minimum": 6.6, "maximum": 43.7},
+        "maturity_horizon_years": 10,
+        "survival_probability": {"minimum": 0.5, "maximum": 1.0},
+        "site_suitability_factor": {"minimum": 0.5, "maximum": 1.0},
+        "overlap_factor": {"minimum": 1.0, "maximum": 1.0},
+        "site_area_m2": 100.0
+      },
+      "evidence": {
+        "source_url": "https://doi.org/10.1016/j.ufug.2024.128268",
+        "supported_value": "Predicted crown areas of 6.6-43.7 m2 at 10 years across 20 common Melbourne street-tree species and rainfall zones.",
+        "restriction": "The broad species range is an indicative preview, not a species selection, survival guarantee or mature-size guarantee. The 0.5-1.0 survival and suitability ranges are transparent prototype sensitivity assumptions, not findings from this study."
+      }
+    },
+    "potted_plants": {
+      "quantity_constraints": {"minimum": 1, "maximum": null, "whole_number": true},
+      "area_parameter": "foliage_area_per_pot_m2",
+      "additional_required_inputs": [],
+      "example_only": {
+        "quantity": 4,
+        "foliage_area_per_pot_m2": {"minimum": 0.15, "maximum": 0.3},
+        "maturity_horizon_years": 1,
+        "survival_probability": {"minimum": 0.7, "maximum": 1.0},
+        "site_suitability_factor": {"minimum": 0.7, "maximum": 1.0}
+      },
+      "evidence": {
+        "source_url": null,
+        "supported_value": "No universal foliage area or outdoor temperature effect selected.",
+        "restriction": "Quantity and foliage area must come from the user's selection, measurement or supplier specification. The example is a calculation test, not an application default. Temperature output remains unavailable."
+      }
+    },
+    "garden_bed": {
+      "quantity_constraints": {"minimum": 1, "maximum": null, "whole_number": true},
+      "area_parameter": "planted_area_per_bed_m2",
+      "additional_required_inputs": ["established_cover_fraction", "site_area_m2"],
+      "example_only": {
+        "quantity": 1,
+        "planted_area_per_bed_m2": {"minimum": 16.0, "maximum": 20.0},
+        "maturity_horizon_years": 2,
+        "survival_probability": {"minimum": 0.7, "maximum": 1.0},
+        "site_suitability_factor": {"minimum": 0.7, "maximum": 1.0},
+        "established_cover_fraction": {"minimum": 0.8, "maximum": 1.0},
+        "site_area_m2": 100.0
+      },
+      "evidence": {
+        "source_url": "https://doi.org/10.1016/j.landurbplan.2021.104046",
+        "supported_value": "A 0-6 C daytime land-unit LST envelope constrains the output after scenario coverage scaling.",
+        "restriction": "Quantity, bed area, maturity, survival, suitability and cover are scenario assumptions. The study does not provide a causal garden-bed coefficient."
+      }
+    },
+    "green_wall": {
+      "quantity_constraints": {"minimum": 1, "maximum": null, "whole_number": true},
+      "area_parameter": "installed_wall_area_per_unit_m2",
+      "additional_required_inputs": ["established_cover_fraction", "target_wall_area_m2"],
+      "example_only": {
+        "quantity": 1,
+        "installed_wall_area_per_unit_m2": {"minimum": 8.0, "maximum": 10.0},
+        "maturity_horizon_years": 2,
+        "survival_probability": {"minimum": 0.7, "maximum": 1.0},
+        "site_suitability_factor": {"minimum": 0.7, "maximum": 1.0},
+        "established_cover_fraction": {"minimum": 0.8, "maximum": 1.0},
+        "target_wall_area_m2": 10.0
+      },
+      "evidence": {
+        "source_url": "https://doi.org/10.1016/j.enbuild.2015.06.047",
+        "supported_value": "A 0-15.5 C exterior wall-surface envelope constrains the output after wall-coverage scaling.",
+        "restriction": "Quantity, wall area, maturity, survival, suitability and cover are scenario assumptions. The result is wall-surface temperature, never property LST or air temperature."
+      }
+    }
+  }
+}

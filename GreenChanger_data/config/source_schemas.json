@@ -17,7 +17,7 @@
   "weather_observation": {
     "grain": "one weather station observation at one timestamp",
     "business_key": ["station_code", "observed_at"],
-    "required_fields": ["station_code", "observed_at", "air_temperature_c"]
+    "required_fields": ["station_code", "station_name", "observed_at", "air_temperature_c", "geometry_wkt"]
   },
   "heat_observation": {
     "grain": "one spatial heat observation feature or summary for one observation date",
