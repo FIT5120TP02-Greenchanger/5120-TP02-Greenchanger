@@ -142,6 +142,14 @@ def evaluate_property_scenario(
         checks.append("Landsat land-surface temperature is in the validity range")
     if row.get("temperature_measurement_type") != "land_surface_temperature":
         failures.append("heat value is not labelled land_surface_temperature")
+    heat_classification = row.get("heat_classification")
+    if heat is None:
+        if heat_classification != "Unavailable":
+            failures.append("missing heat is not classified as Unavailable")
+    elif heat_classification not in {"Low", "Medium", "High"}:
+        failures.append(f"invalid heat classification {heat_classification!r}")
+    else:
+        checks.append("heat has a supported Melbourne-relative classification")
     if heat_date is None:
         failures.append("Landsat observation date is missing")
     elif heat_date > as_of:
@@ -167,6 +175,21 @@ def evaluate_property_scenario(
         failures.append("current canopy baseline is not explicitly marked as a proxy")
     if row.get("property_canopy_percentage") is not None:
         failures.append("property canopy must remain suppressed for the proxy source")
+    canopy_classification = row.get("canopy_classification")
+    if canopy is None:
+        if canopy_classification != "Unavailable":
+            failures.append("missing canopy is not classified as Unavailable")
+    elif canopy_classification not in {"Low", "Medium", "High"}:
+        failures.append(f"invalid canopy classification {canopy_classification!r}")
+    else:
+        checks.append("canopy has a supported Melbourne-relative classification")
+
+    classification_version = row.get("classification_scheme_version")
+    classification_scope = row.get("classification_scope")
+    if not classification_version:
+        failures.append("environmental classification scheme version is missing")
+    if classification_scope != "relative_to_greater_melbourne_application_ready_baseline":
+        failures.append(f"invalid environmental classification scope {classification_scope!r}")
 
     tree_count = row.get("mapped_property_tree_count")
     if row.get("property_tree_data_status") != "mapped_tree_points_available":
@@ -233,7 +256,11 @@ def evaluate_property_scenario(
         "land_surface_temperature_c": heat,
         "heat_observed_on": _serialise(heat_date),
         "temperature_measurement_type": row.get("temperature_measurement_type"),
+        "heat_classification": heat_classification,
         "neighbourhood_canopy_percentage": canopy,
+        "canopy_classification": canopy_classification,
+        "classification_scheme_version": classification_version,
+        "classification_scope": classification_scope,
         "canopy_scope": row.get("canopy_analysis_scope"),
         "canopy_observed_on": _serialise(row.get("canopy_observed_on")),
         "canopy_source_type": row.get("canopy_source_type"),

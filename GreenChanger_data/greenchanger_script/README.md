@@ -38,6 +38,7 @@ repository.
 | `clip_to_melbourne.py` | Create audited `2GMEL`-only Address, Property, heat and canopy dataset versions without deleting parent versions. |
 | `build_heat_baseline.py` | Resolve overlapping Landsat observations into one versioned, application-ready baseline cell per location. |
 | `build_canopy_baseline.py` | Publish one quality-checked, versioned 500 m canopy baseline and verify exact alignment with the heat grid. |
+| `build_environmental_classifications.py` | Calculate and activate versioned Low/Medium/High tercile thresholds from current Greater Melbourne heat and canopy baselines. |
 | `apply_database.py` | Legacy/simple schema application helper; numbered migrations are preferred. |
 
 ## Recommended run order
@@ -72,6 +73,13 @@ python greenchanger_script/build_heat_baseline.py --confirm-shared
 
 # Publish the matching 500 m canopy baseline
 python greenchanger_script/build_canopy_baseline.py --confirm-shared
+
+# Calculate versioned Melbourne-relative Low/Medium/High thresholds
+python greenchanger_script/build_environmental_classifications.py \
+  --version-label melbourne-terciles-v1 --confirm-shared
+
+# Read-only threshold and class-distribution check
+python greenchanger_script/build_environmental_classifications.py --status
 
 # After migration 010, test the application-ready property lookup in psql
 # SELECT * FROM get_property_baseline('1 COLLINS STREET MELBOURNE', 5);
@@ -164,6 +172,15 @@ station air temperature as separate fields. Canopy from the proxy is labelled
 `neighbourhood_500m`; property canopy percentage is null. The `trees` job uses
 the official Tree Urban Feature Service to add mapped tree counts and dimensions
 without claiming that they are a current field survey.
+
+Migration 017 stores one source-version-specific environmental classification
+scheme and separate heat/canopy thresholds. The builder calculates the 33.33rd
+and 66.67th percentiles with `percentile_cont` from the current
+application-ready Greater Melbourne baseline cells. A value at the lower
+threshold remains `Low`; a value at the upper threshold remains `Medium`;
+larger values are `High`. Missing values or missing active thresholds always
+return `Unavailable`, never `Low`. `get_property_baseline` exposes both labels,
+the scheme version and the Melbourne-relative scope.
 
 The `trees` job uses adaptive API tiles, preserves a reusable gzip JSON Lines
 extract, applies the record-quality gate, bulk-stages accepted records with

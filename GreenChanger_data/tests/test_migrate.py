@@ -9,7 +9,7 @@ class MigrationFileTests(unittest.TestCase):
     def test_migrations_are_numbered_and_ordered(self):
         self.assertEqual(
             [version for version, _ in migration_files()],
-            [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16],
+            [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17],
         )
 
     def test_include_is_expanded(self):
@@ -80,6 +80,19 @@ class MigrationFileTests(unittest.TestCase):
         self.assertIn("too_distant_temperature_suppressed", sql)
         self.assertIn("distance_m <= 25000", sql)
         self.assertIn("THEN weather.air_temperature_c", sql)
+
+    def test_environmental_classifications_are_versioned_and_missing_safe(self):
+        migration = next(
+            path for version, path in migration_files() if version == 17
+        )
+        sql = expanded_sql(migration)
+        self.assertIn("environmental_classification_scheme", sql)
+        self.assertIn("environmental_classification_threshold", sql)
+        self.assertIn("PERCENTILE_CONT(1.0 / 3.0)", sql)
+        self.assertIn("PERCENTILE_CONT(2.0 / 3.0)", sql)
+        self.assertIn("WHEN p_value IS NULL THEN 'Unavailable'", sql)
+        self.assertIn("heat_classification", sql)
+        self.assertIn("canopy_classification", sql)
 
 
 if __name__ == "__main__":

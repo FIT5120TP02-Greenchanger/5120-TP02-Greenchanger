@@ -91,6 +91,8 @@ python greenchanger_script/ingestion.py trees \
 python greenchanger_script/clip_to_melbourne.py --confirm-shared
 python greenchanger_script/build_heat_baseline.py --confirm-shared
 python greenchanger_script/build_canopy_baseline.py --confirm-shared
+python greenchanger_script/build_environmental_classifications.py \
+  --version-label melbourne-terciles-v1 --confirm-shared
 
 # 7. Validate and load reviewed cost references
 python greenchanger_script/validate_csv.py cost_estimate \
@@ -151,8 +153,8 @@ FROM get_property_baseline('1 COLLINS STREET', 5);
 
 | Output | Current result | Quality/status |
 | --- | ---: | --- |
-| Applied migrations | 001–016 | Applied |
-| Automated tests | 78/78 | Passed locally |
+| Applied migrations | 001–017 | Applied to shared Aurora |
+| Automated tests | 86/86 | Passed locally after classification implementation |
 | Greater Melbourne Address records | 3,007,474 | 100% boundary membership |
 | Greater Melbourne Property records | 3,001,053 | 100% boundary membership |
 | Address–Property source-key matches | 3,007,470 of 3,007,474 | 99.999867% |
@@ -162,6 +164,26 @@ FROM get_property_baseline('1 COLLINS STREET', 5);
 | Vicmap Tree Urban | 10,473,773 Greater Melbourne points | 100% record-quality and boundary-membership pass rates |
 | Cost estimates | 8 in AWS | 100% quality pass; 0 rejected, 0 missing source URLs and 0 expired |
 | Validated scenario measure results | 0 | Prototype model is deliberately blocked from application output |
+
+### Active environmental classifications
+
+Migration 017 and `build_environmental_classifications.py` created the active
+`melbourne-terciles-v1` scheme from the current application-ready cells. These
+are relative Melbourne indicators, not health, planning or comfort standards.
+
+| Metric | Low | Medium | High | Cells assessed |
+| --- | --- | --- | --- | ---: |
+| Landsat land-surface temperature | ≤9.508°C | >9.508°C and ≤13.147°C | >13.147°C | 35,218 |
+| 500 m neighbourhood canopy proxy | ≤28.8% | >28.8% and ≤73.533333% | >73.533333% | 37,146 |
+
+The distributions are 11,741/11,742/11,735 heat cells and
+12,384/12,380/12,382 canopy cells for Low/Medium/High respectively. Exact
+boundary values remain in the lower class. A missing source value or missing
+active threshold returns `Unavailable`, never `Low`. Inspect the active scheme:
+
+```bash
+python greenchanger_script/build_environmental_classifications.py --status
+```
 
 Seven peer-reviewed primary studies are versioned in the intervention evidence
 register added by migration 014. This is a completed evidence-selection step,

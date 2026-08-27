@@ -880,6 +880,163 @@ END;
 COMMENT ON FUNCTION classify_residential_lot_size(NUMERIC) IS
     'Project-defined prototype categories: small <400 m2, medium 400-800 m2, large >800 m2. Not a statutory classification.';
 
+CREATE TABLE IF NOT EXISTS environmental_classification_scheme (
+    classification_scheme_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    version_label TEXT NOT NULL UNIQUE,
+    analysis_area_id UUID NOT NULL REFERENCES analysis_area(analysis_area_id),
+    method TEXT NOT NULL CHECK (method = 'tercile_percentile_cont'),
+    classification_scope TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'draft'
+        CHECK (status IN ('draft', 'active', 'retired')),
+    calculated_at TIMESTAMPTZ,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    notes TEXT
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS environmental_classification_one_active_area
+    ON environmental_classification_scheme(analysis_area_id)
+    WHERE status = 'active';
+
+CREATE TABLE IF NOT EXISTS environmental_classification_threshold (
+    classification_threshold_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    classification_scheme_id UUID NOT NULL
+        REFERENCES environmental_classification_scheme(classification_scheme_id)
+        ON DELETE CASCADE,
+    metric_code TEXT NOT NULL CHECK (metric_code IN ('heat', 'canopy')),
+    source_dataset_version_id UUID NOT NULL REFERENCES dataset_version(dataset_version_id),
+    lower_threshold NUMERIC NOT NULL,
+    upper_threshold NUMERIC NOT NULL,
+    unit TEXT NOT NULL,
+    sample_count BIGINT NOT NULL CHECK (sample_count > 0),
+    low_label TEXT NOT NULL DEFAULT 'Low',
+    medium_label TEXT NOT NULL DEFAULT 'Medium',
+    high_label TEXT NOT NULL DEFAULT 'High',
+    missing_label TEXT NOT NULL DEFAULT 'Unavailable',
+    explanation TEXT NOT NULL,
+    CHECK (lower_threshold <= upper_threshold),
+    UNIQUE (classification_scheme_id, metric_code)
+);
+
+CREATE OR REPLACE VIEW current_environmental_classification_threshold AS
+SELECT
+    scheme.classification_scheme_id,
+    scheme.version_label,
+    scheme.analysis_area_id,
+    scheme.method,
+    scheme.classification_scope,
+    scheme.calculated_at,
+    threshold.metric_code,
+    threshold.source_dataset_version_id,
+    threshold.lower_threshold,
+    threshold.upper_threshold,
+    threshold.unit,
+    threshold.sample_count,
+    threshold.low_label,
+    threshold.medium_label,
+    threshold.high_label,
+    threshold.missing_label,
+    threshold.explanation
+FROM environmental_classification_scheme AS scheme
+JOIN environmental_classification_threshold AS threshold
+  USING (classification_scheme_id)
+WHERE scheme.status = 'active';
+
+CREATE OR REPLACE FUNCTION refresh_environmental_classifications(p_version_label TEXT)
+RETURNS UUID
+LANGUAGE plpgsql
+AS $function$
+DECLARE
+    v_scheme_id UUID;
+    v_analysis_area_id UUID;
+    v_threshold_count INTEGER;
+BEGIN
+    IF p_version_label IS NULL OR BTRIM(p_version_label) = '' THEN
+        RAISE EXCEPTION 'classification version label is required';
+    END IF;
+    IF EXISTS (
+        SELECT 1 FROM environmental_classification_scheme
+        WHERE version_label = BTRIM(p_version_label)
+    ) THEN
+        RAISE EXCEPTION 'classification version % already exists', BTRIM(p_version_label);
+    END IF;
+
+    SELECT analysis_area_id INTO STRICT v_analysis_area_id
+    FROM analysis_area
+    WHERE source_area_code = '2GMEL' AND source_year = 2026;
+
+    INSERT INTO environmental_classification_scheme (
+        version_label, analysis_area_id, method, classification_scope, status, notes
+    ) VALUES (
+        BTRIM(p_version_label), v_analysis_area_id, 'tercile_percentile_cont',
+        'relative_to_greater_melbourne_application_ready_baseline', 'draft',
+        'Low is the bottom third, Medium the middle third and High the top third. Missing values are Unavailable.'
+    ) RETURNING classification_scheme_id INTO v_scheme_id;
+
+    INSERT INTO environmental_classification_threshold (
+        classification_scheme_id, metric_code, source_dataset_version_id,
+        lower_threshold, upper_threshold, unit, sample_count, explanation
+    )
+    SELECT v_scheme_id, 'heat', dataset_version_id,
+           PERCENTILE_CONT(1.0 / 3.0) WITHIN GROUP (ORDER BY baseline_surface_temperature_c)::NUMERIC,
+           PERCENTILE_CONT(2.0 / 3.0) WITHIN GROUP (ORDER BY baseline_surface_temperature_c)::NUMERIC,
+           'degC_land_surface_temperature', COUNT(*),
+           'Relative to application-ready Greater Melbourne Landsat 500 m baseline cells; land-surface temperature, not air temperature.'
+    FROM latest_greater_melbourne_heat_baseline
+    WHERE baseline_surface_temperature_c IS NOT NULL
+    GROUP BY dataset_version_id;
+
+    INSERT INTO environmental_classification_threshold (
+        classification_scheme_id, metric_code, source_dataset_version_id,
+        lower_threshold, upper_threshold, unit, sample_count, explanation
+    )
+    SELECT v_scheme_id, 'canopy', dataset_version_id,
+           PERCENTILE_CONT(1.0 / 3.0) WITHIN GROUP (ORDER BY canopy_percentage)::NUMERIC,
+           PERCENTILE_CONT(2.0 / 3.0) WITHIN GROUP (ORDER BY canopy_percentage)::NUMERIC,
+           'percent_neighbourhood_canopy', COUNT(*),
+           'Relative to application-ready Greater Melbourne 500 m neighbourhood canopy cells; current source is a proxy.'
+    FROM latest_greater_melbourne_canopy_baseline
+    WHERE canopy_percentage IS NOT NULL
+    GROUP BY dataset_version_id;
+
+    SELECT COUNT(*) INTO v_threshold_count
+    FROM environmental_classification_threshold
+    WHERE classification_scheme_id = v_scheme_id;
+    IF v_threshold_count <> 2 THEN
+        RAISE EXCEPTION 'expected heat and canopy thresholds but calculated % row(s)', v_threshold_count;
+    END IF;
+
+    UPDATE environmental_classification_scheme
+    SET status = 'retired'
+    WHERE analysis_area_id = v_analysis_area_id AND status = 'active';
+    UPDATE environmental_classification_scheme
+    SET status = 'active', calculated_at = CURRENT_TIMESTAMP
+    WHERE classification_scheme_id = v_scheme_id;
+    RETURN v_scheme_id;
+END;
+$function$;
+
+CREATE OR REPLACE FUNCTION classify_environmental_value(
+    p_metric_code TEXT, p_value NUMERIC, p_version_label TEXT DEFAULT NULL
+)
+RETURNS TEXT
+LANGUAGE SQL
+STABLE
+PARALLEL SAFE
+RETURN CASE
+    WHEN p_value IS NULL THEN 'Unavailable'
+    ELSE COALESCE((
+        SELECT CASE
+            WHEN p_value <= threshold.lower_threshold THEN threshold.low_label
+            WHEN p_value <= threshold.upper_threshold THEN threshold.medium_label
+            ELSE threshold.high_label
+        END
+        FROM current_environmental_classification_threshold AS threshold
+        WHERE threshold.metric_code = p_metric_code
+          AND (p_version_label IS NULL OR threshold.version_label = p_version_label)
+        LIMIT 1
+    ), 'Unavailable')
+END;
+
 CREATE OR REPLACE VIEW latest_greater_melbourne_address_property AS
 WITH latest_address_version AS (
     SELECT dv.dataset_version_id
@@ -979,7 +1136,11 @@ RETURNS TABLE (
     mapped_property_tree_count BIGINT,
     property_tree_data_status TEXT,
     data_quality_status TEXT,
-    limitations JSONB
+    limitations JSONB,
+    heat_classification TEXT,
+    canopy_classification TEXT,
+    classification_scheme_version TEXT,
+    classification_scope TEXT
 )
 LANGUAGE SQL
 STABLE
@@ -1093,7 +1254,23 @@ SELECT
                        ELSE 'Machine-derived mapped points from the 2019-2020 mapping program; not a current field inventory or proof of tree condition.' END,
         'canopy_source_period', CASE WHEN canopy.canopy_baseline_cell_id IS NOT NULL
                                      THEN 'Source imagery varies by location from 2013-12-07 to 2020-11-02.' END
-    )) AS limitations
+    )) AS limitations,
+    classify_environmental_value(
+        'heat', heat.baseline_surface_temperature_c
+    ) AS heat_classification,
+    classify_environmental_value(
+        'canopy', canopy.canopy_percentage
+    ) AS canopy_classification,
+    (
+        SELECT version_label
+        FROM current_environmental_classification_threshold
+        LIMIT 1
+    ) AS classification_scheme_version,
+    (
+        SELECT classification_scope
+        FROM current_environmental_classification_threshold
+        LIMIT 1
+    ) AS classification_scope
 FROM candidates AS candidate
 LEFT JOIN LATERAL (
     SELECT cell.*

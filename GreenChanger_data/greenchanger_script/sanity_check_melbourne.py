@@ -108,15 +108,22 @@ def print_report(report: dict) -> None:
             print(
                 "  Heat:",
                 f"{actual['land_surface_temperature_c']:.2f} C",
+                f"classification={actual['heat_classification']}",
                 f"metric={actual['temperature_measurement_type']}",
                 f"observed={actual['heat_observed_on']}",
             )
             print(
                 "  Canopy:",
                 f"{actual['neighbourhood_canopy_percentage']:.2f}%",
+                f"classification={actual['canopy_classification']}",
                 f"scope={actual['canopy_scope']}",
                 f"source={actual['canopy_source_type']}",
                 f"observed={actual['canopy_observed_on']}",
+            )
+            print(
+                "  Classification scheme:",
+                actual["classification_scheme_version"],
+                f"scope={actual['classification_scope']}",
             )
             print(
                 "  Trees:",

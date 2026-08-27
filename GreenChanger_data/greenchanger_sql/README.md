@@ -22,6 +22,7 @@ greenchanger_sql/
 │   ├── 010_property_baseline_lookup.sql
 │   ├── 011_tree_urban_quality_scope.sql
 │   ├── 012_property_tree_limitations.sql
+│   ├── 017_environmental_classifications.sql
 │   └── 013_cost_estimate_delivery.sql
 │   ├── 014_intervention_evidence.sql
 │   └── 015_intervention_model_validation.sql
@@ -46,6 +47,7 @@ greenchanger_sql/
 | `migrations/010_property_baseline_lookup.sql` | Adds model validation gates and the application-facing property baseline lookup. |
 | `migrations/011_tree_urban_quality_scope.sql` | Adds Tree Urban record quality status and the dataset-version index required by API ingestion. |
 | `migrations/012_property_tree_limitations.sql` | Restricts property tree lookup to the current `2GMEL` version and always returns the machine-derived-data warning. |
+| `migrations/017_environmental_classifications.sql` | Adds versioned Greater Melbourne tercile thresholds, missing-safe classification and property-lookup labels. |
 | `migrations/013_cost_estimate_delivery.sql` | Publishes current source-backed cost contexts with greening-option labels, confidence and an indicative-estimate disclaimer. |
 | `migrations/014_intervention_evidence.sql` | Stores selected primary studies, approved/prohibited uses and independent validation/output-precision gates. |
 | `migrations/015_intervention_model_validation.sql` | Defines four-action parameters, the range-only model and auditable validation runs/results. |
@@ -103,6 +105,14 @@ The function separates Landsat land-surface temperature from recent BOM station
 air temperature and labels the distance to that station. It exposes the canopy
 proxy only at `neighbourhood_500m` scope, keeps property canopy null, and adds
 mapped Tree Urban counts when an integrated tree version exists.
+
+Migration 017 adds `environmental_classification_scheme` and
+`environmental_classification_threshold`. The active
+`current_environmental_classification_threshold` view exposes source-version
+IDs, tercile cutoffs, sample counts, scope and explanations. The SQL classifier
+uses inclusive lower boundaries and returns `Unavailable` whenever the source
+value or an active threshold is missing. The property lookup returns heat and
+canopy labels together with the exact scheme version.
 
 ### Environmental and analytical data
 

@@ -1,5 +1,6 @@
 """Reusable data preparation and analytics code for GreenChanger."""
 
+from .classification import classify_environmental_value
 from .measures import (
     canopy_gain_m2,
     estimated_heat_reduction_c,
@@ -24,6 +25,7 @@ __all__ = [
     "canopy_gain_m2",
     "build_melbourne_sanity_report",
     "calculate_intervention_impact",
+    "classify_environmental_value",
     "estimated_heat_reduction_c",
     "evaluate_validation_cases",
     "evaluate_property_scenario",
