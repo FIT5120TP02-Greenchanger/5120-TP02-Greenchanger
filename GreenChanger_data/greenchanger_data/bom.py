@@ -1,4 +1,4 @@
-"""Extraction and normalisation for the BOM Melbourne observation feed."""
+"""Extraction and normalisation for Greater Melbourne BOM station feeds."""
 
 from __future__ import annotations
 
@@ -10,6 +10,17 @@ from urllib.request import Request, urlopen
 
 
 DEFAULT_BOM_URL = "https://www.bom.gov.au/fwo/IDV60901/IDV60901.95936.json"
+DEFAULT_STATION_REGISTRY = (
+    Path(__file__).resolve().parents[1] / "config" / "bom_stations.json"
+)
+REQUIRED_COVERAGE_ROLES = {
+    "central_melbourne",
+    "western_melbourne",
+    "northern_growth_area",
+    "eastern_melbourne",
+    "bayside_and_southeastern_melbourne",
+    "frankston_and_mornington_gateway",
+}
 
 
 def fetch_observations(url: str = DEFAULT_BOM_URL, *, timeout: int = 30) -> dict[str, Any]:
@@ -18,6 +29,77 @@ def fetch_observations(url: str = DEFAULT_BOM_URL, *, timeout: int = 30) -> dict
     request = Request(url, headers={"User-Agent": "GreenShift university project"})
     with urlopen(request, timeout=timeout) as response:
         return json.load(response)
+
+
+def load_station_registry(path: Path = DEFAULT_STATION_REGISTRY) -> dict[str, Any]:
+    """Load and validate the versioned Greater Melbourne station registry."""
+
+    registry = json.loads(path.read_text(encoding="utf-8"))
+    stations = registry.get("stations")
+    if not isinstance(stations, list) or not stations:
+        raise ValueError("BOM station registry must contain a non-empty stations list")
+    codes: set[str] = set()
+    roles: set[str] = set()
+    for station in stations:
+        required = {"station_code", "station_name", "coverage_role", "source_url"}
+        missing = required - station.keys()
+        if missing:
+            raise ValueError(
+                f"BOM station is missing required fields: {sorted(missing)}"
+            )
+        code = str(station["station_code"])
+        if code in codes:
+            raise ValueError(f"duplicate BOM station code: {code}")
+        codes.add(code)
+        roles.add(station["coverage_role"])
+        if not station["source_url"].startswith("https://www.bom.gov.au/fwo/"):
+            raise ValueError(f"station {code} does not use an official BOM feed")
+    missing_roles = REQUIRED_COVERAGE_ROLES - roles
+    if missing_roles:
+        raise ValueError(
+            "BOM station registry is missing coverage roles: "
+            + ", ".join(sorted(missing_roles))
+        )
+    return registry
+
+
+def fetch_station_documents(
+    registry: dict[str, Any], *, timeout: int = 30
+) -> dict[str, Any]:
+    """Fetch every configured official BOM station feed as one raw document."""
+
+    feeds = []
+    for station in registry["stations"]:
+        document = fetch_observations(station["source_url"], timeout=timeout)
+        rows = extract_rows(document)
+        if not rows:
+            raise ValueError(f"BOM station {station['station_code']} returned no rows")
+        feed_codes = {
+            str(row.get("wmo") or row.get("history_product") or "") for row in rows
+        }
+        if feed_codes != {str(station["station_code"])}:
+            raise ValueError(
+                f"BOM feed identity mismatch for {station['station_code']}: "
+                f"received {sorted(feed_codes)}"
+            )
+        feeds.append({"station": station, "document": document})
+    return {
+        "registry_version": registry["registry_version"],
+        "fetched_at": datetime.now(timezone.utc).isoformat(),
+        "station_feeds": feeds,
+    }
+
+
+def extract_station_rows(document: dict[str, Any]) -> list[dict[str, Any]]:
+    """Flatten a multi-station raw document into observation-grain rows."""
+
+    feeds = document.get("station_feeds")
+    if not isinstance(feeds, list) or not feeds:
+        raise ValueError("multi-station BOM document has no station_feeds list")
+    rows: list[dict[str, Any]] = []
+    for feed in feeds:
+        rows.extend(extract_rows(feed["document"]))
+    return rows
 
 
 def extract_rows(document: dict[str, Any]) -> list[dict[str, Any]]:

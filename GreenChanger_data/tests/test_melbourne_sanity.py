@@ -40,7 +40,12 @@ def valid_row():
         "mapped_property_tree_count": 2,
         "property_tree_data_status": "mapped_tree_points_available",
         "weather_station_name": "Test station",
+        "weather_observed_at": datetime.datetime(
+            2026, 8, 27, 1, 0, tzinfo=datetime.timezone.utc
+        ),
         "weather_station_distance_km": 5,
+        "current_air_temperature_c": 18,
+        "air_temperature_context_status": "good_local_context",
         "data_quality_status": "passed",
         "limitations": {},
     }
@@ -62,6 +67,8 @@ class MelbourneSanityTests(unittest.TestCase):
         row["neighbourhood_canopy_percentage"] = 95
         row["mapped_property_tree_count"] = 0
         row["weather_station_distance_km"] = 40
+        row["current_air_temperature_c"] = None
+        row["air_temperature_context_status"] = "too_distant_temperature_suppressed"
         result = evaluate_property_scenario(
             SCENARIO,
             [row],
@@ -70,6 +77,19 @@ class MelbourneSanityTests(unittest.TestCase):
         )
         self.assertEqual(result["status"], "WARN")
         self.assertEqual(len(result["warnings"]), 3)
+
+    def test_regional_weather_context_warns(self):
+        row = valid_row()
+        row["weather_station_distance_km"] = 15
+        row["air_temperature_context_status"] = "regional_context_warning"
+        result = evaluate_property_scenario(
+            SCENARIO,
+            [row],
+            inside_greater_melbourne=True,
+            as_of=datetime.date(2026, 8, 27),
+        )
+        self.assertEqual(result["status"], "WARN")
+        self.assertIn("regional context only", result["warnings"][0])
 
     def test_duplicate_exact_address_is_a_failure(self):
         row = valid_row()

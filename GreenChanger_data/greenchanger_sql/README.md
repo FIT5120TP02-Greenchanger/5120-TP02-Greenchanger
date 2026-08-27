@@ -91,6 +91,14 @@ selective `get_property_baseline(address, limit)` function. It attaches current
 heat and canopy cells at the parcel point-on-surface without materialising
 millions of repeated environmental values.
 
+Migration 016 wraps the property lookup with nearest-station selection across
+the application-ready multi-station BOM observations. Only observations no
+older than three hours are eligible. Distance statuses are `good_local_context`
+(at most 10 km), `regional_context_warning` (10–25 km), and
+`too_distant_temperature_suppressed` (over 25 km); no eligible station is
+`unavailable_no_observation_within_3_hours`. Station name, time and distance
+remain traceable, while temperature is null beyond 25 km.
+
 The function separates Landsat land-surface temperature from recent BOM station
 air temperature and labels the distance to that station. It exposes the canopy
 proxy only at `neighbourhood_500m` scope, keeps property canopy null, and adds

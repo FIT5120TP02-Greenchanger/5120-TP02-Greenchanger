@@ -1034,13 +1034,19 @@ SELECT
     CASE WHEN heat.cell_geometry IS NULL THEN NULL
          ELSE ST_AsGeoJSON(ST_Transform(heat.cell_geometry, 4326), 6)::JSONB
     END AS heat_cell_geojson,
-    weather.air_temperature_c AS current_air_temperature_c,
-    weather.apparent_temperature_c AS current_apparent_temperature_c,
+    CASE WHEN weather.distance_m <= 25000
+         THEN weather.air_temperature_c END AS current_air_temperature_c,
+    CASE WHEN weather.distance_m <= 25000
+         THEN weather.apparent_temperature_c END AS current_apparent_temperature_c,
     weather.station_name AS weather_station_name,
     weather.observed_at AS weather_observed_at,
     weather.distance_m / 1000.0 AS weather_station_distance_km,
-    CASE WHEN weather.weather_observation_id IS NULL THEN 'unavailable'
-         ELSE 'observed_station_context_not_property_estimate'
+    CASE
+        WHEN weather.weather_observation_id IS NULL
+            THEN 'unavailable_no_observation_within_3_hours'
+        WHEN weather.distance_m <= 10000 THEN 'good_local_context'
+        WHEN weather.distance_m <= 25000 THEN 'regional_context_warning'
+        ELSE 'too_distant_temperature_suppressed'
     END AS air_temperature_context_status,
     canopy.canopy_percentage AS neighbourhood_canopy_percentage,
     NULL::NUMERIC AS property_canopy_percentage,
@@ -1071,8 +1077,15 @@ SELECT
         'lot_size_category', 'Project-defined; not a statutory property classification.',
         'heat', CASE WHEN heat.heat_baseline_cell_id IS NOT NULL
                      THEN 'Landsat land-surface temperature, not residential air temperature.' END,
-        'air_temperature', CASE WHEN weather.weather_observation_id IS NOT NULL
-                     THEN 'Nearest recent BOM station observation; not a property-level estimate.' END,
+        'air_temperature', CASE
+            WHEN weather.weather_observation_id IS NULL
+                THEN 'No integrated BOM station observation is available within the three-hour freshness window.'
+            WHEN weather.distance_m <= 10000
+                THEN 'Nearest BOM observation within 10 km; local station context, not a property-level estimate.'
+            WHEN weather.distance_m <= 25000
+                THEN 'Nearest BOM observation is 10-25 km away; regional context only, not a property-level estimate.'
+            ELSE 'Nearest recent BOM station is more than 25 km away; air and apparent temperatures are suppressed.'
+        END,
         'canopy', CASE WHEN canopy.source_is_proxy
                        THEN 'Neighbourhood-only rendered API proxy; property canopy percentage is deliberately suppressed.' END,
         'property_trees', CASE WHEN property_trees.tree_dataset_version_id IS NULL
@@ -1107,9 +1120,14 @@ LEFT JOIN LATERAL (
         FROM weather_observation AS weather
         JOIN dataset_version AS version USING (dataset_version_id)
         WHERE version.integration_status = 'integrated'
+          AND version.publication_status = 'application_ready'
           AND weather.observation_location IS NOT NULL
-          AND weather.observed_at >= CURRENT_TIMESTAMP - INTERVAL '48 hours'
-        ORDER BY weather.station_code, weather.observed_at DESC
+          AND weather.observed_at >= CURRENT_TIMESTAMP - INTERVAL '3 hours'
+          AND weather.observed_at <= CURRENT_TIMESTAMP + INTERVAL '5 minutes'
+        ORDER BY
+            weather.station_code,
+            weather.observed_at DESC,
+            version.extracted_at DESC
     ) AS observation
     ORDER BY observation.observation_location <-> candidate.reference_point
     LIMIT 1
@@ -1129,7 +1147,7 @@ LEFT JOIN LATERAL (
 $function$;
 
 COMMENT ON FUNCTION get_property_baseline(TEXT, INTEGER) IS
-    'Priority 4 prototype lookup: joins current Greater Melbourne Vicmap Address and Property, then attaches the current 500 m heat and canopy baselines.';
+    'Returns nearest application-ready BOM station context no older than three hours; air temperature is suppressed beyond 25 km and remains separate from Landsat land-surface temperature.';
 
 CREATE OR REPLACE VIEW application_ready_cost_estimate AS
 SELECT

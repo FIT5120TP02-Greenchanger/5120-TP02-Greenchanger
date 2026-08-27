@@ -151,14 +151,14 @@ FROM get_property_baseline('1 COLLINS STREET', 5);
 
 | Output | Current result | Quality/status |
 | --- | ---: | --- |
-| Applied migrations | 001–013 | Applied |
-| Automated tests | 56/56 | Passed locally |
+| Applied migrations | 001–016 | Applied |
+| Automated tests | 78/78 | Passed locally |
 | Greater Melbourne Address records | 3,007,474 | 100% boundary membership |
 | Greater Melbourne Property records | 3,001,053 | 100% boundary membership |
 | Address–Property source-key matches | 3,007,470 of 3,007,474 | 99.999867% |
 | Application-ready Landsat baseline | 35,218 unique 500 m cells | All baseline checks passed |
 | Application-ready canopy baseline | 37,146 unique 500 m cells | All baseline checks passed |
-| BOM weather observations | 155 | 100% source quality pass rate |
+| BOM weather observations | 1,557 from 10 stations | 100% source quality pass rate; version `greater-melbourne-bom-stations-v1` |
 | Vicmap Tree Urban | 10,473,773 Greater Melbourne points | 100% record-quality and boundary-membership pass rates |
 | Cost estimates | 8 in AWS | 100% quality pass; 0 rejected, 0 missing source URLs and 0 expired |
 | Validated scenario measure results | 0 | Prototype model is deliberately blocked from application output |
@@ -179,7 +179,7 @@ The Tree Urban raw extract was obtained from the official Vicmap ArcGIS Feature 
 | Vicmap Vegetation – Tree Urban Point | Mapped individual-tree context, radius and height |
 | Vicmap Vegetation – Tree Extent | Melbourne neighbourhood canopy baseline |
 | USGS Landsat Collection 2 Surface Temperature | Spatial land-surface-temperature baseline |
-| BOM Melbourne observations | Recent station air-temperature context |
+| [BOM Melbourne observations](https://www.bom.gov.au/vic/observations/melbourne.shtml) | Recent multi-station air-temperature context; exact official feeds are versioned in `config/bom_stations.json` |
 | Reviewed Melbourne-accessible supplier prices | Indicative residential and community greening cost ranges exposed through `application_ready_cost_estimate` |
 
 All source versions retain extraction time, observation period, checksum, source URL, row counts, quality state and publication state.
@@ -204,7 +204,9 @@ All source versions retain extraction time, observation period, checksum, source
 ### Heat and weather
 
 - Landsat values are land-surface temperature, not the air temperature experienced by a resident.
-- BOM values are recent observations at the nearest available station, not property-level measurements.
+- BOM values are observations from the nearest of ten configured official Greater Melbourne stations, not property-level measurements.
+- Only observations no older than three hours are eligible. Stations within 10 km are labelled `good_local_context`; 10–25 km is `regional_context_warning`; beyond 25 km the air and apparent temperatures are suppressed; no eligible observation is `unavailable_no_observation_within_3_hours`.
+- Station name, observation time and distance remain visible whenever a recent station exists. BOM air temperature is never substituted for Landsat land-surface temperature.
 - The heat mosaic uses the newest usable cell and same-day overlap averaging; cells can come from different acquisition dates.
 - The original arithmetic model remains suppressed. Migration 015 creates a
   separate `literature-bounded-indicative-v1` model as

@@ -22,7 +22,7 @@
       {"code": "URBAN_TREE_HEIGHT_POSITIVE", "type": "range", "field": "height_m", "minimum": 0, "inclusive_minimum": false, "allow_blank": true}
     ],
     "weather_observation": [
-      {"code": "WEATHER_REQUIRED", "type": "required", "fields": ["station_code", "observed_at", "air_temperature_c"]},
+      {"code": "WEATHER_REQUIRED", "type": "required", "fields": ["station_code", "station_name", "observed_at", "air_temperature_c", "geometry_wkt"]},
       {"code": "WEATHER_UNIQUE", "type": "unique", "fields": ["station_code", "observed_at"]},
       {"code": "HUMIDITY_RANGE", "type": "range", "field": "humidity_pct", "minimum": 0, "maximum": 100, "allow_blank": true},
       {"code": "WIND_NONNEGATIVE", "type": "range", "field": "wind_speed_ms", "minimum": 0, "allow_blank": true},

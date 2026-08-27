@@ -21,9 +21,12 @@ sys.path.insert(0, str(ROOT))
 
 from greenchanger_script import db  # noqa: E402
 from greenchanger_data.bom import (
-    DEFAULT_BOM_URL,
+    DEFAULT_STATION_REGISTRY,
     extract_rows,
+    extract_station_rows,
     fetch_observations,
+    fetch_station_documents,
+    load_station_registry,
     normalise_rows,
     save_raw,
 )
@@ -429,17 +432,29 @@ def ingest_boundary(connection, _args: argparse.Namespace) -> dict[str, Any]:
 def ingest_bom(connection, args: argparse.Namespace) -> dict[str, Any]:
     """Fetch, preserve, validate, version and integrate BOM observations."""
 
-    document = fetch_observations(args.bom_url)
-    raw_rows = extract_rows(document)
+    multi_station_run = not bool(args.bom_url)
+    if args.bom_url:
+        document = fetch_observations(args.bom_url)
+        raw_rows = extract_rows(document)
+        station_codes = sorted(
+            {str(row.get("wmo") or row.get("history_product") or "") for row in raw_rows}
+        )
+        registry_version = "single-feed-override"
+    else:
+        registry = load_station_registry(args.bom_stations_file)
+        document = fetch_station_documents(registry)
+        raw_rows = extract_station_rows(document)
+        station_codes = [str(station["station_code"]) for station in registry["stations"]]
+        registry_version = registry["registry_version"]
     rows = normalise_rows(raw_rows)
 
     stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
-    raw_path = ROOT / "data" / "raw" / "bom" / f"observations_{stamp}.json"
+    raw_path = ROOT / "data" / "raw" / "bom" / f"greater_melbourne_{stamp}.json"
     save_raw(document, raw_path)
 
     registered_source_id = source_id(
         connection,
-        "BOM Melbourne Olympic Park observations",
+        "BOM Greater Melbourne station observations",
         "Bureau of Meteorology",
     )
     dates = sorted(row["observed_at"][:10] for row in rows if row["observed_at"])
@@ -511,9 +526,9 @@ def ingest_bom(connection, args: argparse.Namespace) -> dict[str, Any]:
         cursor.execute(
             """UPDATE dataset_version
                SET integration_status = 'integrated',
-                   publication_status = 'application_ready'
+                   publication_status = %s
                WHERE dataset_version_id = %s""",
-            (version_id,),
+            ("application_ready" if multi_station_run else "internal", version_id),
         )
     return {
         "rows_in": len(raw_rows),
@@ -521,7 +536,16 @@ def ingest_bom(connection, args: argparse.Namespace) -> dict[str, Any]:
         "rows_rejected": report.failing_records,
         "quality_pass_rate": report.pass_rate,
         "dataset_version_id": str(version_id),
-        "message": f"{written} BOM observations integrated from {raw_path.name}",
+        "station_count": len(station_codes),
+        "station_codes": station_codes,
+        "registry_version": registry_version,
+        "publication_status": (
+            "application_ready" if multi_station_run else "internal"
+        ),
+        "message": (
+            f"{written} BOM observations from {len(station_codes)} stations "
+            f"integrated from {raw_path.name}"
+        ),
     }
 
 
@@ -1261,7 +1285,16 @@ JOBS: dict[str, Job] = {
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("jobs", nargs="*", choices=JOBS, default=["sources"])
-    parser.add_argument("--bom-url", default=DEFAULT_BOM_URL)
+    parser.add_argument(
+        "--bom-url",
+        help="Optional single official BOM feed override for diagnostics.",
+    )
+    parser.add_argument(
+        "--bom-stations-file",
+        type=Path,
+        default=DEFAULT_STATION_REGISTRY,
+        help="Versioned Greater Melbourne BOM station registry.",
+    )
     parser.add_argument("--cost-file", type=Path, default=DEFAULT_COST_FILE)
     parser.add_argument("--canopy-file", type=Path)
     parser.add_argument("--canopy-observed-on", help="Source imagery date: YYYY-MM-DD")

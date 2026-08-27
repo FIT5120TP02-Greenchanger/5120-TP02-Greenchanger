@@ -1,0 +1,70 @@
+{
+  "registry_version": "greater-melbourne-bom-stations-v1",
+  "publisher": "Bureau of Meteorology",
+  "product_code": "IDV60901",
+  "maximum_observation_age_hours": 3,
+  "good_local_context_max_km": 10,
+  "regional_context_max_km": 25,
+  "stations": [
+    {
+      "station_code": "95936",
+      "station_name": "Melbourne (Olympic Park)",
+      "coverage_role": "central_melbourne",
+      "source_url": "https://www.bom.gov.au/fwo/IDV60901/IDV60901.95936.json"
+    },
+    {
+      "station_code": "94865",
+      "station_name": "Laverton",
+      "coverage_role": "western_melbourne",
+      "source_url": "https://www.bom.gov.au/fwo/IDV60901/IDV60901.94865.json"
+    },
+    {
+      "station_code": "94866",
+      "station_name": "Melbourne Airport",
+      "coverage_role": "northern_growth_area",
+      "source_url": "https://www.bom.gov.au/fwo/IDV60901/IDV60901.94866.json"
+    },
+    {
+      "station_code": "95866",
+      "station_name": "Essendon Airport",
+      "coverage_role": "inner_north",
+      "source_url": "https://www.bom.gov.au/fwo/IDV60901/IDV60901.95866.json"
+    },
+    {
+      "station_code": "95874",
+      "station_name": "Viewbank",
+      "coverage_role": "northeastern_melbourne",
+      "source_url": "https://www.bom.gov.au/fwo/IDV60901/IDV60901.95874.json"
+    },
+    {
+      "station_code": "95867",
+      "station_name": "Scoresby",
+      "coverage_role": "eastern_melbourne",
+      "source_url": "https://www.bom.gov.au/fwo/IDV60901/IDV60901.95867.json"
+    },
+    {
+      "station_code": "94864",
+      "station_name": "Coldstream",
+      "coverage_role": "outer_eastern_melbourne",
+      "source_url": "https://www.bom.gov.au/fwo/IDV60901/IDV60901.94864.json"
+    },
+    {
+      "station_code": "94870",
+      "station_name": "Moorabbin Airport",
+      "coverage_role": "bayside_and_southeastern_melbourne",
+      "source_url": "https://www.bom.gov.au/fwo/IDV60901/IDV60901.94870.json"
+    },
+    {
+      "station_code": "94876",
+      "station_name": "Frankston (Ballam Park)",
+      "coverage_role": "frankston_and_mornington_gateway",
+      "source_url": "https://www.bom.gov.au/fwo/IDV60901/IDV60901.94876.json"
+    },
+    {
+      "station_code": "94898",
+      "station_name": "Cerberus",
+      "coverage_role": "mornington_peninsula_context",
+      "source_url": "https://www.bom.gov.au/fwo/IDV60901/IDV60901.94898.json"
+    }
+  ]
+}

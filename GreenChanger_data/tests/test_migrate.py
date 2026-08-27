@@ -9,7 +9,7 @@ class MigrationFileTests(unittest.TestCase):
     def test_migrations_are_numbered_and_ordered(self):
         self.assertEqual(
             [version for version, _ in migration_files()],
-            [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15],
+            [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16],
         )
 
     def test_include_is_expanded(self):
@@ -68,6 +68,18 @@ class MigrationFileTests(unittest.TestCase):
         self.assertIn("'validation_in_progress'", sql)
         self.assertNotIn("SET validation_status = 'validated'", sql)
         self.assertIn("literature-bounded-indicative-v1", sql)
+
+    def test_multi_station_weather_context_has_freshness_and_distance_guards(self):
+        migration = next(
+            path for version, path in migration_files() if version == 16
+        )
+        sql = expanded_sql(migration)
+        self.assertIn("INTERVAL '3 hours'", sql)
+        self.assertIn("good_local_context", sql)
+        self.assertIn("regional_context_warning", sql)
+        self.assertIn("too_distant_temperature_suppressed", sql)
+        self.assertIn("distance_m <= 25000", sql)
+        self.assertIn("THEN weather.air_temperature_c", sql)
 
 
 if __name__ == "__main__":

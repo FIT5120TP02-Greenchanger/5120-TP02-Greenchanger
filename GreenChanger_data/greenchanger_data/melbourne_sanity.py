@@ -182,11 +182,37 @@ def evaluate_property_scenario(
             )
 
     weather_distance = _float(row.get("weather_station_distance_km"))
-    if weather_distance is not None and weather_distance > 25.0:
-        warnings.append(
-            f"nearest displayed BOM station is {weather_distance:.1f} km away; "
-            "treat it as regional context only"
-        )
+    weather_status = row.get("air_temperature_context_status")
+    air_temperature = _float(row.get("current_air_temperature_c"))
+    if weather_status == "good_local_context":
+        if weather_distance is None or weather_distance > 10.0 or air_temperature is None:
+            failures.append("good local weather status contradicts distance or temperature")
+        else:
+            checks.append("BOM station is within 10 km and no older than three hours")
+    elif weather_status == "regional_context_warning":
+        if weather_distance is None or not (10.0 < weather_distance <= 25.0):
+            failures.append("regional weather status contradicts station distance")
+        else:
+            warnings.append(
+                f"nearest current BOM station is {weather_distance:.1f} km away; "
+                "regional context only"
+            )
+    elif weather_status == "too_distant_temperature_suppressed":
+        if air_temperature is not None:
+            failures.append("air temperature was not suppressed beyond 25 km")
+        if weather_distance is None or weather_distance <= 25.0:
+            failures.append("too-distant weather status contradicts station distance")
+        else:
+            warnings.append(
+                f"nearest current BOM station is {weather_distance:.1f} km away; "
+                "temperature correctly suppressed"
+            )
+    elif weather_status == "unavailable_no_observation_within_3_hours":
+        if air_temperature is not None:
+            failures.append("stale/unavailable weather context exposes a temperature")
+        warnings.append("no integrated BOM observation is available within three hours")
+    else:
+        failures.append(f"unknown weather context status {weather_status!r}")
 
     if row.get("data_quality_status") != "passed":
         failures.append(
@@ -214,7 +240,10 @@ def evaluate_property_scenario(
         "mapped_property_tree_count": int(tree_count) if tree_count is not None else None,
         "tree_data_status": row.get("property_tree_data_status"),
         "weather_station": row.get("weather_station_name"),
+        "weather_observed_at": _serialise(row.get("weather_observed_at")),
         "weather_station_distance_km": weather_distance,
+        "air_temperature_c": air_temperature,
+        "air_temperature_context_status": weather_status,
         "database_quality_status": row.get("data_quality_status"),
         "limitations": _serialise(row.get("limitations") or {}),
     }

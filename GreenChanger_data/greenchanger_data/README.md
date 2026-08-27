@@ -11,7 +11,7 @@ functions and perform database writes.
 | --- | --- |
 | `__init__.py` | Marks this directory as the reusable `greenchanger_data` Python package. |
 | `boundary.py` | Download, preserve and normalise the official ABS ASGS 2026 Greater Melbourne GCCSA boundary. |
-| `bom.py` | Download, preserve and normalise current BOM observations. |
+| `bom.py` | Validate the Greater Melbourne station registry, download each official BOM feed, verify feed identity, flatten and normalise observations. |
 | `canopy.py` | Inspect and aggregate a binary tree-extent raster into Melbourne grid summaries. |
 | `canopy_baseline.py` | Define versioned baseline and source-provenance rules, including analytical-versus-proxy classification. |
 | `landsat.py` | Search Landsat Collection 2, sign/download assets, mask unusable pixels and calculate land-surface temperature. |
@@ -71,6 +71,12 @@ The same lookup keeps three different evidence scopes separate:
   job; still machine-derived rather than a field inventory.
 - Temperature: Landsat land-surface temperature and BOM station air temperature
   are separate named fields with their own time and spatial metadata.
+
+The BOM registry is `config/bom_stations.json`. It contains ten station codes,
+official source URLs and coverage roles. Feed station identity must match the
+registry before rows are combined. Air-temperature records require station
+name, timestamp, temperature and coordinates; a wind-only feed cannot pass the
+weather quality gate.
 
 Tree Urban cleaning retains points with valid identifiers and locations while
 suppressing optional machine-derived canopy radii outside 0.25–50 m and heights

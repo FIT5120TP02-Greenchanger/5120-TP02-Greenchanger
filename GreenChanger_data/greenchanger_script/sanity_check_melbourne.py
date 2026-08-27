@@ -130,6 +130,11 @@ def print_report(report: dict) -> None:
                 f"distance={weather_distance:.1f} km"
                 if weather_distance is not None
                 else "distance=unavailable",
+                f"observed={actual['weather_observed_at']}",
+                f"air={actual['air_temperature_c']} C"
+                if actual["air_temperature_c"] is not None
+                else "air=suppressed/unavailable",
+                f"status={actual['air_temperature_context_status']}",
             )
         for message in result["failures"]:
             print("  FAIL:", message)

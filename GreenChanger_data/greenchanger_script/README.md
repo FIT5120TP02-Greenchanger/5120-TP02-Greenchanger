@@ -147,8 +147,20 @@ spatially. Blank searches return no rows and the result limit is constrained to
 1–50. Missing property or environmental matches are returned with an explicit
 partial quality status instead of being silently dropped.
 
-The lookup returns Landsat land-surface temperature and recent BOM station air
-temperature as separate fields. Canopy from the proxy is labelled
+The default BOM job downloads the ten official station feeds in
+`config/bom_stations.json`, rejects identity mismatches, preserves one combined
+raw document, applies the 95% record-quality gate and publishes one dataset
+version. The registry covers central, western, northern, eastern,
+southeastern, bayside and Frankston/Mornington Melbourne. `--bom-url` remains a
+single-feed diagnostic override; its dataset version is kept `internal` and
+cannot replace the application-ready multi-station context.
+
+Migration 016 makes the property lookup eligible for only observations no older
+than three hours. At most 10 km is `good_local_context`; 10–25 km is
+`regional_context_warning`; beyond 25 km temperature is suppressed; and no
+eligible observation is explicitly unavailable. Station name, time and distance
+remain traceable. The lookup returns Landsat land-surface temperature and BOM
+station air temperature as separate fields. Canopy from the proxy is labelled
 `neighbourhood_500m`; property canopy percentage is null. The `trees` job uses
 the official Tree Urban Feature Service to add mapped tree counts and dimensions
 without claiming that they are a current field survey.
@@ -235,6 +247,7 @@ interpreted as zero.
 | `.partial` Vicmap file | Extraction did not complete. Do not pass it to `--address-file`/`--property-file`. |
 | Quality gate failed | Inspect `data_quality_run`, `data_quality_result` and the configured rules; correct or quarantine source rows before retrying. |
 | BOM `IndeterminateDatatype` | Geometry placeholders must keep explicit PostgreSQL casts (`%s::text`, `%s::integer`). This is fixed in the current loader. |
+| Multi-station BOM quality below 95% | Inspect failures by station. A wind-only or partially populated feed must not be treated as an air-temperature station; replace it with the correct official temperature feed rather than weakening `WEATHER_REQUIRED`. |
 | Landsat TIFF is HTML/unsupported | Do not reuse it. Current code signs Planetary Computer URLs and validates downloaded raster content. |
 | Canopy source value is ambiguous | Run `inspect_canopy.py`; never infer the tree class from display colours. |
 
