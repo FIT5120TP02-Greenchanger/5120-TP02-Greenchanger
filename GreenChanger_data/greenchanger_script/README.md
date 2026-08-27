@@ -34,6 +34,7 @@ repository.
 | `validate_csv.py` | Apply configured quality rules to a staging CSV and write rejected rows. |
 | `calculate_measures.py` | Calculate Data Analytics & Insight Development outputs or print all formulas with sample results. |
 | `validate_intervention_model.py` | Run source-linked intervention cases and update model status only after every case passes. |
+| `sanity_check_melbourne.py` | Print real-address parcel, heat, canopy and mapped-tree outputs across six representative Greater Melbourne scenarios. |
 | `clip_to_melbourne.py` | Create audited `2GMEL`-only Address, Property, heat and canopy dataset versions without deleting parent versions. |
 | `build_heat_baseline.py` | Resolve overlapping Landsat observations into one versioned, application-ready baseline cell per location. |
 | `build_canopy_baseline.py` | Publish one quality-checked, versioned 500 m canopy baseline and verify exact alignment with the heat grid. |
@@ -193,6 +194,20 @@ tests pass:
 python greenchanger_script/validate_intervention_model.py \
   --update-status --confirm-shared
 ```
+
+Print the six real Melbourne geographic sanity checks:
+
+```bash
+python greenchanger_script/sanity_check_melbourne.py
+```
+
+The default scenarios cover the CBD, inner suburbs, western and northern growth
+areas, eastern suburbs, southeastern suburbs, and the project-defined small,
+medium and large lot categories. `WARN` is an inspectable caveat rather than a
+failed join; `FAIL` means a required match, range, boundary or measurement label
+did not pass. Use `--json` for a machine-readable report or `--scenario
+EAST_LARGE` for one case. Add `--fail-on-warning` only when warnings should fail
+an automated pipeline.
 
 Migration 015 must be applied first. A failing case exits non-zero, records the
 failure when `--update-status` is used, and keeps the model at

@@ -123,6 +123,20 @@ python greenchanger_script/validate_intervention_model.py \
   --update-status --confirm-shared
 ```
 
+Print real property-baseline outputs for six representative Melbourne scenarios:
+
+```bash
+python greenchanger_script/sanity_check_melbourne.py
+```
+
+The versioned scenario addresses and expected zones/lot categories are stored in
+`config/melbourne_sanity_scenarios.json`. The output prints the parcel area,
+official `2GMEL` boundary result, Landsat land-surface temperature and date,
+500 m proxy canopy percentage, mapped Tree Urban count and nearest BOM station
+distance. It fails missing/ambiguous joins and invalid ranges, while unusual but
+possible values—such as 0%/90%+ proxy canopy, zero mapped trees or a distant
+weather station—are printed as warnings for imagery or field sanity checking.
+
 The command cannot set `validation_status='validated'` when any evidence case
 fails. It never validates the precise arithmetic prototype.
 

@@ -18,6 +18,7 @@ functions and perform database writes.
 | `heat_baseline.py` | Define and reference-test the latest-date/same-day-overlap baseline mosaic rule. |
 | `intervention_model.py` | Load source-backed action parameters, calculate non-guaranteed impact ranges and evaluate published-evidence cases. |
 | `measures.py` | Evidence-gated calculations and sample outputs for canopy, future shade proxy, greenery, surface heat and cost measures. |
+| `melbourne_sanity.py` | Validate real-address parcel, 2GMEL boundary, heat, proxy-canopy, mapped-tree and weather-context outputs without requiring a database in unit tests. |
 | `property_baseline.py` | Reference-test the project-defined small, medium and large lot-size categories used by Priority 4. |
 | `quality.py` | Record-level completeness, uniqueness, validity and consistency rules, including memory-safe stream validation. |
 | `sources.py` | Load the source registry and calculate reproducibility checksums. |
