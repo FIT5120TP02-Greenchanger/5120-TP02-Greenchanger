@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from math import isfinite
 from numbers import Real
 
 
@@ -27,6 +28,11 @@ def classify_environmental_value(
         for candidate in (value, lower_threshold, upper_threshold)
     ):
         raise TypeError("value and thresholds must be numeric or None")
+    if not all(
+        isfinite(candidate)
+        for candidate in (value, lower_threshold, upper_threshold)
+    ):
+        return "Unavailable"
     if lower_threshold > upper_threshold:
         raise ValueError("lower_threshold must not exceed upper_threshold")
     if value <= lower_threshold:

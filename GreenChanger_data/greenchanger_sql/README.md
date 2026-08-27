@@ -160,6 +160,13 @@ changing historical values.
 - Scenario, intervention, result and community entities store model inputs and
   outputs; they do not convert estimates into observed facts.
 
+The versioned Residential Greening Scenario Simulation input contract currently lives in
+`config/residential_greening_simulation_inputs.json` and is validated before these scenario
+entities are written. This keeps input/UI assumptions separate from the
+database's literature evidence bounds. No database migration is required for
+the contract itself; persisted scenario rows must retain its
+`residential-greening-simulation-inputs-v1` version in their assumptions/provenance metadata.
+
 ## Migration workflow
 
 ```bash

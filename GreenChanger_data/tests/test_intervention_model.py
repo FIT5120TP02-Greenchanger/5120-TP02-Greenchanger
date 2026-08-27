@@ -1,4 +1,5 @@
 import json
+from copy import deepcopy
 from pathlib import Path
 import unittest
 
@@ -73,6 +74,32 @@ class InterventionModelTests(unittest.TestCase):
                 },
                 registry=self.registry,
             )
+
+    def test_temperature_bounds_use_respective_coverage_extremes(self):
+        registry = deepcopy(self.registry)
+        evidence = registry["actions"]["garden_bed"]["temperature_evidence_bound"]
+        evidence["minimum_c"] = 2.0
+        evidence["maximum_c"] = 6.0
+        result = calculate_intervention_impact(
+            "garden_bed",
+            {
+                "planted_area_m2": {"minimum": 10, "maximum": 100},
+                "established_cover_fraction": {"minimum": 1, "maximum": 1},
+                "site_area_m2": 100,
+            },
+            registry=registry,
+        )
+        self.assertEqual(
+            result["temperature_change_range_c"],
+            {
+                "minimum": 0.2,
+                "maximum": 6.0,
+                "metric": "land_surface_temperature",
+                "scope": "daytime land unit during comparable hot-weather conditions",
+                "source_key": "ossola_2021_adelaide_vegetated_patches",
+                "source_url": "https://doi.org/10.1016/j.landurbplan.2021.104046",
+            },
+        )
 
     def test_all_published_evidence_cases_pass(self):
         cases = json.loads(

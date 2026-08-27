@@ -34,6 +34,7 @@ repository.
 | `validate_csv.py` | Apply configured quality rules to a staging CSV and write rejected rows. |
 | `calculate_measures.py` | Calculate Data Analytics & Insight Development outputs or print all formulas with sample results. |
 | `validate_intervention_model.py` | Run source-linked intervention cases and update model status only after every case passes. |
+| `validate_residential_greening_inputs.py` | Validate and print sample outputs for the four-action, versioned Residential Greening Scenario Simulation input contract without database writes. |
 | `sanity_check_melbourne.py` | Print real-address parcel, heat, canopy and mapped-tree outputs across six representative Greater Melbourne scenarios. |
 | `clip_to_melbourne.py` | Create audited `2GMEL`-only Address, Property, heat and canopy dataset versions without deleting parent versions. |
 | `build_heat_baseline.py` | Resolve overlapping Landsat observations into one versioned, application-ready baseline cell per location. |
@@ -81,6 +82,9 @@ python greenchanger_script/build_environmental_classifications.py \
 # Read-only threshold and class-distribution check
 python greenchanger_script/build_environmental_classifications.py --status
 
+# Validate quantity, area, maturity and uncertainty inputs for all four actions
+python greenchanger_script/validate_residential_greening_inputs.py
+
 # After migration 010, test the application-ready property lookup in psql
 # SELECT * FROM get_property_baseline('1 COLLINS STREET MELBOURNE', 5);
 
@@ -93,6 +97,13 @@ python greenchanger_script/ingestion.py costs \
 python greenchanger_script/migrate.py --status
 python -m unittest discover -v
 ```
+
+`validate_residential_greening_inputs.py` is read-only. It prints tree, potted-plant,
+garden-bed and green-wall examples plus their contract/model versions. The
+examples prove validation and unit handling; they are not universal application
+defaults. The current tree example is fixed to one tree and uses the published
+Melbourne 10-year crown range. All outputs preserve maturity,
+survival/suitability ranges and the prohibition on exact after-temperature.
 
 Use a previously completed Vicmap raw extract without downloading again:
 

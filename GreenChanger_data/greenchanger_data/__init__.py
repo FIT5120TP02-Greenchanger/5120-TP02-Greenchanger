@@ -19,12 +19,18 @@ from .melbourne_sanity import (
     validate_scenario_set,
 )
 from .quality import QualityReport, validate_records
+from .scenario_inputs import (
+    calculate_simulated_action,
+    load_input_contract,
+    prepare_model_inputs,
+)
 
 __all__ = [
     "QualityReport",
     "canopy_gain_m2",
     "build_melbourne_sanity_report",
     "calculate_intervention_impact",
+    "calculate_simulated_action",
     "classify_environmental_value",
     "estimated_heat_reduction_c",
     "evaluate_validation_cases",
@@ -33,6 +39,8 @@ __all__ = [
     "projected_canopy_proxy_shade_m2",
     "shade_projection_output",
     "load_parameter_registry",
+    "load_input_contract",
+    "prepare_model_inputs",
     "validate_records",
     "validate_scenario_set",
 ]

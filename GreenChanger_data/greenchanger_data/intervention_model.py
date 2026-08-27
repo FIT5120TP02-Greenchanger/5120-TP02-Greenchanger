@@ -48,18 +48,21 @@ def load_parameter_registry(path: Path | None = None) -> dict[str, Any]:
 
 
 def _temperature_range(
-    action: Mapping[str, Any], maximum_coverage_fraction: float
+    action: Mapping[str, Any],
+    minimum_coverage_fraction: float,
+    maximum_coverage_fraction: float,
 ) -> dict[str, float | str] | None:
     evidence = action.get("temperature_evidence_bound")
     if evidence is None:
         return None
+    minimum_coverage = min(max(minimum_coverage_fraction, 0.0), 1.0)
     maximum_coverage = min(max(maximum_coverage_fraction, 0.0), 1.0)
     minimum = _number("temperature_evidence_bound.minimum_c", evidence["minimum_c"])
     maximum = _number("temperature_evidence_bound.maximum_c", evidence["maximum_c"])
     if minimum < 0 or maximum < minimum:
         raise ValueError("temperature evidence bound must be non-negative and ordered")
     return {
-        "minimum": round(minimum * maximum_coverage, 3),
+        "minimum": round(minimum * minimum_coverage, 3),
         "maximum": round(maximum * maximum_coverage, 3),
         "metric": evidence["metric"],
         "scope": evidence["scope"],
@@ -170,7 +173,11 @@ def calculate_intervention_impact(
             raise ValueError("target_wall_area_m2 must be positive")
         extra = {}
 
-    temperature = _temperature_range(action, area_max / denominator)
+    temperature = _temperature_range(
+        action,
+        area_min / denominator,
+        area_max / denominator,
+    )
     status = "indicative_range" if temperature is not None else "evidence_insufficient_for_temperature"
     return {
         "model_version": parameters["version_label"],

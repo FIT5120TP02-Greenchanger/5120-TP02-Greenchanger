@@ -115,6 +115,7 @@ Validate the source-bounded intervention ranges without changing the database:
 
 ```bash
 python greenchanger_script/validate_intervention_model.py
+python greenchanger_script/validate_residential_greening_inputs.py
 ```
 
 After reviewing a passing report, record the test results and allow the script
@@ -154,7 +155,7 @@ FROM get_property_baseline('1 COLLINS STREET', 5);
 | Output | Current result | Quality/status |
 | --- | ---: | --- |
 | Applied migrations | 001–017 | Applied to shared Aurora |
-| Automated tests | 86/86 | Passed locally after classification implementation |
+| Automated tests | 94/94 | Passed locally after range-bound and non-finite-value regression fixes |
 | Greater Melbourne Address records | 3,007,474 | 100% boundary membership |
 | Greater Melbourne Property records | 3,001,053 | 100% boundary membership |
 | Address–Property source-key matches | 3,007,470 of 3,007,474 | 99.999867% |
@@ -195,6 +196,25 @@ canopy.
 Seven peer-reviewed primary studies are versioned in the intervention evidence
 register added by migration 014. This is a completed evidence-selection step,
 not a claim that a local intervention coefficient has passed validation.
+
+### Residential Greening Scenario Simulation input contract
+
+`config/residential_greening_simulation_inputs.json` defines the versioned
+`residential-greening-simulation-inputs-v1` contract for trees, potted plants, garden beds and
+green walls. Every scenario requires a positive quantity and maturity horizon,
+plus explicit survival and site-suitability uncertainty ranges. Action-specific
+area and establishment inputs are converted into the existing
+`literature-bounded-indicative-v1` model format by
+`greenchanger_data/scenario_inputs.py`.
+
+Iteration 1 permits one active simulated tree. Its published 10-year crown-area
+preview is 6.6–43.7 m² across 20 common Melbourne street-tree species and
+rainfall zones, from [Torquato et al. 2024](https://doi.org/10.1016/j.ufug.2024.128268).
+This is a deliberately broad indicative range, not a species selection or
+guaranteed mature canopy. The example survival/suitability ranges are transparent
+prototype sensitivity assumptions. Examples for pots, beds and walls test the
+calculations only and are not application defaults; their dimensions must come
+from a user's selection, measurement or supplier specification.
 
 The Tree Urban raw extract was obtained from the official Vicmap ArcGIS Feature Service, contains 10,580,207 bbox records, is approximately 435 MB compressed, and records a source edit timestamp of 4 June 2025. The application-ready version `558e07b7-f2d3-47b4-ade4-7f9c53ad02a6` contains 10,473,773 points inside the official ABS `2GMEL` boundary; 106,434 outside-boundary points were excluded and no record failed the configured quality gate.
 
@@ -345,17 +365,16 @@ not publish a reliable value. They must not be interpreted as zero.
 
 ## Iteration 1 readiness and next data work
 
-The data component can support Epic 1 property lookup and the baseline parts of
-Epic 2: address/parcel context, Melbourne boundary membership, relative heat and
+The data component can support Local Heat & Greenery Understanding and the baseline parts of
+Residential Greening Scenario Simulation: address/parcel context, Melbourne boundary membership, relative heat and
 canopy classifications, mapped-tree context, recent weather when available and
 source-backed indicative cost ranges. The environmental and weather values are
 application-ready only with the limitations and labels documented above.
 
 The next data-science work, in recommended order, is:
 
-1. Define and review source-backed scenario assumptions for simulated trees and
-   other greening actions; keep uncertainty ranges and the maturity horizon in
-   every result.
+1. Review `residential-greening-simulation-inputs-v1` with the team/mentor, then connect the
+   approved contract to scenario persistence and the application data handoff.
 2. Update any remaining legacy Clayton-only acceptance criteria, fixtures or
    presentation text to the official Greater Melbourne `2GMEL` scope.
 3. Obtain the original analytical Vicmap Tree Extent GeoTIFF, rebuild the canopy

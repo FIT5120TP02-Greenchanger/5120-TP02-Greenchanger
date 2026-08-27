@@ -22,6 +22,7 @@ functions and perform database writes.
 | `melbourne_sanity.py` | Validate real-address parcel, 2GMEL boundary, heat, proxy-canopy, mapped-tree and weather-context outputs without requiring a database in unit tests. |
 | `property_baseline.py` | Reference-test the project-defined small, medium and large lot-size categories used by Priority 4. |
 | `quality.py` | Record-level completeness, uniqueness, validity and consistency rules, including memory-safe stream validation. |
+| `scenario_inputs.py` | Validate the versioned Residential Greening Scenario Simulation quantity, area, maturity, survival and suitability contract and translate it into evidence-bounded model inputs. |
 | `sources.py` | Load the source registry and calculate reproducibility checksums. |
 | `spatial.py` | Read, repair, reproject, clip and write general vector datasets. |
 | `vicmap_features.py` | Extract, clean and normalise current Vicmap Address, Property and Tree Urban features from official ArcGIS APIs. |
@@ -122,6 +123,20 @@ temperature output. `evaluate_validation_cases` compares only expected subsets,
 so audit fields and disclaimers may be added without weakening the scientific
 checks.
 
+The separate `config/residential_greening_simulation_inputs.json` file defines the scenario
+input contract. `scenario_inputs.py` requires positive whole-number quantities
+and maturity horizons, ordered probability/suitability ranges between zero and
+one, and action-specific area fields. It locks the Iteration 1 tree quantity to
+one, aggregates per-unit areas, applies survival and site-suitability uncertainty
+before calling the evidence-bounded impact model, and retains the contract
+version in every output. Missing required inputs raise a validation error so the
+application can display `Unavailable` instead of inventing a result.
+
+Only the tree example has a published prototype size range: 6.6–43.7 m² crown
+area at 10 years across Melbourne species/rainfall cases
+([Torquato et al. 2024](https://doi.org/10.1016/j.ufug.2024.128268)). Other
+example dimensions are calculation fixtures rather than recommended defaults.
+
 ## Vicmap Address and Property processing
 
 The project boundary is the official ABS ASGS 2026 Greater Melbourne GCCSA,
@@ -197,5 +212,5 @@ python -m unittest discover -v
 
 The tests cover normalisation, cross-record uniqueness, the unrounded quality
 gate, geometry conversion, BOM extraction, raster checks, migration history,
-classification boundaries/missing values and analytical calculations. The
-current suite contains 86 tests.
+classification boundaries/missing/non-finite values, scenario-input constraints
+and analytical calculations. The current suite contains 94 tests.

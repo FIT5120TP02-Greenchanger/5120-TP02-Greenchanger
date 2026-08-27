@@ -30,6 +30,23 @@ class EnvironmentalClassificationTests(unittest.TestCase):
         with self.assertRaises(TypeError):
             classify_environmental_value("25", 20, 30)
 
+    def test_non_finite_values_and_thresholds_are_unavailable(self):
+        cases = (
+            (float("nan"), 20, 30),
+            (float("inf"), 20, 30),
+            (float("-inf"), 20, 30),
+            (25, float("nan"), 30),
+            (25, float("inf"), 30),
+            (25, 20, float("nan")),
+            (25, 20, float("inf")),
+        )
+        for value, lower, upper in cases:
+            with self.subTest(value=value, lower=lower, upper=upper):
+                self.assertEqual(
+                    classify_environmental_value(value, lower, upper),
+                    "Unavailable",
+                )
+
 
 if __name__ == "__main__":
     unittest.main()
