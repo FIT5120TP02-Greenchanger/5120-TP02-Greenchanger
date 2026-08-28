@@ -1,0 +1,9 @@
+
+# the requirements.txt file lists all the dependencies required for the backend of the project. 
+#Each line specifies a package and its version, ensuring that the correct versions are installed when setting up the environment.
+
+
+fastapi==0.141.1
+uvicorn[standard]==0.52.4
+psycopg[binary,pool]==3.3.4
+boto3==1.43.82
