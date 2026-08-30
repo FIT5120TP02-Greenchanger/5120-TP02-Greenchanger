@@ -20,7 +20,7 @@ ALTER TABLE model_version
 UPDATE model_version
 SET output_precision = 'suppressed',
     temperature_metric = 'land_surface_temperature',
-    spatial_scope = 'Melbourne 500 m neighbourhood baseline; intervention model not calibrated',
+    spatial_scope = 'Greater Melbourne 500 m neighbourhood baseline; intervention model not calibrated',
     uncertainty_method = 'No resident-facing temperature output until local calibration and held-out validation pass.',
     evidence_reviewed_at = DATE '2026-08-27',
     validation_status = 'validation_in_progress',
@@ -168,7 +168,7 @@ VALUES
         'Cybula, Torquato, Hahs and Arndt', 2026,
         '10.3390/f17010111',
         'https://doi.org/10.3390/f17010111',
-        'Wyndham, Melbourne, Australia', 'High-resolution imagery measurements of young trees in 2014 and 2018',
+        'Wyndham, Greater Melbourne, Australia', 'High-resolution imagery measurements of young trees in 2014 and 2018',
         ARRAY['tree'], ARRAY['canopy_area','shade_proxy'],
         '320 young trees across eight species in streets and parks',
         '{"mean_absolute_crown_growth_m2_per_year":2.3,"measurement_period_years":4,"species_count":8}'::jsonb,

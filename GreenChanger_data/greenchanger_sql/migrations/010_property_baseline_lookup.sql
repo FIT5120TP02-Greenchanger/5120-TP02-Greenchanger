@@ -290,6 +290,6 @@ LEFT JOIN LATERAL (
 $function$;
 
 COMMENT ON FUNCTION get_property_baseline(TEXT, INTEGER) IS
-    'Priority 4 prototype lookup: joins current Melbourne Vicmap Address and Property, then attaches the current 500 m heat and canopy baselines.';
+    'Priority 4 prototype lookup: joins current Greater Melbourne Vicmap Address and Property, then attaches the current 500 m heat and canopy baselines.';
 
 COMMIT;

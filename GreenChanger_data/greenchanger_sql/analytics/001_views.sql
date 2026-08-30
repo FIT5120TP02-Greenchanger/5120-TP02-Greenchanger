@@ -11,7 +11,7 @@ SELECT
     CASE
         WHEN dv.quality_pass_rate >= 95 THEN TRUE
         ELSE FALSE
-    END AS passed_quality_gate
+    END AS passed_kpi_1_gate
 FROM dataset_version AS dv
 JOIN dataset_source AS ds ON ds.source_id = dv.source_id;
 
