@@ -11,7 +11,11 @@ from psycopg import Connection
 from pydantic import BaseModel
 
 from app.db import get_db, jsonable_row, pool
-from app.greening_model.scenario_inputs import calculate_simulated_action
+from app.greening_model.scenario_inputs import calculate_simulated_action, load_input_contract
+
+# Read once at import time -- avoid re-parsing the JSON contract off disk on
+# every /simulate and /meta/assumptions request.
+SCENARIO_INPUT_CONTRACT = load_input_contract()
 
 
 @asynccontextmanager
@@ -89,7 +93,9 @@ class ScenarioSimulateRequest(BaseModel):
 def simulate_scenario(payload: ScenarioSimulateRequest) -> dict:
     """Indicative-range greening scenario calculation. Pure math, no DB access."""
     try:
-        return calculate_simulated_action(payload.action_type, payload.inputs)
+        return calculate_simulated_action(
+            payload.action_type, payload.inputs, contract=SCENARIO_INPUT_CONTRACT
+        )
     except ValueError as error:
         raise HTTPException(status_code=422, detail=str(error)) from error
 
@@ -107,4 +113,8 @@ def get_model_assumptions(db: Connection = Depends(get_db)) -> dict:
         cur.execute("SELECT * FROM selected_intervention_evidence ORDER BY citation_key")
         evidence = [jsonable_row(row) for row in cur.fetchall()]
 
-    return {"model_parameters": parameters, "evidence": evidence}
+    return {
+        "model_parameters": parameters,
+        "evidence": evidence,
+        "scenario_inputs": SCENARIO_INPUT_CONTRACT,
+    }
