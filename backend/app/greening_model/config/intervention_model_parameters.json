@@ -1,0 +1,93 @@
+{
+  "model_name": "GreenChanger literature-bounded intervention model",
+  "version_label": "literature-bounded-indicative-v1",
+  "reviewed_at": "2026-08-27",
+  "output_precision": "indicative_range",
+  "actions": {
+    "tree": {
+      "label": "Backyard, container or community tree",
+      "required_parameters": {
+        "projected_canopy_m2": "Scenario/species crown-area range at the selected maturity horizon; alternatively provide initial canopy and annual crown-growth ranges.",
+        "initial_canopy_m2": "Optional starting crown-area range when annual growth is used.",
+        "annual_crown_growth_m2_per_year": "Optional source-supported annual crown-growth range used with initial canopy and horizon.",
+        "survival_probability": "Scenario range from 0 to 1; no universal project default.",
+        "site_suitability_factor": "Scenario range from 0 to 1; reflects space, soil and water constraints.",
+        "overlap_factor": "Scenario range from 0 to 1; prevents double-counting overlapping crowns.",
+        "site_area_m2": "Positive land-unit area used only to cap the literature-bounded cooling envelope.",
+        "maturity_horizon_years": "Positive whole-number future horizon."
+      },
+      "area_output": "canopy_area_proxy_for_shade",
+      "temperature_evidence_bound": {
+        "minimum_c": 0.0,
+        "maximum_c": 6.0,
+        "metric": "land_surface_temperature",
+        "scope": "daytime land unit during comparable hot-weather conditions",
+        "source_key": "ossola_2021_adelaide_vegetated_patches",
+        "source_url": "https://doi.org/10.1016/j.landurbplan.2021.104046",
+        "interpretation": "Observed association and upper envelope, not a causal per-tree coefficient."
+      },
+      "supporting_growth_evidence": {
+        "reported_mean_young_crown_growth_m2_per_year": 2.3,
+        "source_key": "cybula_2026_melbourne_young_crowns",
+        "source_url": "https://doi.org/10.3390/f17010111",
+        "interpretation": "Local plausibility check only; species-specific projected crown inputs remain required."
+      },
+      "calculation_assumption": "The evidence upper bound is scaled linearly by the maximum effective-canopy share of the selected land unit and capped at the published maximum. This assumption is transparent but is not a causal estimate."
+    },
+    "potted_plants": {
+      "label": "Potted plants",
+      "required_parameters": {
+        "quantity": "Non-negative whole number of pots.",
+        "foliage_area_per_pot_m2": "Measured or supplier-supported foliage-area range per pot."
+      },
+      "area_output": "projected_foliage_area",
+      "temperature_evidence_bound": null,
+      "calculation_assumption": "Only foliage/greenery area is calculated. No outdoor Melbourne temperature effect is assigned without fit-for-purpose primary evidence."
+    },
+    "garden_bed": {
+      "label": "Garden bed or low vegetation",
+      "required_parameters": {
+        "planted_area_m2": "Installed garden-bed area range.",
+        "established_cover_fraction": "Scenario range from 0 to 1.",
+        "site_area_m2": "Positive land-unit area."
+      },
+      "area_output": "established_vegetated_area",
+      "temperature_evidence_bound": {
+        "minimum_c": 0.0,
+        "maximum_c": 6.0,
+        "metric": "land_surface_temperature",
+        "scope": "daytime land unit during comparable hot-weather conditions",
+        "source_key": "ossola_2021_adelaide_vegetated_patches",
+        "source_url": "https://doi.org/10.1016/j.landurbplan.2021.104046",
+        "interpretation": "Conservative combined-vegetation envelope; the study found grass weaker than tree canopy and did not provide a causal garden-bed coefficient."
+      },
+      "excluded_maximum": {
+        "value_c": 24.0,
+        "metric": "direct_plot_surface_temperature",
+        "source_key": "armson_2012_tree_shade_grass",
+        "source_url": "https://doi.org/10.1016/j.ufug.2012.05.002",
+        "reason": "Direct experimental plot maximum is not transferable to parcel-average Landsat output."
+      },
+      "calculation_assumption": "The conservative land-unit upper bound is scaled linearly by maximum established garden-bed share and capped at the evidence maximum."
+    },
+    "green_wall": {
+      "label": "Green wall",
+      "required_parameters": {
+        "installed_wall_area_m2": "Installed green-wall area range.",
+        "established_cover_fraction": "Scenario range from 0 to 1.",
+        "target_wall_area_m2": "Positive wall area used for the coverage calculation."
+      },
+      "area_output": "established_green_wall_area",
+      "temperature_evidence_bound": {
+        "minimum_c": 0.0,
+        "maximum_c": 15.5,
+        "metric": "wall_surface_temperature",
+        "scope": "exterior wall during comparable hot summer conditions",
+        "source_key": "hoelscher_2016_facade_greening",
+        "source_url": "https://doi.org/10.1016/j.enbuild.2015.06.047",
+        "interpretation": "Maximum exterior-wall effect; the study detected no street-canyon air cooling."
+      },
+      "calculation_assumption": "The wall-surface upper bound is scaled linearly by maximum established wall coverage and capped at the evidence maximum. It is never returned as property or neighbourhood LST."
+    }
+  }
+}
