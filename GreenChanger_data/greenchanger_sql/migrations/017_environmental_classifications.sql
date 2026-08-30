@@ -96,7 +96,7 @@ BEGIN
         'tercile_percentile_cont',
         'relative_to_greater_melbourne_application_ready_baseline',
         'draft',
-        'Low is the bottom third, Medium the middle third and High the top third of the selected application-ready Greater Melbourne baseline. Missing values are Unavailable.'
+        'Low is the bottom third, Medium the middle third and High the top third of the selected application-ready Melbourne baseline. Missing values are Unavailable.'
     )
     RETURNING classification_scheme_id INTO v_scheme_id;
 
@@ -116,7 +116,7 @@ BEGIN
         )::NUMERIC,
         'degC_land_surface_temperature',
         COUNT(*),
-        'Relative to application-ready Greater Melbourne Landsat 500 m baseline cells; this is land-surface temperature, not air temperature.'
+        'Relative to application-ready Melbourne Landsat 500 m baseline cells; this is land-surface temperature, not air temperature.'
     FROM latest_greater_melbourne_heat_baseline
     WHERE baseline_surface_temperature_c IS NOT NULL
     GROUP BY dataset_version_id;
@@ -137,7 +137,7 @@ BEGIN
         )::NUMERIC,
         'percent_neighbourhood_canopy',
         COUNT(*),
-        'Relative to application-ready Greater Melbourne 500 m neighbourhood canopy cells; the current rendered source is a proxy and not property-level canopy.'
+        'Relative to application-ready Melbourne 500 m neighbourhood canopy cells; the current rendered source is a proxy and not property-level canopy.'
     FROM latest_greater_melbourne_canopy_baseline
     WHERE canopy_percentage IS NOT NULL
     GROUP BY dataset_version_id;
@@ -189,7 +189,7 @@ RETURN CASE
 END;
 
 COMMENT ON FUNCTION classify_environmental_value(TEXT, NUMERIC, TEXT) IS
-    'Returns Low, Medium or High using a versioned Greater Melbourne tercile scheme. Missing values or unavailable thresholds always return Unavailable.';
+    'Returns Low, Medium or High using a versioned Melbourne tercile scheme. Missing values or unavailable thresholds always return Unavailable.';
 
 ALTER FUNCTION get_property_baseline(TEXT, INTEGER)
     RENAME TO get_property_baseline_pre_classification_legacy;
@@ -267,6 +267,6 @@ LEFT JOIN current_scheme AS scheme ON TRUE;
 $function$;
 
 COMMENT ON FUNCTION get_property_baseline(TEXT, INTEGER) IS
-    'Returns the property baseline plus versioned Greater Melbourne-relative heat and canopy classifications. Missing environmental values always classify as Unavailable.';
+    'Returns the property baseline plus versioned Melbourne-relative heat and canopy classifications. Missing environmental values always classify as Unavailable.';
 
 COMMIT;

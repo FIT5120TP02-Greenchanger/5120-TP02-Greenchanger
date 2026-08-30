@@ -52,7 +52,7 @@ greenchanger_sql/
 | `migrations/014_intervention_evidence.sql` | Stores selected primary studies, approved/prohibited uses and independent validation/output-precision gates. |
 | `migrations/015_intervention_model_validation.sql` | Defines four-action parameters, the range-only model and auditable validation runs/results. |
 | `migrations/016_multi_station_weather_context.sql` | Adds recent nearest-station BOM context, distance-status rules and suppression of stale or overly distant temperatures. |
-| `migrations/017_environmental_classifications.sql` | Adds versioned Greater Melbourne tercile thresholds, missing-safe classification and property-lookup labels. |
+| `migrations/017_environmental_classifications.sql` | Adds versioned Melbourne tercile thresholds, missing-safe classification and property-lookup labels. |
 | `seeds/001_reference_data.sql` | Defines sources, greening options, analytical measures, model metadata and sample test cases. |
 | `analytics/001_views.sql` | Defines reusable analytical views for dataset quality, site baselines and scenario comparison. |
 
@@ -77,7 +77,7 @@ must be added as the next numbered migration.
 
 - `analysis_area`: versioned supported spatial boundary. Migration 006 adds
   ABS area code/year, source metadata and dataset-version provenance for the
-  official ASGS 2026 Greater Melbourne GCCSA (`2GMEL`).
+  official ASGS 2026 Melbourne GCCSA (`2GMEL`).
 - `analysis_area_tile`: indexed subdivisions of a complex boundary used for
   scalable point/polygon membership checks. Migration 007 creates these tiles.
 - `address`: Vicmap Address point and source identifiers.

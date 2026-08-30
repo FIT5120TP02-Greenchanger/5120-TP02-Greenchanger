@@ -980,7 +980,7 @@ BEGIN
            PERCENTILE_CONT(1.0 / 3.0) WITHIN GROUP (ORDER BY baseline_surface_temperature_c)::NUMERIC,
            PERCENTILE_CONT(2.0 / 3.0) WITHIN GROUP (ORDER BY baseline_surface_temperature_c)::NUMERIC,
            'degC_land_surface_temperature', COUNT(*),
-           'Relative to application-ready Greater Melbourne Landsat 500 m baseline cells; land-surface temperature, not air temperature.'
+           'Relative to application-ready Melbourne Landsat 500 m baseline cells; land-surface temperature, not air temperature.'
     FROM latest_greater_melbourne_heat_baseline
     WHERE baseline_surface_temperature_c IS NOT NULL
     GROUP BY dataset_version_id;
@@ -993,7 +993,7 @@ BEGIN
            PERCENTILE_CONT(1.0 / 3.0) WITHIN GROUP (ORDER BY canopy_percentage)::NUMERIC,
            PERCENTILE_CONT(2.0 / 3.0) WITHIN GROUP (ORDER BY canopy_percentage)::NUMERIC,
            'percent_neighbourhood_canopy', COUNT(*),
-           'Relative to application-ready Greater Melbourne 500 m neighbourhood canopy cells; current source is a proxy.'
+           'Relative to application-ready Melbourne 500 m neighbourhood canopy cells; current source is a proxy.'
     FROM latest_greater_melbourne_canopy_baseline
     WHERE canopy_percentage IS NOT NULL
     GROUP BY dataset_version_id;

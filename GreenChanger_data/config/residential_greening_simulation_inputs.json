@@ -2,7 +2,7 @@
   "contract_name": "GreenChanger residential greening simulation inputs",
   "contract_version": "residential-greening-simulation-inputs-v1",
   "reviewed_at": "2026-08-27",
-  "scope": "User-created residential scenarios across Greater Melbourne",
+  "scope": "User-created residential scenarios across Melbourne",
   "impact_model_version": "literature-bounded-indicative-v1",
   "output_policy": {
     "precision": "indicative_range",

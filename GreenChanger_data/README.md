@@ -23,7 +23,7 @@ Normalisation and CRS/unit/date standardisation
         ↓
 Completeness, validity, consistency and uniqueness checks
         ↓
-Official ABS 2026 Greater Melbourne (2GMEL) boundary filter
+Official ABS 2026 Melbourne (2GMEL) boundary filter
         ↓
 PostgreSQL 17 + PostGIS integration
         ↓
@@ -62,7 +62,7 @@ The following sequence builds the data component from an empty database. Shared-
 python greenchanger_script/migrate.py --status
 python greenchanger_script/migrate.py --confirm-shared
 
-# 2. Register sources and load the official Greater Melbourne boundary
+# 2. Register sources and load the official Melbourne boundary
 python greenchanger_script/ingestion.py sources --confirm-shared
 python greenchanger_script/ingestion.py boundary --confirm-shared
 
@@ -165,13 +165,13 @@ FROM get_property_baseline('1 COLLINS STREET', 5);
 | --- | ---: | --- |
 | Applied migrations | 001–017 | Applied to shared Aurora |
 | Automated tests | 98/98 | Passed locally after representative property-scenario implementation |
-| Greater Melbourne Address records | 3,007,474 | 100% boundary membership |
-| Greater Melbourne Property records | 3,001,053 | 100% boundary membership |
+| Melbourne Address records | 3,007,474 | 100% boundary membership |
+| Melbourne Property records | 3,001,053 | 100% boundary membership |
 | Address–Property source-key matches | 3,007,470 of 3,007,474 | 99.999867% |
 | Application-ready Landsat baseline | 35,218 unique 500 m cells | All baseline checks passed |
 | Application-ready canopy baseline | 37,146 unique 500 m cells | All baseline checks passed |
 | BOM weather observations | 1,557 from 10 stations | 100% source quality pass rate; version `greater-melbourne-bom-stations-v1` |
-| Vicmap Tree Urban | 10,473,773 Greater Melbourne points | 100% record-quality and boundary-membership pass rates |
+| Vicmap Tree Urban | 10,473,773 Melbourne points | 100% record-quality and boundary-membership pass rates |
 | Cost estimates | 8 in AWS | 100% quality pass; 0 rejected, 0 missing source URLs and 0 expired |
 | Representative residential simulations | 3 properties × 4 actions | 12/12 output checks passed; overall WARN from retained baseline caveats |
 | Validated scenario measure results | 0 | Prototype model is deliberately blocked from application output |
@@ -241,7 +241,7 @@ The Tree Urban raw extract was obtained from the official Vicmap ArcGIS Feature 
 
 | Dataset | Role |
 | --- | --- |
-| ABS ASGS Edition 4 GCCSA 2026 | Official Greater Melbourne `2GMEL` project boundary |
+| ABS ASGS Edition 4 GCCSA 2026 | Official Melbourne `2GMEL` project boundary |
 | Vicmap Address | Address search, coordinates and Property join key |
 | Vicmap Property | Property polygons, identifiers and area |
 | Vicmap Vegetation – Tree Urban Point | Mapped individual-tree context, radius and height |
@@ -272,7 +272,7 @@ All source versions retain extraction time, observation period, checksum, source
 ### Heat and weather
 
 - Landsat values are land-surface temperature, not the air temperature experienced by a resident.
-- BOM values are observations from the nearest of ten configured official Greater Melbourne stations, not property-level measurements.
+- BOM values are observations from the nearest of ten configured official Melbourne stations, not property-level measurements.
 - Only observations no older than three hours are eligible. Stations within 10 km are labelled `good_local_context`; 10–25 km is `regional_context_warning`; beyond 25 km the air and apparent temperatures are suppressed; no eligible observation is `unavailable_no_observation_within_3_hours`.
 - Station name, observation time and distance remain visible whenever a recent station exists. BOM air temperature is never substituted for Landsat land-surface temperature.
 - The heat mosaic uses the newest usable cell and same-day overlap averaging; cells can come from different acquisition dates.
@@ -395,7 +395,7 @@ The next data-science work, in recommended order, is:
 1. Review `residential-greening-simulation-inputs-v1` with the team/mentor, then connect the
    approved contract to scenario persistence and the application data handoff.
 2. Update any remaining legacy Clayton-only acceptance criteria, fixtures or
-   presentation text to the official Greater Melbourne `2GMEL` scope.
+   presentation text to the official Melbourne `2GMEL` scope.
 3. Obtain the original analytical Vicmap Tree Extent GeoTIFF, rebuild the canopy
    baseline, and publish a newly versioned classification scheme after quality
    and imagery checks. Do not silently replace the current proxy-derived v1.

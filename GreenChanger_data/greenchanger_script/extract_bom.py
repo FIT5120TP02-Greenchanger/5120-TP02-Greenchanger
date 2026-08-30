@@ -1,4 +1,4 @@
-"""Download and normalise current Greater Melbourne BOM station feeds."""
+"""Download and normalise current Melbourne BOM station feeds."""
 
 from __future__ import annotations
 

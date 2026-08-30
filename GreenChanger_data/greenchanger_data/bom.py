@@ -1,4 +1,4 @@
-"""Extraction and normalisation for Greater Melbourne BOM station feeds."""
+"""Extraction and normalisation for Melbourne BOM station feeds."""
 
 from __future__ import annotations
 
@@ -32,7 +32,7 @@ def fetch_observations(url: str = DEFAULT_BOM_URL, *, timeout: int = 30) -> dict
 
 
 def load_station_registry(path: Path = DEFAULT_STATION_REGISTRY) -> dict[str, Any]:
-    """Load and validate the versioned Greater Melbourne station registry."""
+    """Load and validate the versioned Melbourne station registry."""
 
     registry = json.loads(path.read_text(encoding="utf-8"))
     stations = registry.get("stations")

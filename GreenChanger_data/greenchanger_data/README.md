@@ -10,8 +10,8 @@ functions and perform database writes.
 | File | Responsibility |
 | --- | --- |
 | `__init__.py` | Marks this directory as the reusable `greenchanger_data` Python package. |
-| `boundary.py` | Download, preserve and normalise the official ABS ASGS 2026 Greater Melbourne GCCSA boundary. |
-| `bom.py` | Validate the Greater Melbourne station registry, download each official BOM feed, verify feed identity, flatten and normalise observations. |
+| `boundary.py` | Download, preserve and normalise the official ABS ASGS 2026 Melbourne GCCSA boundary. |
+| `bom.py` | Validate the Melbourne station registry, download each official BOM feed, verify feed identity, flatten and normalise observations. |
 | `canopy.py` | Inspect and aggregate a binary tree-extent raster into Melbourne grid summaries. |
 | `canopy_baseline.py` | Define versioned baseline and source-provenance rules, including analytical-versus-proxy classification. |
 | `classification.py` | Calculate and apply versioned Melbourne-relative heat/canopy tercile thresholds with explicit missing-data handling. |
@@ -148,12 +148,12 @@ arithmetic. Passing these checks does not establish a causal cooling effect.
 
 ## Vicmap Address and Property processing
 
-The project boundary is the official ABS ASGS 2026 Greater Melbourne GCCSA,
+The project boundary is the official ABS ASGS 2026 Melbourne GCCSA,
 code `2GMEL`. Boundary ingestion checks its code, name, year, positive area and
 polygon geometry, and preserves the raw ABS GeoJSON for reproducibility.
 
 The default project extent is `144.4,-38.5,146.0,-37.4` in EPSG:4326. It is a
-project bounding box, not an official Greater Melbourne administrative polygon.
+project bounding box, not an official Melbourne administrative polygon.
 
 ### Extraction and cleaning
 

@@ -1,4 +1,4 @@
-"""Calculate and activate Greater Melbourne heat and canopy terciles."""
+"""Calculate and activate Melbourne heat and canopy terciles."""
 
 from __future__ import annotations
 
