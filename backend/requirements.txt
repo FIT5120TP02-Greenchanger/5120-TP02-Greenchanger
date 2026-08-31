@@ -7,6 +7,3 @@ fastapi==0.141.1
 uvicorn[standard]==0.52.4
 psycopg[binary,pool]==3.3.4
 boto3==1.43.82
-# Required by the `aws login` credential provider the team uses; without it every
-# database-backed endpoint fails with MissingDependencyException.
-botocore[crt]==1.43.82

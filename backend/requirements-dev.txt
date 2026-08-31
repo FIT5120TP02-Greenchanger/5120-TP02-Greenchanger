@@ -4,3 +4,11 @@
 pytest==9.1.1
 httpx==0.28.1
 ruff==0.16.5
+
+# Development machines only. Our AWS credentials come from `aws login`, whose
+# credential provider needs the CRT extra -- without it every database-backed
+# endpoint fails with MissingDependencyException before it reaches Aurora.
+# The deployed container does NOT need this: it takes credentials from the EC2
+# instance profile via IMDS, which uses a different provider. Verified against
+# the live cluster with an image built without it.
+botocore[crt]==1.43.82
