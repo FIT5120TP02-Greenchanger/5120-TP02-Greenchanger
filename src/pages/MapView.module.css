@@ -1,0 +1,93 @@
+.map-container {
+    display: flex;
+    height: 100vh;
+    width: 100%;
+}
+
+.address-container {
+    display: flex;
+    z-index: 1;
+    position: absolute;
+    top: 10px;
+    left: 10px;
+    border-radius: 50px;
+    background-color: #fff;
+    width: 30%;
+}
+
+.search-box-container {
+    position: relative;
+    flex: 1;
+    min-width: 0;
+}
+.mapbox-search-wrapper :global(input) {
+    width: 100%;
+    box-sizing: border-box;
+}
+
+.property-popup {
+    background: white;
+    border-radius: 8px;
+    box-shadow: 0 2px 12px rgba(0,0,0,0.15);
+    padding: 12px;
+    min-width: 200px;
+    width: 300px;
+}
+
+.beacon-marker {
+    position: relative;
+    width: 35px;
+    height: 35px;
+    display: flex;
+    align-items: flex-end;
+    justify-content: center;
+}
+
+.beacon-pin {
+    position: relative;
+    width: 30px;
+    height: 30px;
+    background-color: #2F7D5A;
+    border: 3px solid #FFFFFF;
+    border-radius: 50% 50% 50% 0;
+    transform: rotate(-45deg);
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
+    z-index: 2;
+    margin-bottom: 6px;
+}
+.beacon-pin::after {
+    content: '';
+    position: absolute;
+    width: 12px;
+    height: 12px;
+    background-color: #FFFFFF;
+    border-radius: 50%;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+}
+
+.beacon-pulse {
+    position: absolute;
+    width: 30px;
+    height: 30px;
+    background-color: rgba(47, 125, 90, 0.5);
+    border-radius: 50%;
+    animation: pulse 2s ease-out infinite;
+    z-index: 1;
+}
+
+@keyframes pulse {
+    0% {
+        transform: scale(0.6);
+        opacity: 0.8;
+    }
+    70% {
+        transform: scale(2.8);
+        opacity: 0;
+    }
+    100% {
+        transform: scale(2.8);
+        opacity: 0;
+    }
+}
