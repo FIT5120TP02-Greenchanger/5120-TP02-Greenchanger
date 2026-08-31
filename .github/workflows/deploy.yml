@@ -1,0 +1,86 @@
+
+
+# flow: git pull  →  docker build  →  docker rm  →  docker run
+
+name: Deploy
+
+
+
+# the workflow is triggered if:
+on:
+  push:
+    branches: [main] # when merge to main will trigger deploy
+
+    # only trigger if the following files are changed
+    paths:
+      - "backend/**" 
+      - ".github/workflows/deploy.yml"
+  workflow_dispatch:
+
+concurrency:
+  group: deploy
+  cancel-in-progress: false
+
+# permissions required for the workflow to run
+permissions:
+  id-token: write # required for OIDC authentication
+  contents: read # required to read the repo content
+
+# aws region to deploy to
+env:
+  AWS_REGION: ap-southeast-2
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_ROLE_ARN }} # the role to assume in the target account
+          aws-region: ${{ env.AWS_REGION }} # the region to deploy to
+
+      - name: Send deploy command
+        id: send
+        run: |
+          COMMAND_ID=$(aws ssm send-command \
+            --instance-ids "${{ vars.INSTANCE_ID }}" \
+            --document-name AWS-RunShellScript \
+            --comment "deploy ${{ github.sha }}" \
+            --parameters 'commands=[
+              "set -euo pipefail",
+              "cd /home/ubuntu/app",
+              "sudo -u ubuntu git fetch --depth 1 origin main",
+              "sudo -u ubuntu git reset --hard origin/main",
+              "cd backend",
+              "docker build -t greenchanger-api .",
+              "docker rm -f api 2>/dev/null || true",
+              "docker run -d --name api --restart unless-stopped -p 8000:8000 greenchanger-api",
+              "docker image prune -f",
+              "sleep 5",
+              "curl -fsS localhost:8000/api/health"
+            ]' \
+            --query Command.CommandId --output text)
+          echo "command_id=$COMMAND_ID" >> "$GITHUB_OUTPUT"
+
+      - name: Wait for it to finish
+        run: |
+          aws ssm wait command-executed \
+            --command-id "${{ steps.send.outputs.command_id }}" \
+            --instance-id "${{ vars.INSTANCE_ID }}" || true
+
+          aws ssm get-command-invocation \
+            --command-id "${{ steps.send.outputs.command_id }}" \
+            --instance-id "${{ vars.INSTANCE_ID }}" \
+            --query '[Status,StandardOutputContent,StandardErrorContent]' \
+            --output text
+
+          STATUS=$(aws ssm get-command-invocation \
+            --command-id "${{ steps.send.outputs.command_id }}" \
+            --instance-id "${{ vars.INSTANCE_ID }}" \
+            --query Status --output text)
+          echo "status: $STATUS"
+          [ "$STATUS" = "Success" ]
+
+
