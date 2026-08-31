@@ -13,22 +13,22 @@ export function useTreeSimulation() {
     const [active, setActive] = useState(false);
     const [position, setPosition] = useState(null);
     const [size, setSize] = useState("Medium");
-     
+    
     const startPlanting = useCallback(() => setActive(true), []);
     const cancelPlanting = useCallback(() => setActive(false), []);
-     
+    
     const placeTree = useCallback((lng, lat) => {
         setPosition({ lng, lat });
         setActive(false);
     }, []);
-     
+    
     const removeTree = useCallback(() => {
         setPosition(null);
-        setActive(false);
+        setActive(true);
     }, []);
-     
+    
     const repositionTree = useCallback(() => setActive(true), []);
-     
+    
     return {
         active,
         position,

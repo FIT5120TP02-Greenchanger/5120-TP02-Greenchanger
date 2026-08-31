@@ -59,13 +59,6 @@
     border-radius: 10px;
 }
 
-.canopy-scale {
-    display: flex;
-    justify-content: space-between;
-    color: #8C949A;
-    font-size: 0.675rem;
-}
-
 .canopy-verdict {
     font-size: 13px;
     line-height: 19px;
@@ -300,4 +293,107 @@
     background-color: #2F7D5A;
     color: white;
     border-color: #2F7D5A;
+}
+
+/* Comparison Panel */
+.scenario-panel {
+    display: flex;
+    flex-direction: column;
+    padding: 30px;
+    gap: 15px;
+}
+.scenario-panel > span {
+    font-style: bold;
+    font-size: 0.75rem;
+    font-weight: 700;
+    color: #63806F;
+    margin: 0;
+}
+.scenario-panel > h3 {
+    font-size: 1.4375rem;
+    font-style: bold;
+    font-weight: 700;
+    color: #17392E;
+    margin: 0;
+    margin-bottom: 22px;
+}
+.scenario-card {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    border: 1px solid #D7DDD9;
+    background-color: #F4F5F4;
+    border-radius: 10px;
+    padding: 15px 20px;
+}
+.scenario-card--simulated {
+    border: 1px solid #ACD0B0;
+    background-color: #EEF7F0;
+}
+.scenario-card-label {
+    font-size: 0.75rem;
+    font-weight: 700;
+    color: #68736D;
+    font-style: bold;
+    margin: 0;
+}
+.scenario-card-pct {
+    font-size: 1.875rem;
+    color: #435249;
+    margin: 0;
+}
+.scenario-card--simulated .scenario-card-pct {
+    font-size: 1.875rem;
+    color: #1F7A55;
+}
+.scenario-card-note {
+    color: #7B847F;
+    font-size: 0.675rem;
+    font-weight: 400;
+    margin: 0;
+}
+.scenario-card-highlight {
+    font-weight: 700;
+    font-size: 0.8125rem;
+    color: #346B45;
+    margin: 0;
+}
+.assumptions-box {
+    background-color: #FFF5EF;
+    border-radius: 10px;
+    padding: 15px 20px;
+}
+.assumptions-box span {
+    font-size: 0.75rem;
+    color: #8D5B48;
+    font-weight: 700;
+    font-style: bold;
+}
+.assumptions-box p {
+    font-size: 0.675rem;
+    font-weight: 400;
+    color: #795F55
+}
+
+.scenario-actions {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+.scenario-actions button {
+    width: 120px;
+    height: 50px;
+    border-radius: 10px;
+}
+.scenario-actions button:hover {
+    cursor: pointer;
+}
+.reset-button {
+    border: 2px solid #1F7A55;
+    color: #1F7A55;
+    background: #FFFFFF;
+}
+.new-scenario-button {
+    color: #FFFFFF;
+    background-color: #17392E;
 }

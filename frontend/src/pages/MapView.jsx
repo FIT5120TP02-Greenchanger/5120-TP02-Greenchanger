@@ -116,7 +116,7 @@ export default function MapView({ selectedLocation, setSelectedLocation, simulat
         const centerLat = map.getCenter().lat;
         const zoom = map.getZoom();
         setZoom(zoom);
-        trees.refresh(bounds, centerLat);
+        trees.refresh(bounds, centerLat, zoom);
         parcels.refresh(bounds, zoom);
         console.log("Refreshed parcels and trees");
     }, [trees, parcels]);
@@ -296,23 +296,6 @@ export default function MapView({ selectedLocation, setSelectedLocation, simulat
                     </Marker>
                 )}
 
-                {propertyAnchor && (
-                    <Marker longitude={propertyAnchor.lng} latitude={propertyAnchor.lat} anchor="bottom" offset={[0, -50]}>
-                        <div className={styles['property-popup']}>
-                            <PropertyPanel
-                                stats={propertySelected.stats}
-                                hint={propertySelected.hint}
-                                onPlantTree={() =>
-                                    onPlantTree({
-                                        lng: propertyAnchor?.lng,
-                                        lat: propertyAnchor?.lat,
-                                        label: propertySelected.stats?.address,
-                                    })
-                                }
-                            />
-                        </div>
-                    </Marker>
-                )}
                 {markerCoordinates && (
                     <Marker latitude={markerCoordinates.latitude} longitude={markerCoordinates.longitude} anchor="bottom">
                         <div className={styles['beacon-marker']}>

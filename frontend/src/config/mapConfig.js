@@ -22,6 +22,10 @@ export const PARCELS_URL =
 
 // Below this zoom a viewport holds more than the 2000-record cap, so the
 // boundaries would be silently incomplete. Better to show none.
+export const MIN_TREE_ZOOM = 15.5;
 export const MIN_PARCEL_ZOOM = 15.5;
 
 export const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_ACCESS_TOKEN;
+
+// GreenShift data-team backend. Ask them for the deployed URL.
+export const API_BASE_URL = import.meta.env.VITE_GREENSHIFT_API_URL;

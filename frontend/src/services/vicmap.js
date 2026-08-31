@@ -10,6 +10,7 @@ import {
     PARCELS_URL,
     MIN_TREE_HEIGHT,
     MAPBOX_TOKEN,
+    API_BASE_URL
 } from "../config/mapConfig";
 import { circleMetres, polygonAreaM2 } from "../utils/geo";
 
@@ -30,17 +31,18 @@ export async function fetchTrees(bounds) {
 
     const res = await fetch(TREES_URL + "?" + params);
     const gj = await res.json();
-    if (!gj || !gj.features) return [];
+    if (!gj || !gj.features) return { features: [], truncated: false };
 
-    return gj.features.map((f) => {
+    const features = gj.features.map((f) => {
         const [lng, lat] = f.geometry.coordinates;
         const r = f.properties.canopy_radius_m || 2;
         return {
-        type: "Feature",
-        properties: { r, area: Math.PI * r * r, lng, lat },
-        geometry: circleMetres(lng, lat, r),
+            type: "Feature",
+            properties: { r, area: Math.PI * r * r, lng, lat },
+            geometry: circleMetres(lng, lat, r),
         };
     });
+    return { features, truncated: gj.features.length >= 2000};
 }
 
 export async function fetchParcels(bounds) {
@@ -81,6 +83,25 @@ export async function fetchParcelsAtPoint(lng, lat) {
     return gj.features || [];
 }
 
+export async function reverseGeocode(lng, lat) {
+    const url =
+        "https://api.mapbox.com/search/geocode/v6/reverse?" +
+        new URLSearchParams({
+        longitude: lng,
+        latitude: lat,
+        types: "address",
+        access_token: MAPBOX_TOKEN,
+        });
+    try {
+        const geo = await (await fetch(url)).json();
+        const feature = geo.features?.[0];
+        return feature?.properties?.full_address || null;
+    } catch (err) {
+        console.warn("reverse geocode failed", err);
+        return null;
+    }
+}
+
 export async function geocodeAddress(query) {
     const url =
         "https://api.mapbox.com/search/geocode/v6/forward?" +
@@ -107,4 +128,34 @@ export function resolveParcel(features, { clickPrecise, query = "", label } = {}
         smallestFirst ? a.properties.areaM2 - b.properties.areaM2 : b.properties.areaM2 - a.properties.areaM2
     );
     return withArea[0];
+}
+
+export async function searchAddresses(query, limit = 10) {
+    const params = new URLSearchParams({ q: query, limit: String(limit) });
+    const res = await fetch(`${API_BASE_URL}/api/addresses?${params}`);
+    if (!res.ok) return [];
+    return res.json();
+}
+
+export async function fetchPropertyBaseline(address) {
+    const params = new URLSearchParams({ address });
+    const res = await fetch(`${API_BASE_URL}/api/properties/baseline?${params}`);
+    if (!res.ok) return null;
+    return res.json(); // shape TBD — inspect a real response before wiring up
+}
+
+export async function simulateScenario(actionType, inputs) {
+    const res = await fetch(`${API_BASE_URL}/api/scenario/simulate`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action_type: actionType, inputs }),
+    });
+    if (!res.ok) return null;
+    return res.json();
+}
+
+export async function fetchModelAssumptions() {
+    const res = await fetch(`${API_BASE_URL}/api/meta/assumptions`);
+    if (!res.ok) return null;
+    return res.json();
 }
