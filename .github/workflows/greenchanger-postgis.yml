@@ -1,4 +1,4 @@
-name: GreenChanger PostGIS
+name: CI
 
 on:
   pull_request:
@@ -19,7 +19,7 @@ permissions:
 
 jobs:
   postgis-integration:
-    name: Apply migrations and execute PostGIS contracts
+    name: postgis-integration
     runs-on: ubuntu-latest
     timeout-minutes: 15
 

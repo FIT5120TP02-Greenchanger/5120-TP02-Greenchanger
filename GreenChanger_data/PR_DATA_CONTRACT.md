@@ -106,7 +106,7 @@ inside/outside-boundary coordinates, invalid radius, unsupported layers and the
 per-layer limit. It also executes the structured historical-temperature helper.
 
 The same suite is required by the GitHub Actions
-`GreenChanger PostGIS / Apply migrations and execute PostGIS contracts` job in
+`CI / postgis-integration (pull_request)` check in
 `.github/workflows/greenchanger-postgis.yml`. It runs for pull requests that
 change `GreenChanger_data`, relevant pushes to `main` or `greenchanger-ds`, and
 manual workflow dispatches.
