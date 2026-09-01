@@ -159,12 +159,48 @@ SELECT *
 FROM get_property_baseline('1 COLLINS STREET', 5);
 ```
 
+To return only application-ready mapped trees and heat cells within a radius of
+a searched Melbourne address, apply migrations 018 and 019 and call:
+
+```sql
+SELECT layer, feature_id, distance_m, observed_on, properties, geometry_geojson
+FROM get_environment_context_by_address(
+    '1 COLLINS STREET MELBOURNE 3000',
+    500,
+    ARRAY['trees', 'heat'],
+    1000
+);
+```
+
+The wrapper accepts one unique prefix result or one exact full-address match.
+It rejects missing, unmatched and ambiguous searches instead of silently using
+the wrong property. After resolving the address coordinate, it delegates to the
+coordinate-based function:
+
+```sql
+SELECT layer, feature_id, distance_m, observed_on, properties, geometry_geojson
+FROM get_environment_context(
+    144.9631,
+    -37.8136,
+    500,
+    ARRAY['trees', 'heat'],
+    1000
+);
+```
+
+The resolved coordinate is EPSG:4326 longitude/latitude and is transformed to
+EPSG:7855 for metre-based filtering. The database rejects coordinates outside
+the official Melbourne boundary, radii over 2 km, unsupported layers and more
+than 2,000 results per layer. `ST_DWithin` uses the existing tree and heat GiST
+indexes. Returned heat polygons are clipped to the search circle before GeoJSON
+conversion; their 500 m source resolution is unchanged.
+
 ## Current shared-database results
 
 | Output | Current result | Quality/status |
 | --- | ---: | --- |
 | Applied migrations | 001–017 | Applied to shared Aurora |
-| Automated tests | 98/98 | Passed locally after representative property-scenario implementation |
+| Automated tests | 109/109 | Passed locally after coordinate- and address-radius query implementation |
 | Melbourne Address records | 3,007,474 | 100% boundary membership |
 | Melbourne Property records | 3,001,053 | 100% boundary membership |
 | Address–Property source-key matches | 3,007,470 of 3,007,474 | 99.999867% |

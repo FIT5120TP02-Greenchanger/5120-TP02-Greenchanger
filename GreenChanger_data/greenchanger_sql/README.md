@@ -26,7 +26,9 @@ greenchanger_sql/
 │   ├── 014_intervention_evidence.sql
 │   ├── 015_intervention_model_validation.sql
 │   ├── 016_multi_station_weather_context.sql
-│   └── 017_environmental_classifications.sql
+│   ├── 017_environmental_classifications.sql
+│   ├── 018_environment_context_radius.sql
+│   └── 019_environment_context_by_address.sql
 ├── seeds/001_reference_data.sql
 └── analytics/001_views.sql
 ```
@@ -53,6 +55,8 @@ greenchanger_sql/
 | `migrations/015_intervention_model_validation.sql` | Defines four-action parameters, the range-only model and auditable validation runs/results. |
 | `migrations/016_multi_station_weather_context.sql` | Adds recent nearest-station BOM context, distance-status rules and suppression of stale or overly distant temperatures. |
 | `migrations/017_environmental_classifications.sql` | Adds versioned Melbourne tercile thresholds, missing-safe classification and property-lookup labels. |
+| `migrations/018_environment_context_radius.sql` | Adds a bounded, application-facing radius query for current mapped-tree points and clipped 500 m heat cells. |
+| `migrations/019_environment_context_by_address.sql` | Resolves one unambiguous Melbourne address and delegates to the bounded coordinate-radius query. |
 | `seeds/001_reference_data.sql` | Defines sources, greening options, analytical measures, model metadata and sample test cases. |
 | `analytics/001_views.sql` | Defines reusable analytical views for dataset quality, site baselines and scenario comparison. |
 
@@ -107,6 +111,24 @@ The function separates Landsat land-surface temperature from recent BOM station
 air temperature and labels the distance to that station. It exposes the canopy
 proxy only at `neighbourhood_500m` scope, keeps property canopy null, and adds
 mapped Tree Urban counts when an integrated tree version exists.
+
+Migration 018 exposes `get_environment_context(longitude, latitude, radius_m,
+layers, result_limit)`. It transforms an EPSG:4326 coordinate to EPSG:7855,
+requires the point to be inside the official Melbourne boundary, and uses
+`ST_DWithin` with the existing GiST indexes to return only nearby records.
+Supported layers are `trees` and `heat`; the radius defaults to 500 m and is
+capped at 2 km, while the result limit is capped at 2,000 per layer. Tree rows
+come only from the newest application-ready Melbourne Tree Urban version.
+Heat rows come from the current application-ready 500 m baseline, and their
+GeoJSON polygons are clipped to the requested search circle. The heat payload
+continues to identify the measurement as Landsat land-surface temperature.
+
+Migration 019 exposes `get_environment_context_by_address(address, radius_m,
+layers, result_limit)`. It uses the existing property-baseline address search to
+resolve coordinates, accepts a unique result or one exact full-address match,
+and rejects missing, unmatched or ambiguous searches. It then delegates radius,
+layer, boundary and result-limit enforcement to migration 018 rather than
+duplicating spatial-query logic.
 
 Migration 017 adds `environmental_classification_scheme` and
 `environmental_classification_threshold`. The active
@@ -189,7 +211,7 @@ To add a schema change:
 5. Run `python -m unittest discover -v`.
 6. Check status before applying to shared Aurora.
 
-The next migration number is `018`. Never modify `001`–`017` after they have
+The next migration number is `020`. Never modify `001`–`019` after they have
 been applied. Their checksums are part of the migration audit trail.
 
 ## Data preparation and database integration
@@ -255,4 +277,23 @@ WHERE dataset_version_id = :property_version;
 -- Prototype-ready property baseline lookup
 SELECT *
 FROM get_property_baseline('1 COLLINS STREET MELBOURNE', 5);
+
+-- Bounded map context around a selected Melbourne coordinate
+SELECT layer, feature_id, distance_m, observed_on, properties, geometry_geojson
+FROM get_environment_context(
+    144.9631,
+    -37.8136,
+    500,
+    ARRAY['trees', 'heat'],
+    1000
+);
+
+-- The same bounded context starting from an unambiguous address
+SELECT layer, feature_id, distance_m, observed_on, properties, geometry_geojson
+FROM get_environment_context_by_address(
+    '1 COLLINS STREET MELBOURNE 3000',
+    500,
+    ARRAY['trees', 'heat'],
+    1000
+);
 ```
