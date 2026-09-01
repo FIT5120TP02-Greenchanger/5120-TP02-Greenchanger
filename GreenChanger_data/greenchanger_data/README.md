@@ -14,7 +14,7 @@ functions and perform database writes.
 | `bom.py` | Validate the Melbourne station registry, download each official BOM feed, verify feed identity, flatten and normalise observations. |
 | `canopy.py` | Inspect and aggregate a binary tree-extent raster into Melbourne grid summaries. |
 | `canopy_baseline.py` | Define versioned baseline and source-provenance rules, including analytical-versus-proxy classification. |
-| `classification.py` | Calculate and apply versioned Melbourne-relative heat/canopy tercile thresholds with explicit missing-data handling. |
+| `classification.py` | Apply versioned Melbourne-relative heat/canopy terciles plus evidence-backed daily-mean air-temperature and canopy benchmark helpers, with explicit missing-data handling. |
 | `landsat.py` | Search Landsat Collection 2, sign/download assets, mask unusable pixels and calculate land-surface temperature. |
 | `heat_baseline.py` | Define and reference-test the latest-date/same-day-overlap baseline mosaic rule. |
 | `intervention_model.py` | Load source-backed action parameters, calculate non-guaranteed impact ranges and evaluate published-evidence cases. |
@@ -72,6 +72,14 @@ Inclusive threshold handling is intentional: the lower cutoff belongs to
 cells and missing active thresholds return `Unavailable`; they are never
 treated as environmental `Low`. A replacement baseline requires a new scheme
 version and review of its distribution rather than mutation of v1.
+
+The separate absolute helpers do not replace these terciles.
+`classify_melbourne_daily_mean_air_temperature()` uses a forecast maximum and
+the following overnight minimum; it never categorises a single current BOM
+observation or Landsat surface temperature. `classify_canopy_benchmark()` uses
+the official 15.3% metropolitan baseline and 30% urban-area target but is
+prohibited for the current rendered canopy proxy. Exact sources and document locations are recorded in
+`config/environmental_classification_evidence.json` and migration 020.
 
 ## Property baseline integration
 

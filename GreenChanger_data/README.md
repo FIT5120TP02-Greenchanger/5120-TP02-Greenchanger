@@ -200,7 +200,7 @@ conversion; their 500 m source resolution is unchanged.
 | Output | Current result | Quality/status |
 | --- | ---: | --- |
 | Applied migrations | 001–017 | Applied to shared Aurora |
-| Automated tests | 109/109 | Passed locally after coordinate- and address-radius query implementation |
+| Automated tests | 115/115 | Passed locally after sourced absolute-classification helpers were added |
 | Melbourne Address records | 3,007,474 | 100% boundary membership |
 | Melbourne Property records | 3,001,053 | 100% boundary membership |
 | Address–Property source-key matches | 3,007,470 of 3,007,474 | 99.999867% |
@@ -238,6 +238,60 @@ label (for example `melbourne-terciles-v2`) instead of overwriting v1. The
 labels describe a property's relative position within the current Melbourne
 baseline; they do not mean safe/unsafe temperature or adequate/inadequate
 canopy.
+
+### Evidence-backed absolute benchmark helpers
+
+Migration 020 adds two deliberately separate absolute helpers. Their source
+URLs, page/section locators, evidence scope, limitations and review date are
+stored in `environmental_classification_reference` and mirrored in
+`config/environmental_classification_evidence.json`.
+
+For a Melbourne **daily-mean air temperature**, calculate:
+
+```text
+(forecast daily maximum + following overnight minimum) / 2
+```
+
+The result is Low below 27.2°C, Medium from 27.2°C to below 30°C, and High
+from 30°C. The 27.2°C boundary is the published Melbourne summer
+95th-percentile daily mean in Table 2 of Tong et al. The historical 30°C
+Central District threshold and calculation appear on the Victorian Department
+of Health page under **Weather forecast districts and corresponding heat health
+temperature thresholds**, **Calculating the average temperature**, and Figure 1.
+That historical system operated through 2021–22 and is not the current BOM
+national heatwave-warning trigger.
+
+```sql
+SELECT classify_melbourne_daily_mean_air_temperature(38, 25);
+-- High: daily mean = 31.5°C
+```
+
+This function requires a forecast maximum and the following overnight minimum.
+It is not applied to a current instantaneous BOM station value, apparent
+temperature or Landsat land-surface temperature.
+
+The canopy helper returns Low below the official 2018 metropolitan baseline of
+15.3%, Medium from 15.3% to below 30%, and High from the current Plan for
+Victoria urban-area target of 30%. These categories mean below baseline,
+between baseline and target, and meeting/exceeding target. They do not prove
+property-level planning compliance. The helper must not be used with the
+current rendered Vicmap canopy proxy; it is reserved for a validated analytical
+canopy percentage at a compatible spatial scope.
+
+```sql
+SELECT classify_canopy_benchmark(24.5);
+-- Medium
+```
+
+References:
+
+- [Victorian Department of Health—Planning for extreme heat and heatwaves](https://www.health.vic.gov.au/environmental-health/planning-for-extreme-heat-and-heatwaves), sections and figure identified above.
+- [Tong et al.—The impact of heatwaves on mortality in Australia](https://pmc.ncbi.nlm.nih.gov/articles/PMC3931989/), Table 2.
+- [Loughnan et al.—Mapping Heat Health Risks in Urban Areas](https://doi.org/10.1155/2012/518687), Sections 2 and 3.
+- [Victorian Government—Melbourne vegetation, heat and land-use data](https://www.planning.vic.gov.au/guides-and-resources/Data-spatial-and-insights/melbournes-vegetation-heat-and-land-use-data), **2018 tree cover**.
+- [Plan for Victoria—Action 12: Protect and enhance our canopy trees](https://www.planning.vic.gov.au/planforvictoria/measuring-success/actions-and-outcomes/action-12-protect-and-enhance-our-canopy-trees), **What we'll do**.
+- [CDC—Bivariate choropleth map FAQ](https://usdss.cdc.gov/diabetes/data/tutorials/analysis/faq_bvc.html), **What are tertiles?** and **How are the values associated with tertiles found?**
+- [Esri—How Calculate Composite Index works](https://pro.arcgis.com/en/pro-app/3.5/tool-reference/spatial-statistics/how-calculate-composite-index-works.htm), **Classify the index** and **Interpret results**.
 
 Seven peer-reviewed primary studies are versioned in the intervention evidence
 register added by migration 014. This is a completed evidence-selection step,

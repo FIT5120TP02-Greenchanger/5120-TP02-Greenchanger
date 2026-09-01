@@ -1,6 +1,10 @@
 import unittest
 
-from greenchanger_data.classification import classify_environmental_value
+from greenchanger_data.classification import (
+    classify_canopy_benchmark,
+    classify_environmental_value,
+    classify_melbourne_daily_mean_air_temperature,
+)
 
 
 class EnvironmentalClassificationTests(unittest.TestCase):
@@ -46,6 +50,48 @@ class EnvironmentalClassificationTests(unittest.TestCase):
                     classify_environmental_value(value, lower, upper),
                     "Unavailable",
                 )
+
+
+class MelbourneDailyMeanAirTemperatureTests(unittest.TestCase):
+    def test_daily_mean_boundaries(self):
+        self.assertEqual(
+            classify_melbourne_daily_mean_air_temperature(32.0, 22.2), "Low"
+        )
+        self.assertEqual(
+            classify_melbourne_daily_mean_air_temperature(32.0, 22.4), "Medium"
+        )
+        self.assertEqual(
+            classify_melbourne_daily_mean_air_temperature(38.0, 22.0), "High"
+        )
+
+    def test_official_example_is_high(self):
+        self.assertEqual(
+            classify_melbourne_daily_mean_air_temperature(38.0, 25.0), "High"
+        )
+
+    def test_missing_or_non_finite_input_is_unavailable(self):
+        self.assertEqual(
+            classify_melbourne_daily_mean_air_temperature(None, 25.0),
+            "Unavailable",
+        )
+        self.assertEqual(
+            classify_melbourne_daily_mean_air_temperature(float("nan"), 25.0),
+            "Unavailable",
+        )
+
+
+class CanopyBenchmarkTests(unittest.TestCase):
+    def test_canopy_boundaries(self):
+        self.assertEqual(classify_canopy_benchmark(15.29), "Low")
+        self.assertEqual(classify_canopy_benchmark(15.3), "Medium")
+        self.assertEqual(classify_canopy_benchmark(29.99), "Medium")
+        self.assertEqual(classify_canopy_benchmark(30.0), "High")
+
+    def test_missing_is_unavailable_and_invalid_range_is_rejected(self):
+        self.assertEqual(classify_canopy_benchmark(None), "Unavailable")
+        self.assertEqual(classify_canopy_benchmark(float("inf")), "Unavailable")
+        with self.assertRaises(ValueError):
+            classify_canopy_benchmark(100.1)
 
 
 if __name__ == "__main__":

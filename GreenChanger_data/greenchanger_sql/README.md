@@ -28,7 +28,8 @@ greenchanger_sql/
 │   ├── 016_multi_station_weather_context.sql
 │   ├── 017_environmental_classifications.sql
 │   ├── 018_environment_context_radius.sql
-│   └── 019_environment_context_by_address.sql
+│   ├── 019_environment_context_by_address.sql
+│   └── 020_evidence_backed_absolute_classifications.sql
 ├── seeds/001_reference_data.sql
 └── analytics/001_views.sql
 ```
@@ -57,6 +58,7 @@ greenchanger_sql/
 | `migrations/017_environmental_classifications.sql` | Adds versioned Melbourne tercile thresholds, missing-safe classification and property-lookup labels. |
 | `migrations/018_environment_context_radius.sql` | Adds a bounded, application-facing radius query for current mapped-tree points and clipped 500 m heat cells. |
 | `migrations/019_environment_context_by_address.sql` | Resolves one unambiguous Melbourne address and delegates to the bounded coordinate-radius query. |
+| `migrations/020_evidence_backed_absolute_classifications.sql` | Stores threshold evidence with exact source locators and adds measurement-specific daily-mean air-temperature and canopy benchmark functions. |
 | `seeds/001_reference_data.sql` | Defines sources, greening options, analytical measures, model metadata and sample test cases. |
 | `analytics/001_views.sql` | Defines reusable analytical views for dataset quality, site baselines and scenario comparison. |
 
@@ -138,6 +140,16 @@ uses inclusive lower boundaries and returns `Unavailable` whenever the source
 value or an active threshold is missing. The property lookup returns heat and
 canopy labels together with the exact scheme version.
 
+Migration 020 keeps absolute classifications measurement-specific. It stores
+each threshold's URL and exact page/section locator in
+`environmental_classification_reference`. The daily-mean air-temperature
+function uses `(forecast maximum + following overnight minimum) / 2`, with
+27.2°C as Medium and 30°C as High. It is prohibited for a current observation,
+apparent temperature or Landsat LST. The canopy helper uses the official 15.3%
+metropolitan baseline and current 30% Plan for Victoria urban-area target. It is
+prohibited for the current rendered canopy proxy and does not establish
+property-level planning compliance.
+
 The active `melbourne-terciles-v1` thresholds and cell distributions are:
 
 | Metric | Low | Medium | High | Low / Medium / High count |
@@ -211,7 +223,7 @@ To add a schema change:
 5. Run `python -m unittest discover -v`.
 6. Check status before applying to shared Aurora.
 
-The next migration number is `020`. Never modify `001`–`019` after they have
+The next migration number is `021`. Never modify `001`–`020` after they have
 been applied. Their checksums are part of the migration audit trail.
 
 ## Data preparation and database integration

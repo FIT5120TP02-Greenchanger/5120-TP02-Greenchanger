@@ -9,7 +9,7 @@ class MigrationFileTests(unittest.TestCase):
     def test_migrations_are_numbered_and_ordered(self):
         self.assertEqual(
             [version for version, _ in migration_files()],
-            [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19],
+            [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20],
         )
 
     def test_include_is_expanded(self):
@@ -124,6 +124,25 @@ class MigrationFileTests(unittest.TestCase):
         self.assertIn("FROM get_property_baseline(p_address_search, 2)", sql)
         self.assertIn("address search is ambiguous", sql)
         self.assertIn("FROM get_environment_context(", sql)
+
+    def test_absolute_classifications_are_sourced_and_measurement_specific(self):
+        migration = next(
+            path for version, path in migration_files() if version == 20
+        )
+        sql = expanded_sql(migration)
+        self.assertIn("environmental_classification_reference", sql)
+        self.assertIn(
+            "classify_melbourne_daily_mean_air_temperature", sql
+        )
+        self.assertIn("classify_canopy_benchmark", sql)
+        self.assertIn("Table 2: Heatwave days and threshold", sql)
+        self.assertIn("Calculating the average temperature; Figure 1", sql)
+        self.assertIn("not an instantaneous reading", sql)
+        self.assertIn("official_2018_metro_baseline", sql)
+        self.assertIn("plan_for_victoria_urban_target", sql)
+        self.assertIn("Official metropolitan Melbourne 2018", sql)
+        self.assertIn("Official Plan for Victoria target", sql)
+        self.assertNotIn("ABC News", sql)
 
 
 if __name__ == "__main__":

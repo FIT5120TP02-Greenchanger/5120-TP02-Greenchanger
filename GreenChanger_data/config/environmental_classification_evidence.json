@@ -1,0 +1,87 @@
+{
+  "version": "environmental-absolute-benchmarks-v1",
+  "reviewed_on": "2026-09-01",
+  "daily_mean_air_temperature": {
+    "calculation": "(forecast_daily_maximum_c + following_overnight_minimum_c) / 2",
+    "thresholds_c": {
+      "low_below": 27.2,
+      "medium_from_inclusive": 27.2,
+      "high_from_inclusive": 30.0
+    },
+    "sources": [
+      {
+        "title": "Planning for extreme heat and heatwaves",
+        "publisher": "Victorian Department of Health",
+        "url": "https://www.health.vic.gov.au/environmental-health/planning-for-extreme-heat-and-heatwaves",
+        "page_or_section": "Weather forecast districts and corresponding heat health temperature thresholds; Calculating the average temperature; Figure 1",
+        "supports": "Historical Central District threshold of 30 C and max-plus-following-overnight-minimum daily-mean formula. The page notes this system operated through 2021-22 and is not comparable with the current BOM warning trigger."
+      },
+      {
+        "title": "The impact of heatwaves on mortality in Australia: a multicity study",
+        "publisher": "BMJ Open",
+        "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC3931989/",
+        "page_or_section": "Table 2: Heatwave days and threshold",
+        "supports": "Melbourne summer daily-mean thresholds of 27.2 C at the 95th percentile and 30.1 C at the 99th percentile, defined for two or more consecutive days."
+      },
+      {
+        "title": "Mapping Heat Health Risks in Urban Areas",
+        "publisher": "International Journal of Population Research",
+        "url": "https://doi.org/10.1155/2012/518687",
+        "page_or_section": "Section 2, Materials and Methods; Section 3, Results",
+        "supports": "Defines Melbourne hot weather using a 30 C 24-hour mean and reports 17% more adverse health outcomes on hot than non-hot summer days in the study period."
+      }
+    ],
+    "prohibited_use": "Do not apply these thresholds to a single live BOM observation, apparent temperature, Landsat land-surface temperature or the current national BOM heatwave-warning category."
+  },
+  "canopy_progress": {
+    "thresholds_pct": {
+      "low_below": 15.3,
+      "medium_from_inclusive": 15.3,
+      "high_from_inclusive": 30.0
+    },
+    "sources": [
+      {
+        "title": "Melbourne's vegetation, heat and land use data",
+        "publisher": "Victorian Government Department of Transport and Planning",
+        "url": "https://www.planning.vic.gov.au/guides-and-resources/Data-spatial-and-insights/melbournes-vegetation-heat-and-land-use-data",
+        "page_or_section": "2018 tree cover",
+        "supports": "Official metropolitan Melbourne 2018 urban tree-canopy baseline of 15.3%."
+      },
+      {
+        "title": "Action 12: Protect and enhance our canopy trees",
+        "publisher": "Victorian Government Department of Transport and Planning",
+        "url": "https://www.planning.vic.gov.au/planforvictoria/measuring-success/actions-and-outcomes/action-12-protect-and-enhance-our-canopy-trees",
+        "page_or_section": "What we'll do",
+        "supports": "Official Plan for Victoria target of 30% tree-canopy cover in urban areas."
+      }
+    ],
+    "prohibited_use": "This is metropolitan baseline/target progress context, not proof of property-level compliance. Do not apply to the current rendered Vicmap canopy proxy; use only after a compatible analytical canopy percentage passes validation."
+  },
+  "landsat_surface_heat": {
+    "method": "Versioned 33rd and 66th percentiles of comparable Melbourne application-ready LST cells",
+    "sources": [
+      {
+        "title": "Urban Vegetation, Urban Heat Islands and Heat Vulnerability Assessment in Melbourne, 2018",
+        "publisher": "Clean Air and Urban Landscapes Hub / Victorian Government",
+        "url": "https://www.planning.vic.gov.au/__data/assets/pdf_file/0032/655826/UHI-and-HVI2018_Report_v1.pdf",
+        "page_or_section": "PDF pages 3 and 5-6: executive summary, introduction and UHI method",
+        "supports": "Landsat LST is useful as a spatial urban-heat exposure indicator but is not directly equivalent to air temperature and is sensitive to acquisition conditions."
+      },
+      {
+        "title": "FAQ: Bivariate Choropleth Maps",
+        "publisher": "US Centers for Disease Control and Prevention",
+        "url": "https://usdss.cdc.gov/diabetes/data/tutorials/analysis/faq_bvc.html",
+        "page_or_section": "What are tertiles?; How are the values associated with tertiles found?",
+        "supports": "Defines tertiles as three approximately equal rank groups and documents Lowest, Middle and Highest labels."
+      },
+      {
+        "title": "How Calculate Composite Index works",
+        "publisher": "Esri ArcGIS Pro documentation",
+        "url": "https://pro.arcgis.com/en/pro-app/3.5/tool-reference/spatial-statistics/how-calculate-composite-index-works.htm",
+        "page_or_section": "Classify the index; Interpret results",
+        "supports": "Documents quantile classification as equal-count rank groups and warns that percentile displays preserve rank rather than actual value differences."
+      }
+    ],
+    "prohibited_use": "Do not use the 27.2 C or 30 C air-temperature thresholds for Landsat LST."
+  }
+}
