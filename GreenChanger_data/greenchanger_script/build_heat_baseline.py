@@ -1,4 +1,4 @@
-"""Build one deduplicated baseline Landsat heat mosaic for Greater Melbourne."""
+"""Build one deduplicated baseline Landsat heat mosaic for Melbourne."""
 
 from __future__ import annotations
 
@@ -41,7 +41,7 @@ def input_version(connection):
         )
         row = cursor.fetchone()
     if row is None:
-        raise RuntimeError("No application-ready Greater Melbourne Landsat version found")
+        raise RuntimeError("No application-ready Melbourne Landsat version found")
     return row
 
 
@@ -113,7 +113,7 @@ def quality_checks(connection, output_id) -> list[dict]:
         ),
         (
             "HEAT_BASELINE_MELBOURNE_CENTROID", "coverage",
-            "cell centroid is covered by the official Greater Melbourne boundary",
+            "cell centroid is covered by the official Melbourne boundary",
             "EXISTS (SELECT 1 FROM analysis_area_tile t "
             "WHERE t.analysis_area_id = heat_baseline_cell.analysis_area_id "
             "AND heat_baseline_cell.cell_geometry && t.tile_geometry "
@@ -305,7 +305,7 @@ def build(connection) -> dict:
                    dataset_version_id, limitation_type, description,
                    affected_area, analytical_impact, mitigation
                ) VALUES (%s, 'multi_date_satellite_mosaic', %s,
-                         'Greater Melbourne', %s, %s)""",
+                         'Melbourne', %s, %s)""",
             (
                 output_id,
                 "The baseline uses the latest valid observation per cell and therefore combines acquisitions from 10 July and 2 August 2026.",

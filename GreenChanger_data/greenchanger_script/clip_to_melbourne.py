@@ -1,4 +1,4 @@
-"""Create audited Greater Melbourne-only versions of spatial datasets."""
+"""Create audited Melbourne-only versions of spatial datasets."""
 
 from __future__ import annotations
 
@@ -132,14 +132,14 @@ def analysis_area(connection) -> dict[str, Any]:
         )
         row = cursor.fetchone()
         if row is None:
-            raise RuntimeError("Official Greater Melbourne boundary 2GMEL is not loaded")
+            raise RuntimeError("Official Melbourne boundary 2GMEL is not loaded")
         cursor.execute(
             "SELECT COUNT(*) AS count FROM analysis_area_tile WHERE analysis_area_id = %s",
             (row["analysis_area_id"],),
         )
         tile_count = cursor.fetchone()["count"]
         if not tile_count:
-            raise RuntimeError("Greater Melbourne boundary tiles are missing; apply migration 007")
+            raise RuntimeError("Melbourne boundary tiles are missing; apply migration 007")
         row["tile_count"] = tile_count
         return row
 
@@ -223,7 +223,7 @@ def record_quality(connection, version_id, target: str, record_count: int) -> No
             RETURNING quality_rule_id
             """,
             (
-                rule_code, f"Greater Melbourne membership: {target}",
+                rule_code, f"Melbourne membership: {target}",
                 TARGETS[target]["table"],
                 f"Every output record passes {TARGETS[target]['membership']} against ABS GCCSA 2GMEL (2026).",
             ),
@@ -329,7 +329,7 @@ def clip_target(connection, target: str, area: dict[str, Any]) -> dict[str, Any]
             """,
             (
                 output_id, TARGETS[target]["table"], output_count, excluded_count,
-                "Greater Melbourne-only derived version; excluded records remain in the parent version.",
+                "Melbourne-only derived version; excluded records remain in the parent version.",
             ),
         )
     return {

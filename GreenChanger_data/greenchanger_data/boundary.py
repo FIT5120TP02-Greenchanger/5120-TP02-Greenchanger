@@ -1,4 +1,4 @@
-"""Download and normalise the official ABS Greater Melbourne boundary."""
+"""Download and normalise the official ABS Melbourne boundary."""
 
 from __future__ import annotations
 
@@ -15,6 +15,8 @@ ABS_GCCSA_LAYER_URL = (
     "https://geo.abs.gov.au/arcgis/rest/services/ASGS2026/GCCSA/MapServer/0"
 )
 GREATER_MELBOURNE_CODE = "2GMEL"
+# The ABS API's official GCCSA feature name. Keep this source value unchanged
+# even though GreenChanger's user-facing scope is described as "Melbourne".
 GREATER_MELBOURNE_NAME = "Greater Melbourne"
 ASGS_EFFECTIVE_DATE = "2026-07-22"
 
@@ -30,7 +32,7 @@ def _polygonal_geometry(geometry: dict):
 
 
 def fetch_greater_melbourne(*, retries: int = 4) -> dict:
-    """Return the single official ASGS 2026 Greater Melbourne feature."""
+    """Return the single official ASGS 2026 Melbourne feature."""
 
     parameters = {
         "where": f"GCCSA_CODE_2026='{GREATER_MELBOURNE_CODE}'",

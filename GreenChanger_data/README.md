@@ -23,7 +23,7 @@ Normalisation and CRS/unit/date standardisation
         ↓
 Completeness, validity, consistency and uniqueness checks
         ↓
-Official ABS 2026 Greater Melbourne (2GMEL) boundary filter
+Official ABS 2026 Melbourne (2GMEL) boundary filter
         ↓
 PostgreSQL 17 + PostGIS integration
         ↓
@@ -62,7 +62,7 @@ The following sequence builds the data component from an empty database. Shared-
 python greenchanger_script/migrate.py --status
 python greenchanger_script/migrate.py --confirm-shared
 
-# 2. Register sources and load the official Greater Melbourne boundary
+# 2. Register sources and load the official Melbourne boundary
 python greenchanger_script/ingestion.py sources --confirm-shared
 python greenchanger_script/ingestion.py boundary --confirm-shared
 
@@ -132,6 +132,15 @@ Print real property-baseline outputs for six representative Melbourne scenarios:
 python greenchanger_script/sanity_check_melbourne.py
 ```
 
+Run the four greening actions against one real small, medium and large Melbourne
+property and print area gain, indicative heat ranges, cost ranges and output
+checks:
+
+```bash
+python greenchanger_script/run_residential_greening_scenarios.py
+python greenchanger_script/run_residential_greening_scenarios.py --json
+```
+
 The versioned scenario addresses and expected zones/lot categories are stored in
 `config/melbourne_sanity_scenarios.json`. The output prints the parcel area,
 official `2GMEL` boundary result, Landsat land-surface temperature and date,
@@ -150,20 +159,57 @@ SELECT *
 FROM get_property_baseline('1 COLLINS STREET', 5);
 ```
 
+To return only application-ready mapped trees and heat cells within a radius of
+a searched Melbourne address, apply migrations 018 and 019 and call:
+
+```sql
+SELECT layer, feature_id, distance_m, observed_on, properties, geometry_geojson
+FROM get_environment_context_by_address(
+    '1 COLLINS STREET MELBOURNE 3000',
+    500,
+    ARRAY['trees', 'heat'],
+    1000
+);
+```
+
+The wrapper accepts one unique prefix result or one exact full-address match.
+It rejects missing, unmatched and ambiguous searches instead of silently using
+the wrong property. After resolving the address coordinate, it delegates to the
+coordinate-based function:
+
+```sql
+SELECT layer, feature_id, distance_m, observed_on, properties, geometry_geojson
+FROM get_environment_context(
+    144.9631,
+    -37.8136,
+    500,
+    ARRAY['trees', 'heat'],
+    1000
+);
+```
+
+The resolved coordinate is EPSG:4326 longitude/latitude and is transformed to
+EPSG:7855 for metre-based filtering. The database rejects coordinates outside
+the official Melbourne boundary, radii over 2 km, unsupported layers and more
+than 2,000 results per layer. `ST_DWithin` uses the existing tree and heat GiST
+indexes. Returned heat polygons are clipped to the search circle before GeoJSON
+conversion; their 500 m source resolution is unchanged.
+
 ## Current shared-database results
 
 | Output | Current result | Quality/status |
 | --- | ---: | --- |
-| Applied migrations | 001–017 | Applied to shared Aurora |
-| Automated tests | 94/94 | Passed locally after range-bound and non-finite-value regression fixes |
-| Greater Melbourne Address records | 3,007,474 | 100% boundary membership |
-| Greater Melbourne Property records | 3,001,053 | 100% boundary membership |
+| Repository migrations | 001–021 | Deployment state must be confirmed with `migrate.py --status` |
+| Automated tests | Fast unit suite + opt-in PostGIS integration suite | Use the validation commands below and in `PR_DATA_CONTRACT.md` |
+| Melbourne Address records | 3,007,474 | 100% boundary membership |
+| Melbourne Property records | 3,001,053 | 100% boundary membership |
 | Address–Property source-key matches | 3,007,470 of 3,007,474 | 99.999867% |
 | Application-ready Landsat baseline | 35,218 unique 500 m cells | All baseline checks passed |
 | Application-ready canopy baseline | 37,146 unique 500 m cells | All baseline checks passed |
 | BOM weather observations | 1,557 from 10 stations | 100% source quality pass rate; version `greater-melbourne-bom-stations-v1` |
-| Vicmap Tree Urban | 10,473,773 Greater Melbourne points | 100% record-quality and boundary-membership pass rates |
+| Vicmap Tree Urban | 10,473,773 Melbourne points | 100% record-quality and boundary-membership pass rates |
 | Cost estimates | 8 in AWS | 100% quality pass; 0 rejected, 0 missing source URLs and 0 expired |
+| Representative residential simulations | 3 properties × 4 actions | 12/12 output checks passed; overall WARN from retained baseline caveats |
 | Validated scenario measure results | 0 | Prototype model is deliberately blocked from application output |
 
 ### Active environmental classifications
@@ -193,6 +239,71 @@ labels describe a property's relative position within the current Melbourne
 baseline; they do not mean safe/unsafe temperature or adequate/inadequate
 canopy.
 
+### Evidence-backed absolute benchmark helpers
+
+Migration 020 adds two deliberately separate absolute helpers. Their source
+URLs, page/section locators, evidence scope, limitations and review date are
+stored in `environmental_classification_reference` and mirrored in
+`config/environmental_classification_evidence.json`.
+
+For a Melbourne **daily-mean air temperature**, calculate:
+
+```text
+(forecast daily maximum + following overnight minimum) / 2
+```
+
+The helper compares the calculated daily mean only with the retired 30°C
+Victorian Central District threshold and returns structured historical context,
+never a current risk class. The 27.2°C value is the published Melbourne summer
+95th-percentile daily mean in Table 2 of Tong et al., whose heatwave definition
+requires two or more consecutive days. It is therefore retained as evidence
+metadata but not used to classify a one-day input. The historical 30°C method
+appears on the Victorian Department of Health page under **Weather forecast
+districts and corresponding heat health temperature thresholds**,
+**Calculating the average temperature**, and Figure 1.
+
+```sql
+SELECT jsonb_pretty(classify_melbourne_daily_mean_air_temperature(38, 25));
+-- classification: At or above historical 30 C threshold
+-- status: historical_context; daily_mean_c: 31.5
+```
+
+This function requires a forecast maximum and the following overnight minimum
+and returns structured metadata rather than a bare risk label. The historical
+30°C method ended in 2021–22 and is not a current BOM warning. The 27.2°C
+research percentile requires at least two consecutive days, so it is included
+only in `historical_percentile_context` and is never used to categorise this
+one-day pair. The helper is not applied to a current instantaneous BOM station
+value, apparent temperature or Landsat land-surface temperature.
+
+The canopy helper returns Low below the official 2018 metropolitan baseline of
+15.3%, Medium from 15.3% to below 30%, and High from the current Plan for
+Victoria urban-area target of 30%. These categories mean below baseline,
+between baseline and target, and meeting/exceeding target. They do not prove
+property-level planning compliance. The helper must not be used with the
+current rendered Vicmap canopy proxy; it is reserved for a validated analytical
+canopy percentage at a compatible spatial scope.
+
+```sql
+SELECT classify_canopy_benchmark(24.5);
+-- Medium
+```
+
+References:
+
+- [Victorian Department of Health—Planning for extreme heat and heatwaves](https://www.health.vic.gov.au/environmental-health/planning-for-extreme-heat-and-heatwaves), sections and figure identified above.
+- [Tong et al.—The impact of heatwaves on mortality in Australia](https://pmc.ncbi.nlm.nih.gov/articles/PMC3931989/), Table 2.
+- [Loughnan et al.—Mapping Heat Health Risks in Urban Areas](https://doi.org/10.1155/2012/518687), Sections 2 and 3.
+
+- [Victorian Government—Melbourne vegetation, heat and land-use data](https://www.planning.vic.gov.au/guides-and-resources/Data-spatial-and-insights/melbournes-vegetation-heat-and-land-use-data), **2018 tree cover**.
+- [Plan for Victoria—Action 12: Protect and enhance our canopy trees](https://www.planning.vic.gov.au/planforvictoria/measuring-success/actions-and-outcomes/action-12-protect-and-enhance-our-canopy-trees), **What we'll do**.
+- [CDC—Bivariate choropleth map FAQ](https://usdss.cdc.gov/diabetes/data/tutorials/analysis/faq_bvc.html), **What are tertiles?** and **How are the values associated with tertiles found?**
+
+The complete application-facing function contract, migration order, PostGIS
+integration-test command, data-version rules and deployment limitations are in
+[`PR_DATA_CONTRACT.md`](PR_DATA_CONTRACT.md).
+- [Esri—How Calculate Composite Index works](https://pro.arcgis.com/en/pro-app/3.5/tool-reference/spatial-statistics/how-calculate-composite-index-works.htm), **Classify the index** and **Interpret results**.
+
 Seven peer-reviewed primary studies are versioned in the intervention evidence
 register added by migration 014. This is a completed evidence-selection step,
 not a claim that a local intervention coefficient has passed validation.
@@ -216,13 +327,22 @@ prototype sensitivity assumptions. Examples for pots, beds and walls test the
 calculations only and are not application defaults; their dimensions must come
 from a user's selection, measurement or supplier specification.
 
+The versioned real-property run uses Richmond (299.96 m², small), Werribee
+(600.06 m², medium) and Box Hill (999.34 m², large). Real parcel area scales the
+tree and garden-bed land-surface-temperature ranges; it does not change the
+green-wall wall-surface metric. All 12 action outputs pass range, unit,
+outcome-scope and cost checks. The report remains `WARN` because the proxy
+canopy is 0% for Werribee and 93.43% for Box Hill, some mapped-tree results are
+zero, and no integrated BOM observation is recent enough. These retained
+warnings are not calculation failures.
+
 The Tree Urban raw extract was obtained from the official Vicmap ArcGIS Feature Service, contains 10,580,207 bbox records, is approximately 435 MB compressed, and records a source edit timestamp of 4 June 2025. The application-ready version `558e07b7-f2d3-47b4-ade4-7f9c53ad02a6` contains 10,473,773 points inside the official ABS `2GMEL` boundary; 106,434 outside-boundary points were excluded and no record failed the configured quality gate.
 
 ## Main application-ready datasets
 
 | Dataset | Role |
 | --- | --- |
-| ABS ASGS Edition 4 GCCSA 2026 | Official Greater Melbourne `2GMEL` project boundary |
+| ABS ASGS Edition 4 GCCSA 2026 | Official Melbourne `2GMEL` project boundary |
 | Vicmap Address | Address search, coordinates and Property join key |
 | Vicmap Property | Property polygons, identifiers and area |
 | Vicmap Vegetation – Tree Urban Point | Mapped individual-tree context, radius and height |
@@ -253,7 +373,7 @@ All source versions retain extraction time, observation period, checksum, source
 ### Heat and weather
 
 - Landsat values are land-surface temperature, not the air temperature experienced by a resident.
-- BOM values are observations from the nearest of ten configured official Greater Melbourne stations, not property-level measurements.
+- BOM values are observations from the nearest of ten configured official Melbourne stations, not property-level measurements.
 - Only observations no older than three hours are eligible. Stations within 10 km are labelled `good_local_context`; 10–25 km is `regional_context_warning`; beyond 25 km the air and apparent temperatures are suppressed; no eligible observation is `unavailable_no_observation_within_3_hours`.
 - Station name, observation time and distance remain visible whenever a recent station exists. BOM air temperature is never substituted for Landsat land-surface temperature.
 - The heat mosaic uses the newest usable cell and same-day overlap averaging; cells can come from different acquisition dates.
@@ -376,7 +496,7 @@ The next data-science work, in recommended order, is:
 1. Review `residential-greening-simulation-inputs-v1` with the team/mentor, then connect the
    approved contract to scenario persistence and the application data handoff.
 2. Update any remaining legacy Clayton-only acceptance criteria, fixtures or
-   presentation text to the official Greater Melbourne `2GMEL` scope.
+   presentation text to the official Melbourne `2GMEL` scope.
 3. Obtain the original analytical Vicmap Tree Extent GeoTIFF, rebuild the canopy
    baseline, and publish a newly versioned classification scheme after quality
    and imagery checks. Do not silently replace the current proxy-derived v1.

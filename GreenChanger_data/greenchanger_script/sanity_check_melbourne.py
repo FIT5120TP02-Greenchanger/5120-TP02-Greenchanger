@@ -1,4 +1,4 @@
-"""Print real Greater Melbourne parcel/canopy/tree/heat sanity checks."""
+"""Print real Melbourne parcel/canopy/tree/heat sanity checks."""
 
 from __future__ import annotations
 
@@ -80,7 +80,7 @@ def run(
 
 
 def print_report(report: dict) -> None:
-    print("=== Greater Melbourne property sanity check ===")
+    print("=== Melbourne property sanity check ===")
     print("As of:", report["as_of"])
     print("Scope:", report["validation_scope"])
     if report["scenario_coverage_failures"]:

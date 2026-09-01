@@ -10,11 +10,11 @@ functions and perform database writes.
 | File | Responsibility |
 | --- | --- |
 | `__init__.py` | Marks this directory as the reusable `greenchanger_data` Python package. |
-| `boundary.py` | Download, preserve and normalise the official ABS ASGS 2026 Greater Melbourne GCCSA boundary. |
-| `bom.py` | Validate the Greater Melbourne station registry, download each official BOM feed, verify feed identity, flatten and normalise observations. |
+| `boundary.py` | Download, preserve and normalise the official ABS ASGS 2026 Melbourne GCCSA boundary. |
+| `bom.py` | Validate the Melbourne station registry, download each official BOM feed, verify feed identity, flatten and normalise observations. |
 | `canopy.py` | Inspect and aggregate a binary tree-extent raster into Melbourne grid summaries. |
 | `canopy_baseline.py` | Define versioned baseline and source-provenance rules, including analytical-versus-proxy classification. |
-| `classification.py` | Calculate and apply versioned Melbourne-relative heat/canopy tercile thresholds with explicit missing-data handling. |
+| `classification.py` | Apply versioned Melbourne-relative heat/canopy terciles plus evidence-backed daily-mean air-temperature and canopy benchmark helpers, with explicit missing-data handling. |
 | `landsat.py` | Search Landsat Collection 2, sign/download assets, mask unusable pixels and calculate land-surface temperature. |
 | `heat_baseline.py` | Define and reference-test the latest-date/same-day-overlap baseline mosaic rule. |
 | `intervention_model.py` | Load source-backed action parameters, calculate non-guaranteed impact ranges and evaluate published-evidence cases. |
@@ -22,6 +22,7 @@ functions and perform database writes.
 | `melbourne_sanity.py` | Validate real-address parcel, 2GMEL boundary, heat, proxy-canopy, mapped-tree and weather-context outputs without requiring a database in unit tests. |
 | `property_baseline.py` | Reference-test the project-defined small, medium and large lot-size categories used by Priority 4. |
 | `quality.py` | Record-level completeness, uniqueness, validity and consistency rules, including memory-safe stream validation. |
+| `residential_scenarios.py` | Join real property baselines to four-action calculations and reviewed cost evidence while preserving measurement scope and warnings. |
 | `scenario_inputs.py` | Validate the versioned Residential Greening Scenario Simulation quantity, area, maturity, survival and suitability contract and translate it into evidence-bounded model inputs. |
 | `sources.py` | Load the source registry and calculate reproducibility checksums. |
 | `spatial.py` | Read, repair, reproject, clip and write general vector datasets. |
@@ -71,6 +72,17 @@ Inclusive threshold handling is intentional: the lower cutoff belongs to
 cells and missing active thresholds return `Unavailable`; they are never
 treated as environmental `Low`. A replacement baseline requires a new scheme
 version and review of its distribution rather than mutation of v1.
+
+The separate absolute helpers do not replace these terciles.
+`classify_melbourne_daily_mean_air_temperature()` uses a forecast maximum and
+the following overnight minimum and returns a structured historical-context
+object, not `Low/Medium/High` or a current warning. The 27.2°C research value
+requires two consecutive days and is metadata only. It never categorises a
+single current BOM observation or Landsat surface temperature.
+`classify_canopy_benchmark()` uses
+the official 15.3% metropolitan baseline and 30% urban-area target but is
+prohibited for the current rendered canopy proxy. Exact sources and document locations are recorded in
+`config/environmental_classification_evidence.json` and migrations 020–021.
 
 ## Property baseline integration
 
@@ -137,14 +149,22 @@ area at 10 years across Melbourne species/rainfall cases
 ([Torquato et al. 2024](https://doi.org/10.1016/j.ufug.2024.128268)). Other
 example dimensions are calculation fixtures rather than recommended defaults.
 
+`residential_scenarios.py` uses real parcel area as the denominator for tree and
+garden-bed land-unit heat ranges. It never adds an action's m² output to the
+500 m neighbourhood canopy percentage. Costs are scaled using their source
+basis (`per_tree`, `per_pot` or `per_m2`) and retain source, confidence and
+validity metadata. Output checks cover ordered ranges, supported temperature
+scope, potted-plant suppression, the exact-temperature prohibition and cost
+arithmetic. Passing these checks does not establish a causal cooling effect.
+
 ## Vicmap Address and Property processing
 
-The project boundary is the official ABS ASGS 2026 Greater Melbourne GCCSA,
+The project boundary is the official ABS ASGS 2026 Melbourne GCCSA,
 code `2GMEL`. Boundary ingestion checks its code, name, year, positive area and
 polygon geometry, and preserves the raw ABS GeoJSON for reproducibility.
 
 The default project extent is `144.4,-38.5,146.0,-37.4` in EPSG:4326. It is a
-project bounding box, not an official Greater Melbourne administrative polygon.
+project bounding box, not an official Melbourne administrative polygon.
 
 ### Extraction and cleaning
 
@@ -212,5 +232,6 @@ python -m unittest discover -v
 
 The tests cover normalisation, cross-record uniqueness, the unrounded quality
 gate, geometry conversion, BOM extraction, raster checks, migration history,
-classification boundaries/missing/non-finite values, scenario-input constraints
-and analytical calculations. The current suite contains 94 tests.
+classification boundaries/missing/non-finite values, scenario-input constraints,
+real-property scenario output checks and analytical calculations. The current
+suite contains 98 tests.

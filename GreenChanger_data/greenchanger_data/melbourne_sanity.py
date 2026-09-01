@@ -1,4 +1,4 @@
-"""Pure validation rules for real Greater Melbourne property spot checks."""
+"""Pure validation rules for real Melbourne property spot checks."""
 
 from __future__ import annotations
 
@@ -130,7 +130,7 @@ def evaluate_property_scenario(
     elif not (144.0 <= longitude <= 146.0 and -39.5 <= latitude <= -37.0):
         failures.append("coordinates fall outside the broad Melbourne reasonableness box")
     else:
-        checks.append("coordinates are numerically plausible for Greater Melbourne")
+        checks.append("coordinates are numerically plausible for Melbourne")
 
     heat = _float(row.get("land_surface_temperature_c"))
     heat_date = _date(row.get("surface_temperature_observed_on"))

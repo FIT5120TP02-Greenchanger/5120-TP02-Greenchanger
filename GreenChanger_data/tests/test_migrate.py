@@ -9,7 +9,7 @@ class MigrationFileTests(unittest.TestCase):
     def test_migrations_are_numbered_and_ordered(self):
         self.assertEqual(
             [version for version, _ in migration_files()],
-            [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17],
+            [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21],
         )
 
     def test_include_is_expanded(self):
@@ -93,6 +93,69 @@ class MigrationFileTests(unittest.TestCase):
         self.assertIn("WHEN p_value IS NULL THEN 'Unavailable'", sql)
         self.assertIn("heat_classification", sql)
         self.assertIn("canopy_classification", sql)
+
+    def test_environment_context_uses_bounded_indexed_radius_queries(self):
+        migration = next(
+            path for version, path in migration_files() if version == 18
+        )
+        sql = expanded_sql(migration)
+        self.assertIn("CREATE OR REPLACE FUNCTION get_environment_context", sql)
+        self.assertIn("p_radius_m DOUBLE PRECISION DEFAULT 500.0", sql)
+        self.assertIn("p_radius_m > 2000", sql)
+        self.assertIn("p_result_limit > 2000", sql)
+        self.assertIn("Allowed layers are trees and heat", sql)
+        self.assertIn("ST_MakePoint(p_longitude, p_latitude)", sql)
+        self.assertIn("ST_Transform(", sql)
+        self.assertIn("ST_DWithin(tree.tree_location, v_point, p_radius_m)", sql)
+        self.assertIn("ST_DWithin(heat.cell_geometry, v_point, p_radius_m)", sql)
+        self.assertIn("ST_Intersection(heat.cell_geometry, v_search_area)", sql)
+        self.assertIn("latest_greater_melbourne_heat_baseline", sql)
+        self.assertIn("publication_status = 'application_ready'", sql)
+        self.assertIn("selected coordinate is outside the supported Melbourne boundary", sql)
+
+    def test_address_context_wraps_the_coordinate_radius_function(self):
+        migration = next(
+            path for version, path in migration_files() if version == 19
+        )
+        sql = expanded_sql(migration)
+        self.assertIn(
+            "CREATE OR REPLACE FUNCTION get_environment_context_by_address", sql
+        )
+        self.assertIn("FROM get_property_baseline(p_address_search, 2)", sql)
+        self.assertIn("address search is ambiguous", sql)
+        self.assertIn("FROM get_environment_context(", sql)
+
+    def test_absolute_classifications_are_sourced_and_measurement_specific(self):
+        migration = next(
+            path for version, path in migration_files() if version == 20
+        )
+        sql = expanded_sql(migration)
+        self.assertIn("environmental_classification_reference", sql)
+        self.assertIn(
+            "classify_melbourne_daily_mean_air_temperature", sql
+        )
+        self.assertIn("classify_canopy_benchmark", sql)
+        self.assertIn("Table 2: Heatwave days and threshold", sql)
+        self.assertIn("Calculating the average temperature; Figure 1", sql)
+        self.assertIn("not an instantaneous reading", sql)
+        self.assertIn("official_2018_metro_baseline", sql)
+        self.assertIn("plan_for_victoria_urban_target", sql)
+        self.assertIn("Official metropolitan Melbourne 2018", sql)
+        self.assertIn("Official Plan for Victoria target", sql)
+        self.assertNotIn("ABC News", sql)
+
+    def test_historical_temperature_context_is_structured_and_duration_safe(self):
+        migration = next(
+            path for version, path in migration_files() if version == 21
+        )
+        sql = expanded_sql(migration)
+        self.assertIn("RETURNS JSONB", sql)
+        self.assertIn("'status', 'historical_context'", sql)
+        self.assertIn("minimum_consecutive_days", sql)
+        self.assertIn("used_for_this_classification", sql)
+        self.assertIn("is not used to classify this one-day pair", sql)
+        self.assertNotIn("THEN 'Medium'", sql)
+        self.assertNotIn("THEN 'High'", sql)
 
 
 if __name__ == "__main__":

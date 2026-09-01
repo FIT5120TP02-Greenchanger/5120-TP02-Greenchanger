@@ -26,7 +26,10 @@ greenchanger_sql/
 │   ├── 014_intervention_evidence.sql
 │   ├── 015_intervention_model_validation.sql
 │   ├── 016_multi_station_weather_context.sql
-│   └── 017_environmental_classifications.sql
+│   ├── 017_environmental_classifications.sql
+│   ├── 018_environment_context_radius.sql
+│   ├── 019_environment_context_by_address.sql
+│   └── 020_evidence_backed_absolute_classifications.sql
 ├── seeds/001_reference_data.sql
 └── analytics/001_views.sql
 ```
@@ -52,7 +55,11 @@ greenchanger_sql/
 | `migrations/014_intervention_evidence.sql` | Stores selected primary studies, approved/prohibited uses and independent validation/output-precision gates. |
 | `migrations/015_intervention_model_validation.sql` | Defines four-action parameters, the range-only model and auditable validation runs/results. |
 | `migrations/016_multi_station_weather_context.sql` | Adds recent nearest-station BOM context, distance-status rules and suppression of stale or overly distant temperatures. |
-| `migrations/017_environmental_classifications.sql` | Adds versioned Greater Melbourne tercile thresholds, missing-safe classification and property-lookup labels. |
+| `migrations/017_environmental_classifications.sql` | Adds versioned Melbourne tercile thresholds, missing-safe classification and property-lookup labels. |
+| `migrations/018_environment_context_radius.sql` | Adds a bounded, application-facing radius query for current mapped-tree points and clipped 500 m heat cells. |
+| `migrations/019_environment_context_by_address.sql` | Resolves one unambiguous Melbourne address and delegates to the bounded coordinate-radius query. |
+| `migrations/020_evidence_backed_absolute_classifications.sql` | Stores threshold evidence with exact source locators and adds measurement-specific daily-mean air-temperature and canopy benchmark functions. |
+| `migrations/021_historical_temperature_context.sql` | Corrects the one-day historical temperature contract: 27.2°C becomes duration-qualified context and the retired 30°C method returns structured JSON metadata rather than a current-risk label. |
 | `seeds/001_reference_data.sql` | Defines sources, greening options, analytical measures, model metadata and sample test cases. |
 | `analytics/001_views.sql` | Defines reusable analytical views for dataset quality, site baselines and scenario comparison. |
 
@@ -77,7 +84,7 @@ must be added as the next numbered migration.
 
 - `analysis_area`: versioned supported spatial boundary. Migration 006 adds
   ABS area code/year, source metadata and dataset-version provenance for the
-  official ASGS 2026 Greater Melbourne GCCSA (`2GMEL`).
+  official ASGS 2026 Melbourne GCCSA (`2GMEL`).
 - `analysis_area_tile`: indexed subdivisions of a complex boundary used for
   scalable point/polygon membership checks. Migration 007 creates these tiles.
 - `address`: Vicmap Address point and source identifiers.
@@ -108,6 +115,24 @@ air temperature and labels the distance to that station. It exposes the canopy
 proxy only at `neighbourhood_500m` scope, keeps property canopy null, and adds
 mapped Tree Urban counts when an integrated tree version exists.
 
+Migration 018 exposes `get_environment_context(longitude, latitude, radius_m,
+layers, result_limit)`. It transforms an EPSG:4326 coordinate to EPSG:7855,
+requires the point to be inside the official Melbourne boundary, and uses
+`ST_DWithin` with the existing GiST indexes to return only nearby records.
+Supported layers are `trees` and `heat`; the radius defaults to 500 m and is
+capped at 2 km, while the result limit is capped at 2,000 per layer. Tree rows
+come only from the newest application-ready Melbourne Tree Urban version.
+Heat rows come from the current application-ready 500 m baseline, and their
+GeoJSON polygons are clipped to the requested search circle. The heat payload
+continues to identify the measurement as Landsat land-surface temperature.
+
+Migration 019 exposes `get_environment_context_by_address(address, radius_m,
+layers, result_limit)`. It uses the existing property-baseline address search to
+resolve coordinates, accepts a unique result or one exact full-address match,
+and rejects missing, unmatched or ambiguous searches. It then delegates radius,
+layer, boundary and result-limit enforcement to migration 018 rather than
+duplicating spatial-query logic.
+
 Migration 017 adds `environmental_classification_scheme` and
 `environmental_classification_threshold`. The active
 `current_environmental_classification_threshold` view exposes source-version
@@ -115,6 +140,18 @@ IDs, tercile cutoffs, sample counts, scope and explanations. The SQL classifier
 uses inclusive lower boundaries and returns `Unavailable` whenever the source
 value or an active threshold is missing. The property lookup returns heat and
 canopy labels together with the exact scheme version.
+
+Migration 020 records each absolute reference's URL and exact page/section
+locator. Migration 021 corrects its temperature contract in a forward-only
+change: the 27.2°C research percentile is marked as context requiring at least
+two consecutive days, and the one-pair function compares only with the retired
+30°C Victorian Central District threshold. It returns JSONB containing the
+calculated mean, historical-context status, method, limitation and source—never
+a bare current-risk label. It remains prohibited for a current observation,
+apparent temperature or Landsat LST. The separate canopy helper uses the
+official 15.3% metropolitan baseline and current 30% Plan for Victoria
+urban-area target. It is prohibited for the rendered canopy proxy and does not
+establish property-level planning compliance.
 
 The active `melbourne-terciles-v1` thresholds and cell distributions are:
 
@@ -189,7 +226,7 @@ To add a schema change:
 5. Run `python -m unittest discover -v`.
 6. Check status before applying to shared Aurora.
 
-The next migration number is `018`. Never modify `001`–`017` after they have
+The next migration number is `022`. Never modify `001`–`021` after they have
 been applied. Their checksums are part of the migration audit trail.
 
 ## Data preparation and database integration
@@ -255,4 +292,23 @@ WHERE dataset_version_id = :property_version;
 -- Prototype-ready property baseline lookup
 SELECT *
 FROM get_property_baseline('1 COLLINS STREET MELBOURNE', 5);
+
+-- Bounded map context around a selected Melbourne coordinate
+SELECT layer, feature_id, distance_m, observed_on, properties, geometry_geojson
+FROM get_environment_context(
+    144.9631,
+    -37.8136,
+    500,
+    ARRAY['trees', 'heat'],
+    1000
+);
+
+-- The same bounded context starting from an unambiguous address
+SELECT layer, feature_id, distance_m, observed_on, properties, geometry_geojson
+FROM get_environment_context_by_address(
+    '1 COLLINS STREET MELBOURNE 3000',
+    500,
+    ARRAY['trees', 'heat'],
+    1000
+);
 ```

@@ -1,4 +1,4 @@
-"""Shared provenance rules for the Greater Melbourne canopy baseline."""
+"""Shared provenance rules for the Melbourne canopy baseline."""
 
 BASELINE_METHOD = "vicmap_tree_extent_area_weighted_500m_v1"
 TRANSFORMATION_NAME = "vicmap_canopy_baseline_500m_v1"

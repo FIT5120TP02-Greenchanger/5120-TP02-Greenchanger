@@ -1,4 +1,4 @@
-"""Build the versioned 500 m Greater Melbourne Vicmap canopy baseline."""
+"""Build the versioned 500 m Melbourne Vicmap canopy baseline."""
 
 from __future__ import annotations
 
@@ -43,7 +43,7 @@ def input_version(connection):
         )
         row = cursor.fetchone()
     if row is None:
-        raise RuntimeError("No application-ready Greater Melbourne Tree Extent version found")
+        raise RuntimeError("No application-ready Melbourne Tree Extent version found")
     return row
 
 
@@ -128,7 +128,7 @@ def cell_quality_checks(connection, output_id) -> list[dict]:
         ("CANOPY_BASELINE_CELL_UNIQUE", "uniqueness",
          "one canopy baseline record exists per grid-cell geometry", "TRUE"),
         ("CANOPY_BASELINE_MELBOURNE_CENTROID", "coverage",
-         "cell centroid is covered by the official Greater Melbourne boundary",
+         "cell centroid is covered by the official Melbourne boundary",
          "EXISTS (SELECT 1 FROM analysis_area_tile t "
          "WHERE t.analysis_area_id = canopy_baseline_cell.analysis_area_id "
          "AND canopy_baseline_cell.cell_geometry && t.tile_geometry "
@@ -316,7 +316,7 @@ def build(connection) -> dict:
                 """INSERT INTO data_limitation (
                        dataset_version_id, limitation_type, description,
                        affected_area, analytical_impact, mitigation
-                   ) VALUES (%s, 'rendered_tile_proxy', %s, 'Greater Melbourne', %s, %s)""",
+                   ) VALUES (%s, 'rendered_tile_proxy', %s, 'Melbourne', %s, %s)""",
                 (output_id,
                  "The current baseline was reconstructed from official rendered API tiles at approximately 19.1 m, not the original approximately 20 cm analytical GeoTIFF.",
                  "Suitable for 500 m area summaries, but not individual-property or tree-crown decisions.",
@@ -326,7 +326,7 @@ def build(connection) -> dict:
             """INSERT INTO data_limitation (
                    dataset_version_id, limitation_type, description,
                    affected_area, analytical_impact, mitigation
-               ) VALUES (%s, 'multi_year_imagery_period', %s, 'Greater Melbourne', %s, %s)""",
+               ) VALUES (%s, 'multi_year_imagery_period', %s, 'Melbourne', %s, %s)""",
             (output_id,
              "Vicmap Tree Extent source imagery spans 7 December 2013 to 2 November 2020; observed_on stores the published period end, not a uniform capture date.",
              "Canopy comparisons can include temporal differences between locations.",

@@ -316,7 +316,7 @@ def sync_sources(connection, _args: argparse.Namespace) -> dict[str, Any]:
 
 
 def ingest_boundary(connection, _args: argparse.Namespace) -> dict[str, Any]:
-    """Version and integrate the official ABS 2026 Greater Melbourne GCCSA."""
+    """Version and integrate the official ABS 2026 Melbourne GCCSA."""
 
     document = fetch_greater_melbourne()
     row = normalise_greater_melbourne(document)
@@ -370,7 +370,7 @@ def ingest_boundary(connection, _args: argparse.Namespace) -> dict[str, Any]:
             "rows_rejected": report.failing_records,
             "quality_pass_rate": report.pass_rate,
             "dataset_version_id": str(version_id),
-            "message": "Greater Melbourne boundary failed the quality gate; nothing integrated",
+            "message": "Melbourne boundary failed the quality gate; nothing integrated",
         }
 
     with connection.cursor() as cursor:
@@ -425,7 +425,7 @@ def ingest_boundary(connection, _args: argparse.Namespace) -> dict[str, Any]:
         "gccsa_code": row["source_area_code"],
         "area_sqkm": row["source_area_sqkm"],
         "raw_extract": str(raw_path),
-        "message": "Official ABS ASGS 2026 Greater Melbourne boundary integrated",
+        "message": "Official ABS ASGS 2026 Melbourne boundary integrated",
     }
 
 
@@ -454,7 +454,7 @@ def ingest_bom(connection, args: argparse.Namespace) -> dict[str, Any]:
 
     registered_source_id = source_id(
         connection,
-        "BOM Greater Melbourne station observations",
+        "BOM Melbourne station observations",
         "Bureau of Meteorology",
     )
     dates = sorted(row["observed_at"][:10] for row in rows if row["observed_at"])
@@ -899,7 +899,7 @@ def ingest_trees(connection, args: argparse.Namespace) -> dict[str, Any]:
         area = cursor.fetchone()
         if area is None:
             raise RuntimeError(
-                "Official Greater Melbourne boundary is missing; run the boundary job first"
+                "Official Melbourne boundary is missing; run the boundary job first"
             )
         analysis_area_id = area["analysis_area_id"]
 
@@ -1002,7 +1002,7 @@ def ingest_trees(connection, args: argparse.Namespace) -> dict[str, Any]:
                    dataset_version_id, limitation_type, description,
                    affected_area, analytical_impact, mitigation
                ) VALUES (%s, 'mapped_tree_points_not_field_inventory', %s,
-                         'Greater Melbourne', %s, %s)""",
+                         'Melbourne', %s, %s)""",
             (
                 version_id,
                 "Tree Urban points were machine-extracted from high-resolution aerial photography and assigned height using a LiDAR-derived canopy-height model.",
@@ -1019,7 +1019,7 @@ def ingest_trees(connection, args: argparse.Namespace) -> dict[str, Any]:
                              'Vicmap extraction bounding box', %s, %s)""",
                 (
                     version_id,
-                    f"{boundary_excluded} quality-passing API records outside the official ABS 2026 Greater Melbourne boundary were excluded.",
+                    f"{boundary_excluded} quality-passing API records outside the official ABS 2026 Melbourne boundary were excluded.",
                     "The application-ready tree version contains only points covered by 2GMEL.",
                     "Retain the raw extract and boundary-filter derivation metadata for reproducibility.",
                 ),
@@ -1033,7 +1033,7 @@ def ingest_trees(connection, args: argparse.Namespace) -> dict[str, Any]:
         "boundary_membership_pass_rate": 100.0,
         "dataset_version_id": str(version_id),
         "raw_extract": str(raw_path),
-        "message": f"{written} Vicmap Tree Urban points integrated inside Greater Melbourne",
+        "message": f"{written} Vicmap Tree Urban points integrated inside Melbourne",
     }
 
 
@@ -1293,7 +1293,7 @@ def parse_args() -> argparse.Namespace:
         "--bom-stations-file",
         type=Path,
         default=DEFAULT_STATION_REGISTRY,
-        help="Versioned Greater Melbourne BOM station registry.",
+        help="Versioned Melbourne BOM station registry.",
     )
     parser.add_argument("--cost-file", type=Path, default=DEFAULT_COST_FILE)
     parser.add_argument("--canopy-file", type=Path)

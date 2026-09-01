@@ -35,11 +35,12 @@ repository.
 | `calculate_measures.py` | Calculate Data Analytics & Insight Development outputs or print all formulas with sample results. |
 | `validate_intervention_model.py` | Run source-linked intervention cases and update model status only after every case passes. |
 | `validate_residential_greening_inputs.py` | Validate and print sample outputs for the four-action, versioned Residential Greening Scenario Simulation input contract without database writes. |
-| `sanity_check_melbourne.py` | Print real-address parcel, heat, canopy and mapped-tree outputs across six representative Greater Melbourne scenarios. |
+| `run_residential_greening_scenarios.py` | Query representative small/medium/large Melbourne properties and print four-action area, heat, cost and output-check results. |
+| `sanity_check_melbourne.py` | Print real-address parcel, heat, canopy and mapped-tree outputs across six representative Melbourne scenarios. |
 | `clip_to_melbourne.py` | Create audited `2GMEL`-only Address, Property, heat and canopy dataset versions without deleting parent versions. |
 | `build_heat_baseline.py` | Resolve overlapping Landsat observations into one versioned, application-ready baseline cell per location. |
 | `build_canopy_baseline.py` | Publish one quality-checked, versioned 500 m canopy baseline and verify exact alignment with the heat grid. |
-| `build_environmental_classifications.py` | Calculate and activate versioned Low/Medium/High tercile thresholds from current Greater Melbourne heat and canopy baselines. |
+| `build_environmental_classifications.py` | Calculate and activate versioned Low/Medium/High tercile thresholds from current Melbourne heat and canopy baselines. |
 | `apply_database.py` | Legacy/simple schema application helper; numbered migrations are preferred. |
 
 ## Recommended run order
@@ -56,7 +57,7 @@ python greenchanger_script/migrate.py --confirm-shared
 # 3. Synchronise source definitions
 python greenchanger_script/ingestion.py sources --confirm-shared
 
-# 4. Load the official ABS 2026 Greater Melbourne GCCSA boundary
+# 4. Load the official ABS 2026 Melbourne GCCSA boundary
 python greenchanger_script/ingestion.py boundary --confirm-shared
 
 # 5. Load current address and property data
@@ -66,7 +67,7 @@ python greenchanger_script/ingestion.py property --confirm-shared
 # Load mapped individual-tree context from the official Tree Urban API
 python greenchanger_script/ingestion.py trees --confirm-shared
 
-# Create application-ready Greater Melbourne-only derived versions
+# Create application-ready Melbourne-only derived versions
 python greenchanger_script/clip_to_melbourne.py --confirm-shared
 
 # Deduplicate overlapping Landsat scenes into the baseline heat mosaic
@@ -84,6 +85,9 @@ python greenchanger_script/build_environmental_classifications.py --status
 
 # Validate quantity, area, maturity and uncertainty inputs for all four actions
 python greenchanger_script/validate_residential_greening_inputs.py
+
+# Run 12 actions against three real application-ready Melbourne properties
+python greenchanger_script/run_residential_greening_scenarios.py
 
 # After migration 010, test the application-ready property lookup in psql
 # SELECT * FROM get_property_baseline('1 COLLINS STREET MELBOURNE', 5);
@@ -104,6 +108,14 @@ examples prove validation and unit handling; they are not universal application
 defaults. The current tree example is fixed to one tree and uses the published
 Melbourne 10-year crown range. All outputs preserve maturity,
 survival/suitability ranges and the prohibition on exact after-temperature.
+
+`run_residential_greening_scenarios.py` is read-only against the database. It
+uses `config/residential_greening_property_scenarios.json`, queries current
+property baselines, scales land-unit ranges by real parcel area and loads
+reviewed costs from `data/reference/cost_estimates.csv`. Use `--json` for a
+machine-readable report. `Output checks: PASS` verifies range ordering, units,
+metric scope and cost arithmetic; it does not claim causal or precise model
+validation.
 
 Use a previously completed Vicmap raw extract without downloading again:
 
@@ -136,7 +148,7 @@ records rule-level outcomes, rejects failed rows, inserts accepted rows in
 bounded batches, transforms spatial data into EPSG:7855 and marks only a
 successful version as `application_ready`.
 
-## Greater Melbourne boundary filtering
+## Melbourne boundary filtering
 
 `clip_to_melbourne.py` uses the official ABS ASGS 2026 GCCSA `2GMEL` stored in
 `analysis_area`. Migration 007 subdivides the complex boundary into indexed
@@ -152,7 +164,7 @@ different acquisition dates. The resulting view is
 `latest_greater_melbourne_heat_baseline`.
 
 `build_canopy_baseline.py` retains zero-canopy cells, verifies percentages,
-geometry, uniqueness, Greater Melbourne coverage and exact matching of every
+geometry, uniqueness, Melbourne coverage and exact matching of every
 current heat-baseline cell. Its `coverage_confidence_pct` means complete raster
 coverage only; it is not classification or positional accuracy. The current
 official rendered-tile proxy is labelled `api_tile_proxy` and is appropriate
@@ -187,7 +199,7 @@ without claiming that they are a current field survey.
 Migration 017 stores one source-version-specific environmental classification
 scheme and separate heat/canopy thresholds. The builder calculates the 33.33rd
 and 66.67th percentiles with `percentile_cont` from the current
-application-ready Greater Melbourne baseline cells. A value at the lower
+application-ready Melbourne baseline cells. A value at the lower
 threshold remains `Low`; a value at the upper threshold remains `Medium`;
 larger values are `High`. Missing values or missing active thresholds always
 return `Unavailable`, never `Low`. `get_property_baseline` exposes both labels,

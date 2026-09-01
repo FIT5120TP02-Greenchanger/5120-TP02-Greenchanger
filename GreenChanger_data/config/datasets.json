@@ -8,7 +8,7 @@
       "publisher": "Australian Bureau of Statistics",
       "url": "https://www.abs.gov.au/statistics/standards/australian-statistical-geography-standard-asgs/edition-4-july-2026-june-2031/access-and-downloads/digital-boundary-files",
       "category": "boundary",
-      "coverage": "Australia; filtered to Greater Melbourne (GCCSA 2GMEL)",
+      "coverage": "Australia; filtered to Melbourne (GCCSA 2GMEL)",
       "observation_period": "2026",
       "access_method": "ABS ArcGIS REST API and download",
       "licence": "Creative Commons Attribution 4.0 International",
@@ -109,7 +109,7 @@
     },
     {
       "key": "bom_greater_melbourne_stations",
-      "name": "BOM Greater Melbourne station observations",
+      "name": "BOM Melbourne station observations",
       "publisher": "Bureau of Meteorology",
       "url": "https://www.bom.gov.au/fwo/IDV60901/",
       "category": "weather",

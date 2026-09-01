@@ -980,7 +980,7 @@ BEGIN
            PERCENTILE_CONT(1.0 / 3.0) WITHIN GROUP (ORDER BY baseline_surface_temperature_c)::NUMERIC,
            PERCENTILE_CONT(2.0 / 3.0) WITHIN GROUP (ORDER BY baseline_surface_temperature_c)::NUMERIC,
            'degC_land_surface_temperature', COUNT(*),
-           'Relative to application-ready Greater Melbourne Landsat 500 m baseline cells; land-surface temperature, not air temperature.'
+           'Relative to application-ready Melbourne Landsat 500 m baseline cells; land-surface temperature, not air temperature.'
     FROM latest_greater_melbourne_heat_baseline
     WHERE baseline_surface_temperature_c IS NOT NULL
     GROUP BY dataset_version_id;
@@ -993,7 +993,7 @@ BEGIN
            PERCENTILE_CONT(1.0 / 3.0) WITHIN GROUP (ORDER BY canopy_percentage)::NUMERIC,
            PERCENTILE_CONT(2.0 / 3.0) WITHIN GROUP (ORDER BY canopy_percentage)::NUMERIC,
            'percent_neighbourhood_canopy', COUNT(*),
-           'Relative to application-ready Greater Melbourne 500 m neighbourhood canopy cells; current source is a proxy.'
+           'Relative to application-ready Melbourne 500 m neighbourhood canopy cells; current source is a proxy.'
     FROM latest_greater_melbourne_canopy_baseline
     WHERE canopy_percentage IS NOT NULL
     GROUP BY dataset_version_id;
@@ -1370,5 +1370,515 @@ WHERE go.active
 
 COMMENT ON VIEW application_ready_cost_estimate IS
     'Current source-backed greening cost contexts with option labels, confidence and mandatory indicative-estimate disclaimer.';
+
+CREATE OR REPLACE FUNCTION get_environment_context(
+    p_longitude DOUBLE PRECISION,
+    p_latitude DOUBLE PRECISION,
+    p_radius_m DOUBLE PRECISION DEFAULT 500.0,
+    p_layers TEXT[] DEFAULT ARRAY['trees', 'heat']::TEXT[],
+    p_result_limit INTEGER DEFAULT 1000
+)
+RETURNS TABLE (
+    layer TEXT,
+    feature_id TEXT,
+    dataset_version_id UUID,
+    distance_m NUMERIC,
+    observed_on DATE,
+    properties JSONB,
+    geometry_geojson JSONB
+)
+LANGUAGE plpgsql
+STABLE
+PARALLEL SAFE
+AS $function$
+DECLARE
+    v_point geometry(Point, 7855);
+    v_search_area geometry(Polygon, 7855);
+    v_layers TEXT[];
+    v_invalid_layers TEXT;
+BEGIN
+    IF p_longitude IS NULL
+       OR p_longitude::TEXT IN ('NaN', 'Infinity', '-Infinity')
+       OR p_longitude < -180 OR p_longitude > 180 THEN
+        RAISE EXCEPTION 'longitude must be a finite number between -180 and 180';
+    END IF;
+    IF p_latitude IS NULL
+       OR p_latitude::TEXT IN ('NaN', 'Infinity', '-Infinity')
+       OR p_latitude < -90 OR p_latitude > 90 THEN
+        RAISE EXCEPTION 'latitude must be a finite number between -90 and 90';
+    END IF;
+    IF p_radius_m IS NULL
+       OR p_radius_m::TEXT IN ('NaN', 'Infinity', '-Infinity')
+       OR p_radius_m <= 0 OR p_radius_m > 2000 THEN
+        RAISE EXCEPTION 'radius_m must be greater than 0 and no more than 2000 metres';
+    END IF;
+    IF p_result_limit IS NULL OR p_result_limit < 1 OR p_result_limit > 2000 THEN
+        RAISE EXCEPTION 'result_limit must be between 1 and 2000 per layer';
+    END IF;
+
+    SELECT COALESCE(
+        ARRAY_AGG(DISTINCT LOWER(BTRIM(requested_layer))),
+        ARRAY[]::TEXT[]
+    )
+    INTO v_layers
+    FROM UNNEST(COALESCE(p_layers, ARRAY[]::TEXT[])) AS requested(requested_layer)
+    WHERE requested_layer IS NOT NULL
+      AND BTRIM(requested_layer) <> '';
+
+    IF CARDINALITY(v_layers) = 0 THEN
+        RAISE EXCEPTION 'at least one layer is required: trees or heat';
+    END IF;
+
+    SELECT STRING_AGG(requested_layer, ', ' ORDER BY requested_layer)
+    INTO v_invalid_layers
+    FROM UNNEST(v_layers) AS requested(requested_layer)
+    WHERE NOT (requested_layer = ANY (ARRAY['trees', 'heat']::TEXT[]));
+
+    IF v_invalid_layers IS NOT NULL THEN
+        RAISE EXCEPTION 'unsupported layer(s): %. Allowed layers are trees and heat',
+            v_invalid_layers;
+    END IF;
+
+    v_point := ST_Transform(
+        ST_SetSRID(ST_MakePoint(p_longitude, p_latitude), 4326),
+        7855
+    );
+    v_search_area := ST_Buffer(v_point, p_radius_m);
+
+    IF NOT EXISTS (
+        SELECT 1
+        FROM analysis_area AS area
+        WHERE area.source_area_code = '2GMEL'
+          AND area.source_year = 2026
+          AND area.boundary_geometry && v_point
+          AND ST_Covers(area.boundary_geometry, v_point)
+    ) THEN
+        RAISE EXCEPTION 'selected coordinate is outside the supported Melbourne boundary';
+    END IF;
+
+    RETURN QUERY
+    WITH latest_tree_version AS (
+        SELECT version.dataset_version_id
+        FROM dataset_version AS version
+        JOIN dataset_source AS source USING (source_id)
+        JOIN analysis_area AS area USING (analysis_area_id)
+        WHERE source.source_name = 'Vicmap Vegetation - Tree Urban Point'
+          AND area.source_area_code = '2GMEL'
+          AND area.source_year = 2026
+          AND version.integration_status = 'integrated'
+          AND version.publication_status = 'application_ready'
+        ORDER BY version.extracted_at DESC, version.dataset_version_id
+        LIMIT 1
+    ), nearby_trees AS (
+        SELECT
+            'trees'::TEXT AS result_layer,
+            tree.tree_id::TEXT AS result_feature_id,
+            tree.dataset_version_id AS result_dataset_version_id,
+            ST_Distance(tree.tree_location, v_point) AS result_distance_m,
+            tree.source_observed_to AS result_observed_on,
+            JSONB_STRIP_NULLS(JSONB_BUILD_OBJECT(
+                'source_tree_id', tree.source_tree_id,
+                'feature_type', tree.feature_type,
+                'feature_subtype', tree.feature_subtype,
+                'canopy_radius_m', tree.canopy_radius_m,
+                'height_m', tree.height_m,
+                'dense_canopy', tree.dense_canopy,
+                'source_observed_from', tree.source_observed_from,
+                'source_observed_to', tree.source_observed_to,
+                'quality_status', tree.quality_status,
+                'data_scope', 'machine_derived_mapped_tree_point_not_field_inventory'
+            )) AS result_properties,
+            ST_AsGeoJSON(ST_Transform(tree.tree_location, 4326), 6)::JSONB
+                AS result_geometry
+        FROM urban_tree AS tree
+        JOIN latest_tree_version AS version USING (dataset_version_id)
+        WHERE 'trees' = ANY (v_layers)
+          AND tree.quality_status = 'passed'
+          AND ST_DWithin(tree.tree_location, v_point, p_radius_m)
+        ORDER BY tree.tree_location <-> v_point, tree.tree_id
+        LIMIT p_result_limit
+    ), nearby_heat AS (
+        SELECT
+            'heat'::TEXT AS result_layer,
+            heat.heat_baseline_cell_id::TEXT AS result_feature_id,
+            heat.dataset_version_id AS result_dataset_version_id,
+            ST_Distance(heat.cell_geometry, v_point) AS result_distance_m,
+            heat.observed_on AS result_observed_on,
+            JSONB_STRIP_NULLS(JSONB_BUILD_OBJECT(
+                'land_surface_temperature_c', heat.baseline_surface_temperature_c,
+                'heat_classification', classify_environmental_value(
+                    'heat', heat.baseline_surface_temperature_c
+                ),
+                'measurement_type', 'land_surface_temperature',
+                'unit', 'degC',
+                'observation_count', heat.observation_count,
+                'scene_count', heat.scene_count,
+                'mean_cloud_cover_pct', heat.mean_cloud_cover_pct,
+                'baseline_method', heat.baseline_method,
+                'quality_status', heat.quality_status,
+                'grid_scope', '500m_baseline_cell',
+                'limitation', 'Landsat land-surface temperature, not air temperature.'
+            )) AS result_properties,
+            ST_AsGeoJSON(
+                ST_Transform(ST_Intersection(heat.cell_geometry, v_search_area), 4326),
+                6
+            )::JSONB AS result_geometry
+        FROM latest_greater_melbourne_heat_baseline AS heat
+        WHERE 'heat' = ANY (v_layers)
+          AND heat.quality_status = 'passed'
+          AND ST_DWithin(heat.cell_geometry, v_point, p_radius_m)
+        ORDER BY heat.cell_geometry <-> v_point, heat.heat_baseline_cell_id
+        LIMIT p_result_limit
+    )
+    SELECT
+        result.layer,
+        result.feature_id,
+        result.dataset_version_id,
+        ROUND(result.distance_m::NUMERIC, 2),
+        result.observed_on,
+        result.properties,
+        result.geometry_geojson
+    FROM (
+        SELECT
+            result_layer AS layer,
+            result_feature_id AS feature_id,
+            result_dataset_version_id AS dataset_version_id,
+            result_distance_m AS distance_m,
+            result_observed_on AS observed_on,
+            result_properties AS properties,
+            result_geometry AS geometry_geojson
+        FROM nearby_trees
+        UNION ALL
+        SELECT
+            result_layer,
+            result_feature_id,
+            result_dataset_version_id,
+            result_distance_m,
+            result_observed_on,
+            result_properties,
+            result_geometry
+        FROM nearby_heat
+    ) AS result
+    ORDER BY result.layer, result.distance_m, result.feature_id;
+END;
+$function$;
+
+COMMENT ON FUNCTION get_environment_context(
+    DOUBLE PRECISION, DOUBLE PRECISION, DOUBLE PRECISION, TEXT[], INTEGER
+) IS
+    'Returns application-ready mapped-tree points and clipped 500 m Landsat heat cells within a validated Melbourne radius. The result limit applies separately to each requested layer.';
+
+CREATE OR REPLACE FUNCTION get_environment_context_by_address(
+    p_address_search TEXT,
+    p_radius_m DOUBLE PRECISION DEFAULT 500.0,
+    p_layers TEXT[] DEFAULT ARRAY['trees', 'heat']::TEXT[],
+    p_result_limit INTEGER DEFAULT 1000
+)
+RETURNS TABLE (
+    layer TEXT,
+    feature_id TEXT,
+    dataset_version_id UUID,
+    distance_m NUMERIC,
+    observed_on DATE,
+    properties JSONB,
+    geometry_geojson JSONB
+)
+LANGUAGE plpgsql
+STABLE
+PARALLEL SAFE
+AS $function$
+DECLARE
+    v_matched_address TEXT;
+    v_longitude DOUBLE PRECISION;
+    v_latitude DOUBLE PRECISION;
+    v_match_count INTEGER;
+    v_exact_match_count INTEGER;
+BEGIN
+    IF p_address_search IS NULL OR BTRIM(p_address_search) = '' THEN
+        RAISE EXCEPTION 'address search is required';
+    END IF;
+
+    WITH matches AS MATERIALIZED (
+        SELECT baseline.*,
+               UPPER(BTRIM(baseline.full_address)) =
+                   UPPER(BTRIM(p_address_search)) AS is_exact
+        FROM get_property_baseline(p_address_search, 2) AS baseline
+    ), ranked AS (
+        SELECT
+            matches.*,
+            COUNT(*) OVER ()::INTEGER AS match_count,
+            COUNT(*) FILTER (WHERE is_exact) OVER ()::INTEGER
+                AS exact_match_count,
+            ROW_NUMBER() OVER (
+                ORDER BY
+                    CASE WHEN is_exact THEN 0 ELSE 1 END,
+                    full_address,
+                    address_id
+            ) AS match_rank
+        FROM matches
+    )
+    SELECT
+        ranked.full_address,
+        ranked.longitude::DOUBLE PRECISION,
+        ranked.latitude::DOUBLE PRECISION,
+        ranked.match_count,
+        ranked.exact_match_count
+    INTO
+        v_matched_address,
+        v_longitude,
+        v_latitude,
+        v_match_count,
+        v_exact_match_count
+    FROM ranked
+    WHERE match_rank = 1;
+
+    IF NOT FOUND THEN
+        RAISE EXCEPTION 'no Melbourne address matched: %', BTRIM(p_address_search);
+    END IF;
+
+    IF v_exact_match_count > 1
+       OR (v_exact_match_count = 0 AND v_match_count > 1) THEN
+        RAISE EXCEPTION
+            'address search is ambiguous: %. Supply the complete address and postcode',
+            BTRIM(p_address_search);
+    END IF;
+
+    IF v_longitude IS NULL OR v_latitude IS NULL THEN
+        RAISE EXCEPTION 'matched address has no usable coordinate: %', v_matched_address;
+    END IF;
+
+    RETURN QUERY
+    SELECT context.*
+    FROM get_environment_context(
+        v_longitude,
+        v_latitude,
+        p_radius_m,
+        p_layers,
+        p_result_limit
+    ) AS context;
+END;
+$function$;
+
+COMMENT ON FUNCTION get_environment_context_by_address(
+    TEXT, DOUBLE PRECISION, TEXT[], INTEGER
+) IS
+    'Resolves one unambiguous Melbourne property address and returns the application-ready mapped-tree and Landsat heat context within the requested radius.';
+
+CREATE TABLE environmental_classification_reference (
+    classification_reference_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    metric_code TEXT NOT NULL CHECK (
+        metric_code IN ('daily_mean_air_temperature', 'canopy_progress')
+    ),
+    threshold_code TEXT NOT NULL,
+    threshold_value NUMERIC NOT NULL,
+    unit TEXT NOT NULL,
+    classification_label TEXT NOT NULL CHECK (
+        classification_label IN ('Medium', 'High')
+    ),
+    source_title TEXT NOT NULL,
+    source_publisher TEXT NOT NULL,
+    source_url TEXT NOT NULL,
+    source_locator TEXT NOT NULL,
+    evidence_scope TEXT NOT NULL,
+    limitation TEXT NOT NULL,
+    reviewed_on DATE NOT NULL,
+    UNIQUE (metric_code, threshold_code, source_url)
+);
+
+INSERT INTO environmental_classification_reference (
+    metric_code, threshold_code, threshold_value, unit,
+    classification_label, source_title, source_publisher, source_url,
+    source_locator, evidence_scope, limitation, reviewed_on
+) VALUES
+(
+    'daily_mean_air_temperature', 'elevated_daily_mean', 27.2, 'degC',
+    'Medium',
+    'The impact of heatwaves on mortality in Australia: a multicity study',
+    'BMJ Open',
+    'https://pmc.ncbi.nlm.nih.gov/articles/PMC3931989/',
+    'Table 2: Heatwave days and threshold',
+    'Melbourne 95th-percentile summer daily-mean threshold.',
+    'The study definition requires two or more consecutive summer days; this is not an instantaneous reading.',
+    DATE '2026-09-01'
+),
+(
+    'daily_mean_air_temperature', 'historical_central_heat_health', 30.0, 'degC',
+    'High',
+    'Planning for extreme heat and heatwaves',
+    'Victorian Department of Health',
+    'https://www.health.vic.gov.au/environmental-health/planning-for-extreme-heat-and-heatwaves',
+    'Weather forecast districts; Calculating the average temperature; Figure 1',
+    'Historical Central District threshold calculated from forecast maximum and following overnight minimum.',
+    'The page states this Victorian system ended in 2021-22 and is not comparable with the current BOM national warning trigger.',
+    DATE '2026-09-01'
+),
+(
+    'canopy_progress', 'official_2018_metro_baseline', 15.3, 'percent',
+    'Medium',
+    'Melbourne''s vegetation, heat and land use data',
+    'Victorian Government Department of Transport and Planning',
+    'https://www.planning.vic.gov.au/guides-and-resources/Data-spatial-and-insights/melbournes-vegetation-heat-and-land-use-data',
+    '2018 tree cover',
+    'Official metropolitan Melbourne 2018 urban tree-canopy baseline of 15.3 percent.',
+    'Metropolitan baseline context, not proof of property-level compliance.',
+    DATE '2026-09-01'
+),
+(
+    'canopy_progress', 'plan_for_victoria_urban_target', 30.0, 'percent',
+    'High',
+    'Action 12: Protect and enhance our canopy trees',
+    'Victorian Government Department of Transport and Planning',
+    'https://www.planning.vic.gov.au/planforvictoria/measuring-success/actions-and-outcomes/action-12-protect-and-enhance-our-canopy-trees',
+    'What we''ll do',
+    'Official Plan for Victoria target of 30 percent tree-canopy cover in urban areas.',
+    'Urban-area target context, not proof of property-level compliance; do not apply to the rendered canopy proxy.',
+    DATE '2026-09-01'
+);
+
+CREATE OR REPLACE FUNCTION classify_melbourne_daily_mean_air_temperature(
+    p_forecast_maximum_c NUMERIC,
+    p_following_overnight_minimum_c NUMERIC
+)
+RETURNS TEXT
+LANGUAGE SQL
+IMMUTABLE
+PARALLEL SAFE
+RETURN CASE
+    WHEN p_forecast_maximum_c IS NULL
+      OR p_following_overnight_minimum_c IS NULL
+      OR p_forecast_maximum_c::TEXT IN ('NaN', 'Infinity', '-Infinity')
+      OR p_following_overnight_minimum_c::TEXT IN ('NaN', 'Infinity', '-Infinity')
+        THEN 'Unavailable'
+    WHEN (
+        p_forecast_maximum_c + p_following_overnight_minimum_c
+    ) / 2.0 >= 30.0 THEN 'High'
+    WHEN (
+        p_forecast_maximum_c + p_following_overnight_minimum_c
+    ) / 2.0 >= 27.2 THEN 'Medium'
+    ELSE 'Low'
+END;
+
+COMMENT ON FUNCTION classify_melbourne_daily_mean_air_temperature(NUMERIC, NUMERIC) IS
+    'Evidence-backed historical Melbourne daily-mean air-heat category. Uses forecast maximum plus following overnight minimum divided by two. Not valid for instantaneous BOM observations, Landsat LST or current BOM heatwave warnings.';
+
+CREATE OR REPLACE FUNCTION classify_canopy_benchmark(
+    p_canopy_percentage NUMERIC
+)
+RETURNS TEXT
+LANGUAGE plpgsql
+IMMUTABLE
+PARALLEL SAFE
+AS $function$
+BEGIN
+    IF p_canopy_percentage IS NULL
+       OR p_canopy_percentage::TEXT IN ('NaN', 'Infinity', '-Infinity') THEN
+        RETURN 'Unavailable';
+    END IF;
+    IF p_canopy_percentage < 0 OR p_canopy_percentage > 100 THEN
+        RAISE EXCEPTION 'canopy percentage must be between 0 and 100';
+    END IF;
+    IF p_canopy_percentage >= 30.0 THEN
+        RETURN 'High';
+    END IF;
+    IF p_canopy_percentage >= 15.3 THEN
+        RETURN 'Medium';
+    END IF;
+    RETURN 'Low';
+END;
+$function$;
+
+COMMENT ON FUNCTION classify_canopy_benchmark(NUMERIC) IS
+    'Evidence-backed canopy progress against the official 15.3 percent metropolitan baseline and current 30 percent Victorian urban-area target. Not valid for the rendered Vicmap proxy or proof of property-level compliance.';
+
+COMMIT;
+
+-- Migration 021: correct the historical temperature contract without changing
+-- the checksum of already-applied migration 020.
+BEGIN;
+
+ALTER TABLE environmental_classification_reference
+    -- PostgreSQL shortens migration 020's generated name to 63 characters.
+    DROP CONSTRAINT environmental_classification_referen_classification_label_check;
+
+ALTER TABLE environmental_classification_reference
+    ALTER COLUMN classification_label DROP NOT NULL,
+    ADD COLUMN evidence_role TEXT NOT NULL DEFAULT 'classification_threshold'
+        CHECK (evidence_role IN (
+            'classification_threshold', 'historical_percentile_context_only'
+        )),
+    ADD COLUMN minimum_consecutive_days INTEGER
+        CHECK (minimum_consecutive_days IS NULL OR minimum_consecutive_days > 0),
+    ADD COLUMN status TEXT NOT NULL DEFAULT 'historical_context';
+
+UPDATE environmental_classification_reference
+SET classification_label = NULL,
+    evidence_role = 'historical_percentile_context_only',
+    minimum_consecutive_days = 2,
+    status = 'historical_context',
+    limitation = 'The 27.2 C percentile requires two or more consecutive summer days. It is historical percentile context only and is not used to classify a single forecast pair.'
+WHERE metric_code = 'daily_mean_air_temperature'
+  AND threshold_code = 'elevated_daily_mean';
+
+UPDATE environmental_classification_reference
+SET classification_label = 'At or above historical 30 C threshold',
+    evidence_role = 'classification_threshold',
+    status = 'historical_context',
+    limitation = 'Historical Victorian Central District context only. The system ended in 2021-22 and is not comparable with the current BOM national heatwave warning.'
+WHERE metric_code = 'daily_mean_air_temperature'
+  AND threshold_code = 'historical_central_heat_health';
+
+DROP FUNCTION classify_melbourne_daily_mean_air_temperature(NUMERIC, NUMERIC);
+
+CREATE FUNCTION classify_melbourne_daily_mean_air_temperature(
+    p_forecast_maximum_c NUMERIC,
+    p_following_overnight_minimum_c NUMERIC
+)
+RETURNS JSONB
+LANGUAGE SQL
+IMMUTABLE
+PARALLEL SAFE
+RETURN JSONB_BUILD_OBJECT(
+    'classification', CASE
+        WHEN p_forecast_maximum_c IS NULL
+          OR p_following_overnight_minimum_c IS NULL
+          OR p_forecast_maximum_c::TEXT IN ('NaN', 'Infinity', '-Infinity')
+          OR p_following_overnight_minimum_c::TEXT IN ('NaN', 'Infinity', '-Infinity')
+            THEN 'Unavailable'
+        WHEN (p_forecast_maximum_c + p_following_overnight_minimum_c) / 2.0 >= 30.0
+            THEN 'At or above historical 30 C threshold'
+        ELSE 'Below historical 30 C threshold'
+    END,
+    'daily_mean_c', CASE
+        WHEN p_forecast_maximum_c IS NULL
+          OR p_following_overnight_minimum_c IS NULL
+          OR p_forecast_maximum_c::TEXT IN ('NaN', 'Infinity', '-Infinity')
+          OR p_following_overnight_minimum_c::TEXT IN ('NaN', 'Infinity', '-Infinity')
+            THEN NULL
+        ELSE ROUND((p_forecast_maximum_c + p_following_overnight_minimum_c) / 2.0, 3)
+    END,
+    'method', 'historical_victorian_central_daily_mean_threshold',
+    'status', 'historical_context',
+    'limitation', 'Historical Victorian Central District context only. The system ended in 2021-22 and is not comparable with the current BOM heatwave warning. The 27.2 C research percentile requires two or more consecutive days and is not used to classify this one-day pair.',
+    'source', JSONB_BUILD_OBJECT(
+        'title', 'Planning for extreme heat and heatwaves',
+        'publisher', 'Victorian Department of Health',
+        'url', 'https://www.health.vic.gov.au/environmental-health/planning-for-extreme-heat-and-heatwaves',
+        'locator', 'Calculating the average temperature; Figure 1'
+    ),
+    'historical_percentile_context', JSONB_BUILD_OBJECT(
+        'threshold_c', 27.2,
+        'minimum_consecutive_days', 2,
+        'used_for_this_classification', FALSE,
+        'source', JSONB_BUILD_OBJECT(
+            'title', 'The impact of heatwaves on mortality in Australia: a multicity study',
+            'publisher', 'BMJ Open',
+            'url', 'https://pmc.ncbi.nlm.nih.gov/articles/PMC3931989/',
+            'locator', 'Table 2: Heatwave days and threshold'
+        )
+    )
+);
+
+COMMENT ON FUNCTION classify_melbourne_daily_mean_air_temperature(NUMERIC, NUMERIC) IS
+    'Returns structured historical context for one forecast maximum/following-minimum pair. It never returns a current heat warning; 27.2 C is recorded only as two-consecutive-day percentile context.';
 
 COMMIT;
