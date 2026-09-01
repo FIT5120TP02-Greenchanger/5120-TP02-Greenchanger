@@ -1,12 +1,15 @@
 {
-  "version": "environmental-absolute-benchmarks-v1",
+  "version": "historical-context-and-canopy-benchmarks-v2",
+  "supersedes": "environmental-absolute-benchmarks-v1",
   "reviewed_on": "2026-09-01",
   "daily_mean_air_temperature": {
     "calculation": "(forecast_daily_maximum_c + following_overnight_minimum_c) / 2",
-    "thresholds_c": {
-      "low_below": 27.2,
-      "medium_from_inclusive": 27.2,
-      "high_from_inclusive": 30.0
+    "historical_context": {
+      "research_95th_percentile_c": 27.2,
+      "minimum_consecutive_days": 2,
+      "used_to_classify_one_day_pair": false,
+      "retired_victorian_central_threshold_c": 30.0,
+      "status": "historical_context"
     },
     "sources": [
       {
@@ -31,7 +34,7 @@
         "supports": "Defines Melbourne hot weather using a 30 C 24-hour mean and reports 17% more adverse health outcomes on hot than non-hot summer days in the study period."
       }
     ],
-    "prohibited_use": "Do not apply these thresholds to a single live BOM observation, apparent temperature, Landsat land-surface temperature or the current national BOM heatwave-warning category."
+    "prohibited_use": "Do not use 27.2 C to classify one day. Do not present the historical 30 C result as a current warning or apply it to a single live BOM observation, apparent temperature or Landsat land-surface temperature."
   },
   "canopy_progress": {
     "thresholds_pct": {

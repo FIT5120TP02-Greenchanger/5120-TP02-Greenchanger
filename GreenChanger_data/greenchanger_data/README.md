@@ -75,11 +75,14 @@ version and review of its distribution rather than mutation of v1.
 
 The separate absolute helpers do not replace these terciles.
 `classify_melbourne_daily_mean_air_temperature()` uses a forecast maximum and
-the following overnight minimum; it never categorises a single current BOM
-observation or Landsat surface temperature. `classify_canopy_benchmark()` uses
+the following overnight minimum and returns a structured historical-context
+object, not `Low/Medium/High` or a current warning. The 27.2°C research value
+requires two consecutive days and is metadata only. It never categorises a
+single current BOM observation or Landsat surface temperature.
+`classify_canopy_benchmark()` uses
 the official 15.3% metropolitan baseline and 30% urban-area target but is
 prohibited for the current rendered canopy proxy. Exact sources and document locations are recorded in
-`config/environmental_classification_evidence.json` and migration 020.
+`config/environmental_classification_evidence.json` and migrations 020–021.
 
 ## Property baseline integration
 

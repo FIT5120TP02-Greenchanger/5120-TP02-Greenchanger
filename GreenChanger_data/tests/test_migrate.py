@@ -9,7 +9,7 @@ class MigrationFileTests(unittest.TestCase):
     def test_migrations_are_numbered_and_ordered(self):
         self.assertEqual(
             [version for version, _ in migration_files()],
-            [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20],
+            [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21],
         )
 
     def test_include_is_expanded(self):
@@ -143,6 +143,19 @@ class MigrationFileTests(unittest.TestCase):
         self.assertIn("Official metropolitan Melbourne 2018", sql)
         self.assertIn("Official Plan for Victoria target", sql)
         self.assertNotIn("ABC News", sql)
+
+    def test_historical_temperature_context_is_structured_and_duration_safe(self):
+        migration = next(
+            path for version, path in migration_files() if version == 21
+        )
+        sql = expanded_sql(migration)
+        self.assertIn("RETURNS JSONB", sql)
+        self.assertIn("'status', 'historical_context'", sql)
+        self.assertIn("minimum_consecutive_days", sql)
+        self.assertIn("used_for_this_classification", sql)
+        self.assertIn("is not used to classify this one-day pair", sql)
+        self.assertNotIn("THEN 'Medium'", sql)
+        self.assertNotIn("THEN 'High'", sql)
 
 
 if __name__ == "__main__":

@@ -53,31 +53,44 @@ class EnvironmentalClassificationTests(unittest.TestCase):
 
 
 class MelbourneDailyMeanAirTemperatureTests(unittest.TestCase):
-    def test_daily_mean_boundaries(self):
+    def test_27_2_is_context_not_a_one_day_category(self):
+        result = classify_melbourne_daily_mean_air_temperature(32.0, 22.4)
+        self.assertEqual(result["daily_mean_c"], 27.2)
         self.assertEqual(
-            classify_melbourne_daily_mean_air_temperature(32.0, 22.2), "Low"
+            result["classification"], "Below historical 30 C threshold"
+        )
+        self.assertEqual(result["status"], "historical_context")
+        self.assertEqual(
+            result["historical_percentile_context"]["minimum_consecutive_days"],
+            2,
+        )
+        self.assertFalse(
+            result["historical_percentile_context"][
+                "used_for_this_classification"
+            ]
         )
         self.assertEqual(
-            classify_melbourne_daily_mean_air_temperature(32.0, 22.4), "Medium"
-        )
-        self.assertEqual(
-            classify_melbourne_daily_mean_air_temperature(38.0, 22.0), "High"
+            result["historical_percentile_context"]["source"]["locator"],
+            "Table 2: Heatwave days and threshold",
         )
 
-    def test_official_example_is_high(self):
+    def test_official_example_is_explicitly_historical(self):
+        result = classify_melbourne_daily_mean_air_temperature(38.0, 25.0)
+        self.assertEqual(result["daily_mean_c"], 31.5)
         self.assertEqual(
-            classify_melbourne_daily_mean_air_temperature(38.0, 25.0), "High"
+            result["classification"],
+            "At or above historical 30 C threshold",
         )
+        self.assertEqual(result["status"], "historical_context")
+        self.assertIn("ended in 2021-22", result["limitation"])
+        self.assertIn("health.vic.gov.au", result["source"]["url"])
 
     def test_missing_or_non_finite_input_is_unavailable(self):
-        self.assertEqual(
-            classify_melbourne_daily_mean_air_temperature(None, 25.0),
-            "Unavailable",
-        )
-        self.assertEqual(
-            classify_melbourne_daily_mean_air_temperature(float("nan"), 25.0),
-            "Unavailable",
-        )
+        for value in (None, float("nan"), float("inf")):
+            result = classify_melbourne_daily_mean_air_temperature(value, 25.0)
+            self.assertEqual(result["classification"], "Unavailable")
+            self.assertIsNone(result["daily_mean_c"])
+            self.assertEqual(result["status"], "historical_context")
 
 
 class CanopyBenchmarkTests(unittest.TestCase):

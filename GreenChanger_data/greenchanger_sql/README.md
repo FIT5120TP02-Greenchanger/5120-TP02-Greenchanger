@@ -59,6 +59,7 @@ greenchanger_sql/
 | `migrations/018_environment_context_radius.sql` | Adds a bounded, application-facing radius query for current mapped-tree points and clipped 500 m heat cells. |
 | `migrations/019_environment_context_by_address.sql` | Resolves one unambiguous Melbourne address and delegates to the bounded coordinate-radius query. |
 | `migrations/020_evidence_backed_absolute_classifications.sql` | Stores threshold evidence with exact source locators and adds measurement-specific daily-mean air-temperature and canopy benchmark functions. |
+| `migrations/021_historical_temperature_context.sql` | Corrects the one-day historical temperature contract: 27.2°C becomes duration-qualified context and the retired 30°C method returns structured JSON metadata rather than a current-risk label. |
 | `seeds/001_reference_data.sql` | Defines sources, greening options, analytical measures, model metadata and sample test cases. |
 | `analytics/001_views.sql` | Defines reusable analytical views for dataset quality, site baselines and scenario comparison. |
 
@@ -140,15 +141,17 @@ uses inclusive lower boundaries and returns `Unavailable` whenever the source
 value or an active threshold is missing. The property lookup returns heat and
 canopy labels together with the exact scheme version.
 
-Migration 020 keeps absolute classifications measurement-specific. It stores
-each threshold's URL and exact page/section locator in
-`environmental_classification_reference`. The daily-mean air-temperature
-function uses `(forecast maximum + following overnight minimum) / 2`, with
-27.2°C as Medium and 30°C as High. It is prohibited for a current observation,
-apparent temperature or Landsat LST. The canopy helper uses the official 15.3%
-metropolitan baseline and current 30% Plan for Victoria urban-area target. It is
-prohibited for the current rendered canopy proxy and does not establish
-property-level planning compliance.
+Migration 020 records each absolute reference's URL and exact page/section
+locator. Migration 021 corrects its temperature contract in a forward-only
+change: the 27.2°C research percentile is marked as context requiring at least
+two consecutive days, and the one-pair function compares only with the retired
+30°C Victorian Central District threshold. It returns JSONB containing the
+calculated mean, historical-context status, method, limitation and source—never
+a bare current-risk label. It remains prohibited for a current observation,
+apparent temperature or Landsat LST. The separate canopy helper uses the
+official 15.3% metropolitan baseline and current 30% Plan for Victoria
+urban-area target. It is prohibited for the rendered canopy proxy and does not
+establish property-level planning compliance.
 
 The active `melbourne-terciles-v1` thresholds and cell distributions are:
 
@@ -223,7 +226,7 @@ To add a schema change:
 5. Run `python -m unittest discover -v`.
 6. Check status before applying to shared Aurora.
 
-The next migration number is `021`. Never modify `001`–`020` after they have
+The next migration number is `022`. Never modify `001`–`021` after they have
 been applied. Their checksums are part of the migration audit trail.
 
 ## Data preparation and database integration
