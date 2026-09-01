@@ -105,6 +105,12 @@ executes both context functions. It checks an exact and ambiguous address,
 inside/outside-boundary coordinates, invalid radius, unsupported layers and the
 per-layer limit. It also executes the structured historical-temperature helper.
 
+The same suite is required by the GitHub Actions
+`GreenChanger PostGIS / Apply migrations and execute PostGIS contracts` job in
+`.github/workflows/greenchanger-postgis.yml`. It runs for pull requests that
+change `GreenChanger_data`, relevant pushes to `main` or `greenchanger-ds`, and
+manual workflow dispatches.
+
 ## Known limitations
 
 - The current canopy baseline is a rendered API proxy at approximately 19.1 m

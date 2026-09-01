@@ -299,10 +299,15 @@ References:
 - [Plan for Victoria—Action 12: Protect and enhance our canopy trees](https://www.planning.vic.gov.au/planforvictoria/measuring-success/actions-and-outcomes/action-12-protect-and-enhance-our-canopy-trees), **What we'll do**.
 - [CDC—Bivariate choropleth map FAQ](https://usdss.cdc.gov/diabetes/data/tutorials/analysis/faq_bvc.html), **What are tertiles?** and **How are the values associated with tertiles found?**
 
+- [Esri—How Calculate Composite Index works](https://pro.arcgis.com/en/pro-app/3.5/tool-reference/spatial-statistics/how-calculate-composite-index-works.htm), **Classify the index** and **Interpret results**.
+
 The complete application-facing function contract, migration order, PostGIS
 integration-test command, data-version rules and deployment limitations are in
 [`PR_DATA_CONTRACT.md`](PR_DATA_CONTRACT.md).
-- [Esri—How Calculate Composite Index works](https://pro.arcgis.com/en/pro-app/3.5/tool-reference/spatial-statistics/how-calculate-composite-index-works.htm), **Classify the index** and **Interpret results**.
+
+GitHub Actions also runs the real PostGIS integration suite through
+`.github/workflows/greenchanger-postgis.yml` whenever a pull request changes
+this data component.
 
 Seven peer-reviewed primary studies are versioned in the intervention evidence
 register added by migration 014. This is a completed evidence-selection step,
