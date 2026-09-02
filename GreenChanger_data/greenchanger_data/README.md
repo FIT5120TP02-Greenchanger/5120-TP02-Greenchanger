@@ -21,6 +21,7 @@ functions and perform database writes.
 | `measures.py` | Evidence-gated calculations and sample outputs for canopy, future shade proxy, greenery, surface heat and cost measures. |
 | `melbourne_sanity.py` | Validate real-address parcel, 2GMEL boundary, heat, proxy-canopy, mapped-tree and weather-context outputs without requiring a database in unit tests. |
 | `property_baseline.py` | Reference-test the project-defined small, medium and large lot-size categories used by Priority 4. |
+| `property_canopy.py` | Validate fine-resolution analytical canopy and calculate parcel-clipped canopy area, percentage and raster coverage without treating nodata as zero. |
 | `quality.py` | Record-level completeness, uniqueness, validity and consistency rules, including memory-safe stream validation. |
 | `residential_scenarios.py` | Join real property baselines to four-action calculations and reviewed cost evidence while preserving measurement scope and warnings. |
 | `scenario_inputs.py` | Validate the versioned Residential Greening Scenario Simulation quantity, area, maturity, survival and suitability contract and translate it into evidence-bounded model inputs. |
@@ -54,6 +55,17 @@ The current asset role `canopy_api_tile_mosaic` maps to `api_tile_proxy`; it is
 never labelled as an analytical GeoTIFF. `coverage_confidence_pct` describes
 complete source-raster coverage, not classification accuracy. The source's
 multi-year imagery period and proxy resolution are recorded as limitations.
+
+Property canopy is a separate evidence scope. It accepts only a registered
+`canopy_analytical_geotiff` with one band, projected coordinates and pixels no
+larger than 2 m. Each Vicmap parcel is the clip mask; tree-class pixel area is
+divided by parcel area and raster coverage is reported separately. Rows below
+95% raster coverage return `Unavailable`, not 0%. The current 19.109 m rendered
+API mosaic cannot satisfy this contract.
+
+When available, the parcel result populates `property_canopy_percentage` and
+uses scope `property_raster_clip`; it does not replace or reclassify the 500 m
+neighbourhood canopy baseline.
 
 ## Environmental classification logic
 

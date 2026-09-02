@@ -9,7 +9,7 @@ class MigrationFileTests(unittest.TestCase):
     def test_migrations_are_numbered_and_ordered(self):
         self.assertEqual(
             [version for version, _ in migration_files()],
-            [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22],
+            [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23],
         )
 
     def test_include_is_expanded(self):
@@ -172,6 +172,22 @@ class MigrationFileTests(unittest.TestCase):
         self.assertIn(
             "normalize_melbourne_address_search(p_address_search)", sql
         )
+
+    def test_property_canopy_requires_analytical_application_ready_data(self):
+        migration = next(
+            path for version, path in migration_files() if version == 23
+        )
+        sql = expanded_sql(migration)
+        self.assertIn("CREATE TABLE property_canopy_summary", sql)
+        self.assertIn("coverage_percentage >= 95", sql)
+        self.assertIn("source_pixel_size_m <= 2", sql)
+        self.assertIn("latest_melbourne_property_canopy", sql)
+        self.assertIn("property_canopy_raster_clip_v1", sql)
+        self.assertIn("get_property_canopy_by_address", sql)
+        self.assertIn("missing data is not zero canopy", sql)
+        self.assertIn("get_property_baseline_pre_property_canopy_legacy", sql)
+        self.assertIn("analytical_geotiff_property_clip", sql)
+        self.assertIn("The canopy classification remains neighbourhood-relative", sql)
 
 
 if __name__ == "__main__":

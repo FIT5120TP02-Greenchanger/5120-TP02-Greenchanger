@@ -94,6 +94,16 @@ python greenchanger_script/build_canopy_baseline.py --confirm-shared
 python greenchanger_script/build_environmental_classifications.py \
   --version-label melbourne-terciles-v1 --confirm-shared
 
+# Optional property canopy: requires the original <=2 m, single-band
+# analytical Tree Extent GeoTIFF. The 19.1 m API proxy is rejected.
+python greenchanger_script/ingestion.py canopy \
+  --canopy-file /path/to/analytical_tree_extent.tif \
+  --canopy-analytical --canopy-observed-on YYYY-MM-DD \
+  --tree-value VERIFIED_TREE_CLASS --confirm-shared
+python greenchanger_script/build_property_canopy.py \
+  --canopy-file /path/to/analytical_tree_extent.tif \
+  --tree-value VERIFIED_TREE_CLASS --confirm-shared
+
 # 7. Validate and load reviewed cost references
 python greenchanger_script/validate_csv.py cost_estimate \
   data/reference/cost_estimates.csv
@@ -104,6 +114,22 @@ python greenchanger_script/ingestion.py costs \
 python greenchanger_script/migrate.py --status
 python -m unittest discover -v
 ```
+
+Query a property result with:
+
+```sql
+SELECT * FROM get_property_canopy_by_address(
+    '1 COLLINS STREET MELBOURNE', 5
+);
+```
+
+This returns canopy area, parcel canopy percentage, raster coverage, source
+resolution and observation date. No approved result returns `Unavailable`,
+never an assumed 0% canopy.
+
+The same approved value also fills `property_canopy_percentage` in
+`get_property_baseline()`. Its separate `neighbourhood_canopy_percentage` and
+neighbourhood-relative classification remain unchanged.
 
 To inspect every **Data Analytics & Insight Development** formula and sample output:
 
@@ -202,7 +228,7 @@ conversion; their 500 m source resolution is unchanged.
 
 | Output | Current result | Quality/status |
 | --- | ---: | --- |
-| Repository migrations | 001–022 | Deployment state must be confirmed with `migrate.py --status` |
+| Repository migrations | 001–023 | Deployment state must be confirmed with `migrate.py --status` |
 | Automated tests | Fast unit suite + opt-in PostGIS integration suite | Use the validation commands below and in `PR_DATA_CONTRACT.md` |
 | Melbourne Address records | 3,007,474 | 100% boundary membership |
 | Melbourne Property records | 3,001,053 | 100% boundary membership |

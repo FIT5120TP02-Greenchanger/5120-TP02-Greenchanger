@@ -134,7 +134,7 @@ class PostgisEnvironmentContextIntegrationTests(unittest.TestCase):
                     ST_SetSRID(ST_MakePoint(144.96, -37.81), 4326), 7855
                 ), 30)), 2800, 'residential', 'active'),
                 (%s, 'PARCEL-B', ST_Multi(ST_Buffer(ST_Transform(
-                    ST_SetSRID(ST_MakePoint(144.97, -37.81), 4326), 7855
+                    ST_SetSRID(ST_MakePoint(144.965, -37.81), 4326), 7855
                 ), 30)), 2800, 'residential', 'active')
                 """,
                 (versions["property"], versions["property"]),
@@ -151,7 +151,7 @@ class PostgisEnvironmentContextIntegrationTests(unittest.TestCase):
                     ST_SetSRID(ST_MakePoint(144.96, -37.81), 4326), 7855)),
                 (%s, 'ADDRESS-B', 'PARCEL-B', '10 TEST ROAD MELBOURNE 3000',
                  'MELBOURNE', '3000', 'Y', ST_Transform(
-                    ST_SetSRID(ST_MakePoint(144.97, -37.81), 4326), 7855))
+                    ST_SetSRID(ST_MakePoint(144.965, -37.81), 4326), 7855))
                 """,
                 (versions["address"], versions["address"]),
             )
@@ -187,6 +187,43 @@ class PostgisEnvironmentContextIntegrationTests(unittest.TestCase):
                 )
                 """,
                 (versions["heat"], area_id),
+            )
+            cursor.execute(
+                """
+                INSERT INTO dataset_version (
+                    source_id, analysis_area_id, derivation_method,
+                    spatial_resolution_m, quality_pass_rate, quality_status,
+                    integration_status, publication_status,
+                    source_observed_from, source_observed_to
+                )
+                SELECT source_id, %s, 'property_canopy_raster_clip_v1',
+                       0.5, 100, 'passed', 'integrated', 'application_ready',
+                       DATE '2020-01-01', DATE '2020-12-31'
+                FROM dataset_source
+                WHERE source_name = 'Vicmap Vegetation - Tree Extent'
+                RETURNING dataset_version_id
+                """,
+                (area_id,),
+            )
+            property_canopy_version = cursor.fetchone()[0]
+            cursor.execute(
+                """
+                INSERT INTO property_canopy_summary (
+                    dataset_version_id, source_canopy_version_id, parcel_id,
+                    observed_on, canopy_area_m2, parcel_area_m2,
+                    raster_covered_area_m2, canopy_percentage,
+                    coverage_percentage, source_pixel_size_m,
+                    quality_status
+                )
+                SELECT %s, %s, parcel_id, DATE '2020-12-31',
+                       700, parcel_area_m2, parcel_area_m2, 25, 100, 0.5, 'passed'
+                FROM parcel
+                WHERE dataset_version_id = %s AND source_parcel_id = 'PARCEL-A'
+                """,
+                (
+                    property_canopy_version, property_canopy_version,
+                    versions["property"],
+                ),
             )
 
     def _rows(self, query, parameters=()):
@@ -261,6 +298,33 @@ class PostgisEnvironmentContextIntegrationTests(unittest.TestCase):
             result["historical_percentile_context"]["source"]["publisher"],
             "BMJ Open",
         )
+
+    def test_property_canopy_is_parcel_specific_and_missing_safe(self):
+        available = self._rows(
+            """SELECT property_canopy_percentage, raster_coverage_percentage,
+                      source_pixel_size_m, data_status
+               FROM get_property_canopy_by_address(%s, 1)""",
+            ("10 TEST STREET MELBOURNE 3000",),
+        )
+        self.assertEqual(available, [(25, 100, 0.5, "Available")])
+        baseline = self._rows(
+            """SELECT property_canopy_percentage, canopy_analysis_scope,
+                      canopy_source_type, canopy_classification
+               FROM get_property_baseline(%s, 1)""",
+            ("10 TEST STREET MELBOURNE 3000",),
+        )
+        self.assertEqual(
+            baseline,
+            [(25, "property_raster_clip", "analytical_geotiff_property_clip", "Unavailable")],
+        )
+        missing = self._rows(
+            """SELECT property_canopy_percentage, data_status, limitation
+               FROM get_property_canopy_by_address(%s, 1)""",
+            ("10 TEST ROAD MELBOURNE 3000",),
+        )[0]
+        self.assertIsNone(missing[0])
+        self.assertEqual(missing[1], "Unavailable")
+        self.assertIn("not zero canopy", missing[2])
 
 
 if __name__ == "__main__":

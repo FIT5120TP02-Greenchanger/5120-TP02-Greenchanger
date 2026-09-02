@@ -38,6 +38,7 @@ from greenchanger_data.boundary import (
     save_raw as save_boundary_raw,
 )
 from greenchanger_data.canopy import aggregate_canopy, profile_canopy_raster
+from greenchanger_data.property_canopy import validate_property_canopy_source
 from greenchanger_data.landsat import (
     aggregate_surface_temperature,
     asset_metadata,
@@ -1054,6 +1055,17 @@ def ingest_canopy(connection, args: argparse.Namespace) -> dict[str, Any]:
         json.loads(sidecar_path.read_text(encoding="utf-8"))
         if sidecar_path.exists() else None
     )
+    if args.canopy_analytical:
+        import rasterio
+
+        if api_metadata:
+            raise ValueError(
+                "A rendered API extraction cannot be registered as an analytical GeoTIFF"
+            )
+        with rasterio.open(args.canopy_file) as analytical_source:
+            validate_property_canopy_source(
+                analytical_source, asset_role="canopy_analytical_geotiff"
+            )
     rows, metadata = aggregate_canopy(
         args.canopy_file,
         observed_on=observed_on,
@@ -1076,7 +1088,11 @@ def ingest_canopy(connection, args: argparse.Namespace) -> dict[str, Any]:
         connection,
         version_id,
         [{
-            "asset_role": "canopy_api_tile_mosaic" if api_metadata else "canopy_source_raster",
+            "asset_role": (
+                "canopy_api_tile_mosaic" if api_metadata
+                else "canopy_analytical_geotiff" if args.canopy_analytical
+                else "canopy_source_raster"
+            ),
             "source_scene_id": args.canopy_file.stem,
             "source_href": api_metadata.get("source_service") if api_metadata else None,
             "local_path": str(args.canopy_file.resolve()),
@@ -1297,6 +1313,10 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument("--cost-file", type=Path, default=DEFAULT_COST_FILE)
     parser.add_argument("--canopy-file", type=Path)
+    parser.add_argument(
+        "--canopy-analytical", action="store_true",
+        help="Register a verified <=2 m single-band analytical GeoTIFF for property canopy.",
+    )
     parser.add_argument("--canopy-observed-on", help="Source imagery date: YYYY-MM-DD")
     parser.add_argument("--canopy-observed-from", help="Earliest source imagery date: YYYY-MM-DD")
     parser.add_argument("--tree-value", type=float)

@@ -40,6 +40,7 @@ repository.
 | `clip_to_melbourne.py` | Create audited `2GMEL`-only Address, Property, heat and canopy dataset versions without deleting parent versions. |
 | `build_heat_baseline.py` | Resolve overlapping Landsat observations into one versioned, application-ready baseline cell per location. |
 | `build_canopy_baseline.py` | Publish one quality-checked, versioned 500 m canopy baseline and verify exact alignment with the heat grid. |
+| `build_property_canopy.py` | Clip a registered <=2 m analytical Tree Extent GeoTIFF to Melbourne parcels, enforce the 95% quality gate and publish property canopy summaries. |
 | `build_environmental_classifications.py` | Calculate and activate versioned Low/Medium/High tercile thresholds from current Melbourne heat and canopy baselines. |
 | `apply_database.py` | Legacy/simple schema application helper; numbered migrations are preferred. |
 
@@ -75,6 +76,12 @@ python greenchanger_script/build_heat_baseline.py --confirm-shared
 
 # Publish the matching 500 m canopy baseline
 python greenchanger_script/build_canopy_baseline.py --confirm-shared
+
+# Only after registering a genuine analytical GeoTIFF with
+# --canopy-analytical; the rendered API proxy is intentionally rejected.
+python greenchanger_script/build_property_canopy.py \
+  --canopy-file /path/to/analytical_tree_extent.tif \
+  --tree-value VERIFIED_TREE_CLASS --confirm-shared
 
 # Calculate versioned Melbourne-relative Low/Medium/High thresholds
 python greenchanger_script/build_environmental_classifications.py \
