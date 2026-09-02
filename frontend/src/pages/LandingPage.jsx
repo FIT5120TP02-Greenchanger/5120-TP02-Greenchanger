@@ -1,5 +1,5 @@
 import styles from './LandingPage.module.css';
-import { SearchBox } from '@mapbox/search-js-react';
+// import { SearchBox } from '@mapbox/search-js-react';
 import AddressAutocomplete from '../components/AddressAutocomplete';
 import { useState } from 'react';
 
