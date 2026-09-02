@@ -1,10 +1,5 @@
-/* ============================================================
-   1 · CONFIG — put your own Mapbox token here
-   Get one free at https://account.mapbox.com/access-tokens/
-   ============================================================ */
-
 export const CLAYTON = [145.1300, -37.9180]; // lng, lat
-export const START_ZOOM = 16.4;
+export const START_ZOOM = 17.5;
 export const START_PITCH = 58;
 export const START_BEARING = -24;
 
@@ -28,4 +23,6 @@ export const MIN_PARCEL_ZOOM = 15.5;
 export const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_ACCESS_TOKEN;
 
 // GreenShift data-team backend. Ask them for the deployed URL.
-export const API_BASE_URL = import.meta.env.VITE_GREENSHIFT_API_URL;
+// export const API_BASE_URL = import.meta.env.VITE_GREENSHIFT_API_URL;
+// export const API_BASE_URL = "https://greenchanger.me";
+export const API_BASE_URL = "";

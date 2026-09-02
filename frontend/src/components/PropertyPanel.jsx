@@ -20,18 +20,7 @@ export default function PropertyPanel({ stats, hint, onPlantTree }) {
                 <dd>{stats.areaLabel}</dd>
                 <dt>Trees on lot</dt>
                 <dd>{stats.treeCount}</dd>
-                {stats.landSurfaceTempC != null && (
-                    <>
-                        <dt>Land surface temp</dt>
-                        <dd>{stats.landSurfaceTempc.toFixed(1)}°C</dd>
-                    </>
-                )}
-                {stats.neighbourhoodCanopyPct != null && (
-                    <>
-                        <dt>Neighbourhood canopy</dt>
-                        <dd>{stats.neighbourhoodCanopyPct.toFixed(1)}%</dd>
-                    </>
-                )}
+
                 {stats.neighbourhoodCanopyPct != null && (
                     <>
                         <dt>Neighbourhood canopy</dt>
@@ -45,6 +34,7 @@ export default function PropertyPanel({ stats, hint, onPlantTree }) {
                     </>
                 )}
             </dl>
+            
             <button className={styles["plant-button"]} onClick={onPlantTree}>Plant a tree here</button>
         </div>
     );

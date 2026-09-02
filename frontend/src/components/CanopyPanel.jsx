@@ -6,7 +6,7 @@ export default function CanopyPanel({ pct, nTrees, canopyM2, viewM2 }) {
     return (
         <div className={styles["canopy-panel"]}>
             <div className={styles['canopy-neighborhood']}>
-                <span>THIS NEIGHBORHOOD</span>
+                <span>CURRENT VIEWPORT</span>
                 <div className={styles[`canopy-pct`]}>
                     <span>{pct.toFixed(1)}%</span>
                     <p>tree canopy</p>
@@ -32,6 +32,7 @@ export default function CanopyPanel({ pct, nTrees, canopyM2, viewM2 }) {
                     <dd>{fmtArea(viewM2)}</dd>
                 </dl>
             </div>
+            
         </div>
     );
 }

@@ -26,15 +26,20 @@
     border-radius: 50%;
     background: #9BD27D;
 }
-.step-indicator {
-    font-size: 0.8125rem;
-    color: #C7D3CB;
+.close-button {
+    background: none;
+    border: none;
+    color: white;
+    font-size: 1.25rem;
+    line-height: 1;
+    cursor: pointer;
+    padding: 4px 8px;
 }
 
 .plant-body {
     flex: 1;
     display: flex;
-    overflow: hidden;
+    /* overflow: hidden; */
 }
 
 .map-area {

@@ -40,16 +40,27 @@ export default function PlantTreePage({ planTarget, onDone }) {
         if (center) simulation.placeTree(center.lng, center.lat);
     }, [simulation]);
 
+    const handleDiscard = useCallback(() => onDone(null), [onDone]);
+
     const handleFinish = useCallback(() => {
-        onDone(simulation.position ? { ...simulation.position, radiusM: simulation.radiusM } : null);
-    }, [simulation, onDone]);
+        onDone(simulation.trees.length ? simulation.trees : null);
+    }, [simulation.trees, onDone]);
 
     const projected = useMemo(() => {
-        if (!simulation.position || !trees.viewM2) return null;
-        const addedM2 = Math.PI * simulation.radiusM ** 2;
+        if (!simulation.trees.length || !trees.viewM2) return null;
+        const addedM2 = simulation.trees.reduce((sum, t) => sum + Math.PI * t.radiusM ** 2, 0);
         const pct = ((trees.canopyM2 + addedM2) / trees.viewM2) * 100;
         return { pct, deltaPts: pct - trees.pct };
-    }, [simulation.position, simulation.radiusM, trees.canopyM2, trees.viewM2, trees.pct]);
+    }, [simulation.trees, trees.canopyM2, trees.viewM2, trees.pct]);
+
+    const simulatedTreesGeoJson = useMemo(() => ({
+        type: 'FeatureCollection',
+        features: simulation.trees.map((t) => ({
+            type: 'Feature',
+            properties: {},
+            geometry: circleMetres(t.lng, t.lat, t.radiusM),
+        })),
+    }), [simulation.trees])
 
     return (
         <div className={styles['plant-page']}>
@@ -58,7 +69,7 @@ export default function PlantTreePage({ planTarget, onDone }) {
                 <span className={styles['brand-dot']} />
                 <span>GreenChanger</span>
                 </div>
-                <span className={styles['step-indicator']}>1 / 1</span>
+                <button className={styles['close-button']} onClick={handleDiscard} aria-label="Discard">x</button>
             </header>
 
             <div className={styles['plant-body']}>
@@ -79,15 +90,11 @@ export default function PlantTreePage({ planTarget, onDone }) {
                     style={{ width: '100%', height: '100%' }}
                     mapStyle="mapbox://styles/mapbox/standard"
                 >
-                    {simulation.position && (
+                    {simulation.trees.length && (
                     <Source
-                        id="simulated-tree"
+                        id="simulated-trees"
                         type="geojson"
-                        data={{
-                        type: 'Feature',
-                        properties: {},
-                        geometry: circleMetres(simulation.position.lng, simulation.position.lat, simulation.radiusM),
-                        }}
+                        data={simulatedTreesGeoJson}
                     >
                         <Layer id="simulated-tree-fill" type="fill" source="simulated-tree"
                             paint={{ 'fill-color': '#2F7D5A', 'fill-opacity': 0.35 }} />
@@ -107,12 +114,14 @@ export default function PlantTreePage({ planTarget, onDone }) {
                 </div>
 
                 <aside className={styles['plant-sidebar']}>
-                    {simulation.position && !simulation.active ? (
+                    {simulation.trees.length > 0 && projected && !simulation.active ? (
                         <ComparisonPanel
                             baseline={{ pct: trees.pct }}
                             projected={projected}
-                            onReset={simulation.removeTree}
-                            onNewScenario={simulation.repositionTree}
+                            trees={simulation.trees}
+                            onAdd={simulation.startPlanting}
+                            onReset={simulation.removeAllTree}
+                            onRemoveTree={simulation.removeTreeAt}
                             onFinish={handleFinish}
                         />
                     ) : (
@@ -120,8 +129,8 @@ export default function PlantTreePage({ planTarget, onDone }) {
                             size={simulation.size}
                             onSizeChange={simulation.setSize}
                             onConfirm={handleConfirm}
-                            onCancel={() => onDone(null)}
-                            hasPosition={!!simulation.position}
+                            onCancel={handleDiscard}
+                            hasPosition={simulation.trees.length > 0}
                         />
                     )}
                 </aside>

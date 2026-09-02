@@ -1,9 +1,5 @@
-/* ============================================================
-   Pure geometry helpers — no fetch, no React, no DOM, no global `map`.
-   Every function takes what it needs as an argument.
-   ============================================================ */
-
 // A circle of radius r metres around [lng,lat], as a GeoJSON polygon
+
 export function circleMetres(lng, lat, r, steps = 24) {
     const dLat = r / 110574;
     const dLng = r / (111320 * Math.cos((lat * Math.PI) / 180));
@@ -35,9 +31,14 @@ export function ringAreaM2(ring) {
 }
 
 export function polygonAreaM2(geom) {
+    if (!geom || !geom.type || !geom.coordinates) {
+        return 0;
+    }
+
     const polys = geom.type === "MultiPolygon" ? geom.coordinates : [geom.coordinates];
     let a = 0;
     for (const rings of polys) {
+        if (!rings || !rings.length) continue;
         a += ringAreaM2(rings[0]);
         for (let i = 1; i < rings.length; i++) a -= ringAreaM2(rings[i]); // subtract holes
     }
@@ -71,7 +72,25 @@ export function pointInPolygon(lng, lat, geom) {
 // Now it takes bounds + centerLat as arguments — the caller (a hook)
 // is the one that has access to the map instance, not this file.
 export function viewAreaM2(bounds, centerLat) {
-  const w = (bounds.east - bounds.west) * 111320 * Math.cos((centerLat * Math.PI) / 180);
-  const h = (bounds.north - bounds.south) * 110574;
-  return Math.abs(w * h);
+    const w = (bounds.east - bounds.west) * 111320 * Math.cos((centerLat * Math.PI) / 180);
+    const h = (bounds.north - bounds.south) * 110574;
+    return Math.abs(w * h);
+}
+
+export function centroidOfGeometry(geom) {
+    if (!geom) return null;
+    if (geom.type === "Point") {
+        const [lng, lat] = geom.coordinates;
+        return { lng, lat };
+    }
+    const ring =
+        geom.type === "Polygon"
+        ? geom.coordinates[0]
+        : geom.type === "MultiPolygon"
+        ? geom.coordinates[0][0]
+        : null;
+    if (!ring || !ring.length) return null;
+    let lng = 0, lat = 0;
+    for (const [x, y] of ring) { lng += x; lat += y; }
+    return { lng: lng / ring.length, lat: lat / ring.length };
 }

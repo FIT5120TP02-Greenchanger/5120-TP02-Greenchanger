@@ -2,50 +2,70 @@
     width: 100vw;
     height: 100vh;
 
-    background-image: url('../assets/tree-canopy-map-1220px.png');
+    background-image: url('../assets/background.jpeg');
     background-size: cover;
     background-position: center;
     background-repeat: no-repeat;
 
     display: flex;
+    flex-direction: column;
     align-items: center;
     justify-content: center;
 }
+
+.landing-page-brand {
+    display: inline-flex;
+    align-items: center;
+    gap: 9px;
+    position: absolute;
+    top: 20px;
+    left: 40px;
+}
+.landing-page-mark {
+    width: 22px;
+    height: 22px;
+    border-radius: 7px;
+    background: #2F7D5A;
+}
+
 .hero-card {
     display: flex;
+    align-items: flex-start;
     flex-direction: column;
     height: 350px;
-    width: 60%;
+    width: 50%;
     padding: 46px 52px 34px 52px;
     align-items: center;
     justify-content: center;
     background-color: #FFFFFF;
     border: 1px solid black;
     border-radius: 20px;
+    box-shadow: 0 28px 64px 0 rgba(15, 23, 28, 0.16), 0 4px 10px 0 rgba(15, 23, 28, 0.10);
 }
 
 .hero-card h1 {
-    width: 650px;
-    height: 100px;
-    font-size: 34px;
-    align-items: center;
-    text-align: center;
     color: #14181B;
+    text-align: center;
+    align-self: stretch;
+    font-family: "Instrument Sans";
+    font-size: 34px;
+    font-style: normal;
     font-weight: 600;
-    font-style: semi-bold;
-    line-height: 42px;
+    line-height: 42px; /* 123.529% */
+    letter-spacing: -0.7px;
+    margin-bottom: 15px;
 }
 
 .landing-description {
-    width: 650px;
-    height: 25px;
-    font-size: 17px;
-    align-items: center;
-    text-align: center;
     color: #5E666C;
+    text-align: center;
+    font-family: "Instrument Sans";
+    align-self: stretch;
+    font-size: 17px;
+    font-style: normal;
     font-weight: 400;
-    font-style: regular;
-    line-height: 26px;
+    line-height: 26px; /* 152.941% */
+    margin-bottom: 30px;
 }
 
 .address-search-container {
@@ -61,16 +81,11 @@
     gap: 12px;
     background-color: #F5F7F8;
 }
-.search-box-container {
-    position: relative;
-    flex: 1;
-    min-width: 0;
-}
 .mapbox-search-wrapper :global(input) {
     width: 100%;
     box-sizing: border-box;
 }
-.address-search-container button {
+.address-search-container > button {
     color: #FFFFFF;
     border: none;
     flex-shrink: 0;
@@ -130,4 +145,52 @@
 .step-arrow {
     color: #C4CBD0;
     font-size: 15px;
+}
+
+.landing-page-legend-container {
+    position: absolute;
+    bottom: 20px;
+    left: 40px;
+    padding: 13px 16px;
+    display: inline-flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+    border-radius: 10px;
+    background: rgba(255, 255, 255, 0.92);
+    box-shadow: 0 2px 6px 0 rgba(15, 23, 28, 0.09);
+}
+.landing-page-legend-container p {
+    color: #8C949A;
+    font-family: "IBM Plex Mono";
+    font-size: 10px;
+    font-style: normal;
+    font-weight: 400;
+    line-height: normal;
+    letter-spacing: 1.4px;
+}
+.legend-color-container {
+    display: flex;
+    align-items: flex-start;
+}
+.legend-color-box {
+    width: 26px;
+    height: 9px;
+    border-radius: 2px;
+    background: #E9E2D0;
+}
+.legend-labels {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    align-self: stretch;
+    color: #5E666C;
+}
+.legend-labels span {
+    color: #5E666C;
+    font-family: "Instrument Sans";
+    font-size: 11px;
+    font-style: normal;
+    font-weight: 400;
+    line-height: normal;
 }

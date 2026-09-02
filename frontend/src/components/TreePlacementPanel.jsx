@@ -29,7 +29,7 @@ export default function TreePlacementPanel({ size, onSizeChange, onConfirm, onCa
             </div>
 
             <button className={styles['place-button']} onClick={onConfirm}>
-                {hasPosition ? 'Update position' : 'Place simulated tree'}
+                {hasPosition ? 'Place here?' : 'Place simulated tree'}
             </button>
             <p className={styles['placement-hint']}>You can reposition or remove it later.</p>
             <button className={styles['cancel-button']} onClick={onCancel}>Cancel</button>

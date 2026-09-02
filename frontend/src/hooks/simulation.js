@@ -8,37 +8,39 @@ export const TREE_SIZES = {
     Medium: { radiusM: 3, heightLabel: "8m", price: "$500" },
     Large: { radiusM: 5, heightLabel: "12m", price: "$1000" },
     };
- 
+
 export function useTreeSimulation() {
     const [active, setActive] = useState(false);
-    const [position, setPosition] = useState(null);
+    const [trees, setTrees] = useState([]);
     const [size, setSize] = useState("Medium");
     
     const startPlanting = useCallback(() => setActive(true), []);
     const cancelPlanting = useCallback(() => setActive(false), []);
     
     const placeTree = useCallback((lng, lat) => {
-        setPosition({ lng, lat });
+        setTrees((prev) => [...prev, { lng, lat, radiusM: TREE_SIZES[size].radiusM, size }]);
         setActive(false);
-    }, []);
+    }, [size]);
     
-    const removeTree = useCallback(() => {
-        setPosition(null);
+    const removeAllTree = useCallback(() => {
+        setTrees([]);
         setActive(true);
     }, []);
     
-    const repositionTree = useCallback(() => setActive(true), []);
+    const removeTreeAt = useCallback((index) => {
+        setTrees((prev) => prev.filter((_, i) => i !== index));
+        if (trees.length === 1) setActive(true);
+    }, [trees.length]);
     
     return {
         active,
-        position,
+        trees,
         size,
         setSize,
-        radiusM: TREE_SIZES[size].radiusM,
         startPlanting,
         cancelPlanting,
         placeTree,
-        removeTree,
-        repositionTree,
+        removeAllTree,
+        removeTreeAt,
     };
 }

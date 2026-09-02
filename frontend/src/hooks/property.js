@@ -2,11 +2,28 @@ import { useState, useMemo, useCallback } from "react";
 import { polygonAreaM2, pointInPolygon, circleMetres, fmtArea } from "../utils/geo";
 import { fetchParcelsAtPoint, resolveParcel, geocodeAddress, reverseGeocode, fetchPropertyBaseline } from "../services/vicmap";
 
-// Replaces property.js's `let selected` + selectFeature()/selectAtPoint()/
-// findAddress(). Same logic, but derived stats come back as data (via
-// useMemo) instead of textContent writes.
 
 const RADIUS_M = 50;
+
+function mapBaselineToProperties(baseline) {
+return {
+    areaM2: baseline.parcel_area_m2,
+    mappedTreeCount: baseline.mapped_property_tree_count,
+    neighbourhoodCanopyPct: baseline.neighbourhood_canopy_percentage,
+    canopyClassification: baseline.canopy_classification,
+    landSurfaceTempC: baseline.land_surface_temperature_c,
+    landSurfaceTempDate: baseline.surface_temperature_observed_on,
+    weatherStationName: baseline.weather_station_name,
+    weatherObservedAt: baseline.weather_observed_at,
+    weatherDistanceKm: baseline.weather_station_distance_km,
+    // Expected values per README: "good_local_context" (<10km),
+    // "regional_context_warning" (10-25km), or
+    // "unavailable_no_observation_within_3_hours" (no eligible reading).
+    // Beyond 25km, air/apparent temp should be suppressed server-side.
+    weatherContext: baseline.air_temperature_context_status,
+    airTemperatureC: baseline.current_air_temperature_c,
+};
+}
 
 export function useSelectedProperty(treeFeatures) {
     const [selected, setSelected] = useState(null);
@@ -53,13 +70,21 @@ export function useSelectedProperty(treeFeatures) {
         const pool = full.length ? full : hits;
         const best = resolveParcel(pool, { clickPrecise: true });
         selectFeature(best);
-        if (lngLat) {
+        if (!lngLat) return;
         const label = await reverseGeocode(lngLat.lng, lngLat.lat);
-        if (label) selectFeature(best, label);
+        if (!label) return;
+        const baseline = await fetchPropertyBaseline(label);
+        if (baseline) {
+            const enriched = { ...best, properties: { ...best.properties, ...mapBaselineToProperties(baseline) } };
+            selectFeature(enriched, label);
+        } else {
+            selectFeature(best, label);
         }
-    }, [clearSelection, selectFeature]);
 
-    
+        },
+        [clearSelection, selectFeature]
+    );
+
 
     const resolveFromCoordinates = useCallback(async (lng, lat, { query = "", label } = {}) => {
         const feats = await fetchParcelsAtPoint(lng, lat);
@@ -93,14 +118,8 @@ export function useSelectedProperty(treeFeatures) {
         }
         const feature = {
             type: "Feature",
-            properties: {
-            areaM2: baseline.lot_area_m2,
-            mappedTreeCount: baseline.mapped_tree_count,
-            neighbourhoodCanopyPct: baseline.neighbourhood_canopy_percentage,
-            canopyClassification: baseline.canopy_classification,
-            landSurfaceTempC: baseline.land_surface_temperature,
-            },
-            geometry: baseline.geometry, // assumed to come back as GeoJSON
+            properties: mapBaselineToProperties(baseline),
+            geometry: baseline.parcel_geometry_geojson
         };
         selectFeature(feature, address);
         return { feature, baseline };
@@ -112,7 +131,7 @@ export function useSelectedProperty(treeFeatures) {
         if (!selected) return null;
         const lotArea = selected.properties.areaM2 || polygonAreaM2(selected.geometry);
         const onLot = treeFeatures.filter((t) =>
-            pointInPolygon(t.properties.lng, t.properties.lat, selected.geometry)
+        pointInPolygon(t.properties.lng, t.properties.lat, selected.geometry)
         );
         const canopy = onLot.reduce((a, t) => a + t.properties.area, 0);
         return {
@@ -121,11 +140,15 @@ export function useSelectedProperty(treeFeatures) {
             treeCount: onLot.length,
             canopyPct: lotArea ? ((canopy / lotArea) * 100).toFixed(1) + "%" : "—",
             isCircle: selected.properties?.kind === "circle",
-            // Only present when selectFeature came from resolveFromBaseline —
-            // undefined otherwise, so PropertyPanel can conditionally show these.
             landSurfaceTempC: selected.properties?.landSurfaceTempC,
+            landSurfaceTempDate: selected.properties?.landSurfaceTempDate,
             neighbourhoodCanopyPct: selected.properties?.neighbourhoodCanopyPct,
             canopyClassification: selected.properties?.canopyClassification,
+            weatherStationName: selected.properties?.weatherStationName,
+            weatherObservedAt: selected.properties?.weatherObservedAt,
+            weatherDistanceKm: selected.properties?.weatherDistanceKm,
+            weatherContext: selected.properties?.weatherContext,
+            airTemperatureC: selected.properties?.airTemperatureC,
         };
     }, [selected, selectedLabel, treeFeatures]);
 

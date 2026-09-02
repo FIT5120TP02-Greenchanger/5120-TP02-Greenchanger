@@ -1,10 +1,3 @@
-/* ============================================================
-   services/vicmap.js — the ONLY file that should call fetch()
-   against Vicmap / Mapbox. Everything else asks this file for
-   data and gets a plain object back. No `map.*`, no `document.*`,
-   no module-level `let treeFeatures` — that state belongs in a hook.
-   ============================================================ */
-
 import {
     TREES_URL,
     PARCELS_URL,
@@ -83,6 +76,22 @@ export async function fetchParcelsAtPoint(lng, lat) {
     return gj.features || [];
 }
 
+// Normalizer address, temp fix
+function toBaselineAddressFormat(mapboxLabel) {
+    if (!mapboxLabel) return mapboxLabel;
+
+    let s = mapboxLabel
+        .replace(/,\s*Australia$/i, '')      // drop trailing country
+        .replace(/\bVictoria\b/gi, '')       // drop state name, if present
+        .replace(/\bVIC\b/gi, '')            // drop state abbreviation, if present
+        .replace(/,/g, ' ')                  // commas -> spaces
+        .replace(/\s+/g, ' ')                // collapse multiple spaces
+        .trim()
+        .toUpperCase();
+
+    return s;
+}
+
 export async function reverseGeocode(lng, lat) {
     const url =
         "https://api.mapbox.com/search/geocode/v6/reverse?" +
@@ -95,7 +104,9 @@ export async function reverseGeocode(lng, lat) {
     try {
         const geo = await (await fetch(url)).json();
         const feature = geo.features?.[0];
-        return feature?.properties?.full_address || null;
+        const raw = feature?.properties?.full_address || null;
+        // return feature?.properties?.full_address || null;
+        return raw ? toBaselineAddressFormat(raw) : null;
     } catch (err) {
         console.warn("reverse geocode failed", err);
         return null;

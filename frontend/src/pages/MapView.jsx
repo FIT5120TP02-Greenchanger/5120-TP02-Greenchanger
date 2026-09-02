@@ -2,16 +2,17 @@ import { useEffect, useRef, useState, useCallback } from 'react';
 
 import Map, { Marker, Source, Layer } from 'react-map-gl/mapbox';
 import 'mapbox-gl/dist/mapbox-gl.css';
-import { SearchBox } from '@mapbox/search-js-react';
+// import { SearchBox } from '@mapbox/search-js-react';
 import styles from './MapView.module.css';
 import { useParcels } from '../hooks/parcels';
 import { useTreeCanopy } from '../hooks/canopy';
 import { useSelectedProperty } from "../hooks/property";
-import { circleMetres } from '../utils/geo';
+import { circleMetres, centroidOfGeometry } from '../utils/geo';
 
 import SidePanel from '../components/SidePanel';
 import PropertyPanel from "../components/PropertyPanel";
-import { START_ZOOM, START_PITCH, START_BEARING, MIN_PARCEL_ZOOM } from "../config/mapConfig";
+import AddressAutocomplete from "../components/AddressAutocomplete";
+import { START_ZOOM, MIN_PARCEL_ZOOM } from "../config/mapConfig";
 
 const canopyLayer = {
     id: "canopy",
@@ -56,10 +57,13 @@ const lotLineLayer = {
 
 
 
-export default function MapView({ selectedLocation, setSelectedLocation, simulatedTree, onPlantTree }) {
+export default function MapView({ selectedLocation, setSelectedLocation, simulatedTrees, onPlantTree }) {
     const mapRef = useRef(null);
     const hoverId = useRef(null);
     const debounceRef = useRef(null);
+    const consumedInitialLocation = useRef(false);
+    const shouldFlyToSelection = useRef(false);
+
     const [zoom, setZoom] = useState(START_ZOOM);
     const [isPropertyclicked, setIsPropertyClick] = useState(false)
     const [propertyAnchor, setPropertyAnchor] = useState(null)
@@ -67,7 +71,7 @@ export default function MapView({ selectedLocation, setSelectedLocation, simulat
     const trees = useTreeCanopy();
     const parcels = useParcels();
     const propertySelected = useSelectedProperty(trees.treeFeatures);
-    const { resolveFromCoordinates } = propertySelected;
+    const { resolveFromBaseline } = propertySelected;
 
     
     const [addressInput, setAddressInput] = useState(selectedLocation?.address || "");
@@ -81,7 +85,7 @@ export default function MapView({ selectedLocation, setSelectedLocation, simulat
     const transitCoordinates = useCallback((longitude, latitude) => {
         mapRef.current?.flyTo({
             center: [longitude, latitude],
-            zoom: 17,
+            zoom: 18,
             duration: 2000,
         });
         setMarkerCoordinates({ latitude, longitude });
@@ -89,18 +93,22 @@ export default function MapView({ selectedLocation, setSelectedLocation, simulat
     }, []);
 
 
-    const handleAddressSelect = (location) => {
-        const feature = location.features?.[0];
-        if (!feature) return;
-        const coordinates = feature.geometry?.coordinates;
-        const label = feature.properties?.full_address || feature.properties?.name || '';
-
-        setSelectedLocation({ address: label, coordinates });
-        setAddressInput(label);
-        transitCoordinates(coordinates[0], coordinates[1]);
-        setPropertyAnchor({ lng: coordinates[0], lat: coordinates[1] });
-        resolveFromCoordinates(coordinates[0], coordinates[1], { label })
+    const handleAddressSelect = async (location) => {
+        setSelectedLocation({ address: location.full_address, addressId: location.address_id });
+        setAddressInput(location.full_address);
+        shouldFlyToSelection.current = true;
+        const result = await resolveFromBaseline(location.full_address);
     };
+
+    useEffect(() => {
+        const geom = propertySelected.selected?.geometry;
+        if (!geom || !shouldFlyToSelection.current) return;
+        shouldFlyToSelection.current = false;
+        const centroid = centroidOfGeometry(geom);
+        if (centroid) {
+            transitCoordinates(centroid.lng, centroid.lat);
+        }
+    }, [propertySelected.selected, transitCoordinates]);
 
 
     const handleAddressChange = (location) => {
@@ -167,21 +175,22 @@ export default function MapView({ selectedLocation, setSelectedLocation, simulat
         hoverId.current = null;
     }, []);
 
+    useEffect(() => {
+        consumedInitialLocation.current = false;
+    }, [selectedLocation?.addressId]);
 
     useEffect(() => {
-        if (!isMapLoaded || !selectedLocation?.coordinates) return;
-        const [lng, lat] = selectedLocation.coordinates;
-        transitCoordinates(lng, lat);
-        resolveFromCoordinates(lng, lat, { label: selectedLocation.address });
-        console.log(propertyAnchor);
-    }, [isMapLoaded, selectedLocation, transitCoordinates, resolveFromCoordinates]);
-    
+        if (!isMapLoaded || !selectedLocation?.address || consumedInitialLocation.current) return;
+        consumedInitialLocation.current = true;
+        shouldFlyToSelection.current = true;
+        resolveFromBaseline( selectedLocation.address );
+    }, [isMapLoaded, selectedLocation, resolveFromBaseline]);
 
     return (
         <div className={styles["map-container"]}>
             <div className={styles["address-container"]}>
                 <div className={styles["search-box-container"]}>
-                    <SearchBox
+                    {/* <SearchBox
                         accessToken={import.meta.env.VITE_MAPBOX_ACCESS_TOKEN}
                         onRetrieve={handleAddressSelect}
                         onChange={handleAddressChange}
@@ -208,6 +217,12 @@ export default function MapView({ selectedLocation, setSelectedLocation, simulat
                                 search: ''
                             }
                         }}
+                    /> */}
+                    <AddressAutocomplete
+                        value={addressInput}
+                        onChange={handleAddressChange}
+                        onSelect={handleAddressSelect}
+                        placeholder="Search for an address"
                     />
                 </div>
             </div>
@@ -222,15 +237,12 @@ export default function MapView({ selectedLocation, setSelectedLocation, simulat
                 initialViewState={{
                     latitude: -37.8136,
                     longitude: 144.9631,
-                    zoom: 17,
+                    zoom: 10,
                     pitch: 45,
                     bearing: -17.6
                 }}
                 config={{
                     basemap: {
-                        show3dObjects: true,
-                        show3dBuildings: true,
-                        show3dLandmarks: true,
                         lightPreset: 'day'
                     }
                 }}
@@ -261,18 +273,21 @@ export default function MapView({ selectedLocation, setSelectedLocation, simulat
                     <Layer {...lotLineLayer} source="lot" />
                 </Source>
 
-                {simulatedTree && (
+                {simulatedTrees?.length > 0 && (
                     <Source
-                        id="simulated-tree"
+                        id="simulated-trees"
                         type="geojson"
                         data={{
-                            type: 'Feature',
-                            properties: {},
-                            geometry: circleMetres(simulatedTree.lng, simulatedTree.lat, simulatedTree.radiusM),
+                            type: 'FeatureCollection',
+                            features: simulatedTrees.map((t) => ({
+                                type: 'Feature',
+                                properties: {},
+                                geometry: circleMetres(t.lng, t.lat, t.radiusM),
+                            })),
                         }}
                     >
-                        <Layer id="simulated-tree-fill" type="fill" source="simulated-tree" paint={{ 'fill-color': '#2F7D5A', 'fill-opacity': 0.35 }} />
-                        <Layer id="simulated-tree-line" type="line" source="simulated-tree" paint={{ 'line-color': '#2F7D5A', 'line-width': 2, 'line-dasharray': [2, 2] }} />
+                        <Layer id="simulated-trees-fill" type="fill" source="simulated-trees" paint={{ 'fill-color': '#2F7D5A', 'fill-opacity': 0.35 }} />
+                        <Layer id="simulated-trees-line" type="line" source="simulated-trees" paint={{ 'line-color': '#2F7D5A', 'line-width': 2, 'line-dasharray': [2, 2] }} />
                     </Source>
                 )}
 
@@ -305,9 +320,14 @@ export default function MapView({ selectedLocation, setSelectedLocation, simulat
                     </Marker>
                 )}
             </Map>
-            <SidePanel trees={trees}/>
+            <SidePanel stats = {propertySelected.stats} trees={trees}/>
             
         </div>
         
     );
 }
+
+
+
+// Formal format for Document
+// Function, errors, etc

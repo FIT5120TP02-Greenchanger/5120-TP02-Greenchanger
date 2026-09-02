@@ -8,16 +8,16 @@ function App() {
   const [page, setPage] = useState('landing');
   const [selectedLocation, setSelectedLocation] = useState('');
   const [planTarget, setplanTarget] = useState(null)
-  const [simulatedTree, setSimulatedTree] = useState(null);
+  const [simulatedTrees, setSimulatedTrees] = useState(null);
 
   const goToPlant = (target) => {
     setplanTarget(target);
     setPage('plant')
   }
 
-  const finishPlanting = (tree) => {
-    setSimulatedTree(tree);
-    setPage('map')
+  const finishPlanting = (trees) => {
+    setSimulatedTrees(trees || []);
+    setPage('map');
   }
 
   if (page === 'landing') {
@@ -30,7 +30,7 @@ function App() {
       <MapView
         selectedLocation={selectedLocation}
         setSelectedLocation={setSelectedLocation}
-        simulatedTree={simulatedTree}
+        simulatedTrees={simulatedTrees}
         onPlantTree={goToPlant}
       />
     );
