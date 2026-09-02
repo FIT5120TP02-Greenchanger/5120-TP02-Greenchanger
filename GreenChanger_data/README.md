@@ -73,11 +73,14 @@ python greenchanger_script/ingestion.py property --confirm-shared
 # 4. Load weather, Landsat surface heat and Vicmap canopy
 python greenchanger_script/ingestion.py bom --confirm-shared
 python greenchanger_script/ingestion.py heat --confirm-shared
+python greenchanger_script/aggregate_vicmap_tree_extent.py --workers 2
 python greenchanger_script/ingestion.py canopy \
-  --canopy-file data/raw/vicmap/tree_extent_api_z13.tif \
+  --canopy-file data/raw/vicmap/tree_extent_analytical/melbourne_tree_extent_20cm.vrt \
+  --canopy-aggregate-file data/processed/vicmap/melbourne_tree_extent_500m.jsonl.gz \
+  --canopy-analytical \
   --canopy-observed-from 2013-12-07 \
   --canopy-observed-on 2020-11-02 \
-  --tree-value 255 --confirm-shared
+  --tree-value 1 --confirm-shared
 
 # 5. Load official Vicmap Tree Urban points through the Feature Service API
 python greenchanger_script/ingestion.py trees --confirm-shared
@@ -92,17 +95,13 @@ python greenchanger_script/clip_to_melbourne.py --confirm-shared
 python greenchanger_script/build_heat_baseline.py --confirm-shared
 python greenchanger_script/build_canopy_baseline.py --confirm-shared
 python greenchanger_script/build_environmental_classifications.py \
-  --version-label melbourne-terciles-v1 --confirm-shared
+  --version-label melbourne-terciles-v2 \
+  --require-analytical-canopy --confirm-shared
 
-# Optional property canopy: requires the original <=2 m, single-band
-# analytical Tree Extent GeoTIFF. The 19.1 m API proxy is rejected.
-python greenchanger_script/ingestion.py canopy \
-  --canopy-file /path/to/analytical_tree_extent.tif \
-  --canopy-analytical --canopy-observed-on YYYY-MM-DD \
-  --tree-value VERIFIED_TREE_CLASS --confirm-shared
+# Parcel processing is resumable and remains internal until its quality gate passes.
 python greenchanger_script/build_property_canopy.py \
-  --canopy-file /path/to/analytical_tree_extent.tif \
-  --tree-value VERIFIED_TREE_CLASS --confirm-shared
+  --canopy-file data/raw/vicmap/tree_extent_analytical/melbourne_tree_extent_20cm.vrt \
+  --tree-value 1 --batch-size 1000 --confirm-shared
 
 # 7. Validate and load reviewed cost references
 python greenchanger_script/validate_csv.py cost_estimate \
@@ -404,11 +403,11 @@ All source versions retain extraction time, observation period, checksum, source
 
 ### Canopy
 
-- The current Tree Extent baseline is an official rendered API proxy with approximately 19.1 m source pixels, aggregated into 500 m cells.
-- It is suitable for neighbourhood comparison, not property-level canopy area or individual crown measurement.
-- `property_canopy_percentage` remains null; the application must display `neighbourhood_canopy_percentage` with scope `neighbourhood_500m`.
 - The official analytical source has now been obtained as four DataShare map-sheet packages and prepared as a 57-tile, 0.20 m EPSG:7899 VRT catalogue covering the Melbourne boundary. Its checksummed manifest is stored with the Git-ignored raw data.
-- The analytical source is not yet the application-ready database baseline: the first exact whole-mosaic 500 m aggregation was terminated after 4,117.70 seconds (68.6 minutes) without producing output. It requires a tile-wise resumable batch implementation. Do not claim the proxy is replaced until that batch, Melbourne clip, quality gate, baseline rebuild and new classification version all pass.
+- `aggregate_vicmap_tree_extent.py` replaces the failed whole-mosaic approach with atomic tile checkpoints and a compact 500 m valid-area-weighted extract. Rerunning it skips completed tiles.
+- Until the analytical aggregate, Melbourne clip, quality gate and `melbourne-terciles-v2` publication complete in Aurora, the existing 19.1 m rendered proxy remains the current application-ready neighbourhood baseline.
+- Property canopy is calculated separately by clipping the unchanged 0.20 m VRT to each parcel. Raster coverage below 95% returns `Unavailable`, never 0%.
+- Property batches are resumable and remain internal until all parcels are assessed and the dataset-level 95% quality gate passes.
 
 ### Tree Urban points
 

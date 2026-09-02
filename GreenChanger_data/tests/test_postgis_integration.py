@@ -101,15 +101,35 @@ class PostgisEnvironmentContextIntegrationTests(unittest.TestCase):
 
             versions = {}
             specifications = (
-                ("address", "Vicmap Address", "clip_to_abs_gccsa_2GMEL_2026_v1:test"),
-                ("property", "Vicmap Property", "clip_to_abs_gccsa_2GMEL_2026_v1:test"),
-                ("trees", "Vicmap Vegetation - Tree Urban Point", "tree_fixture_v1"),
-                ("heat", "USGS Landsat Collection 2 Surface Temperature", "landsat_latest_daily_mosaic_v1"),
-                ("weather", "BOM Melbourne station observations", "bom_multi_station_fixture_v1"),
+                ("address", "Vicmap Address", "Victorian Government", "address",
+                 "clip_to_abs_gccsa_2GMEL_2026_v1:test"),
+                ("property", "Vicmap Property", "Victorian Government", "property",
+                 "clip_to_abs_gccsa_2GMEL_2026_v1:test"),
+                ("trees", "Vicmap Vegetation - Tree Urban Point", "Victorian Government",
+                 "canopy", "tree_fixture_v1"),
+                ("heat", "USGS Landsat Collection 2 Surface Temperature",
+                 "United States Geological Survey", "heat",
+                 "landsat_latest_daily_mosaic_v1"),
+                ("weather", "BOM Melbourne station observations",
+                 "Bureau of Meteorology", "weather", "bom_multi_station_fixture_v1"),
             )
-            for key, source_name, method in specifications:
+            for key, source_name, publisher, category, method in specifications:
                 cursor.execute(
                     """
+                    WITH fixture_source AS (
+                        INSERT INTO dataset_source (
+                            source_name, publisher, source_url,
+                            source_category, geographic_coverage,
+                            access_method, update_frequency
+                        ) VALUES (
+                            %s, %s, 'https://example.invalid/integration-fixture',
+                            %s, 'Melbourne integration fixture',
+                            'integration fixture', 'test only'
+                        )
+                        ON CONFLICT (source_name, publisher) DO UPDATE
+                        SET source_name = EXCLUDED.source_name
+                        RETURNING source_id
+                    )
                     INSERT INTO dataset_version (
                         source_id, analysis_area_id, derivation_method,
                         quality_status, integration_status, publication_status,
@@ -117,13 +137,17 @@ class PostgisEnvironmentContextIntegrationTests(unittest.TestCase):
                     )
                     SELECT source_id, %s, %s, 'passed', 'integrated',
                            'application_ready', DATE '2020-01-01', DATE '2026-01-01'
-                    FROM dataset_source
-                    WHERE source_name = %s
+                    FROM fixture_source
                     RETURNING dataset_version_id
                     """,
-                    (area_id, method, source_name),
+                    (source_name, publisher, category, area_id, method),
                 )
-                versions[key] = cursor.fetchone()[0]
+                version = cursor.fetchone()
+                if version is None:
+                    raise AssertionError(
+                        f"integration fixture could not create {source_name!r} version"
+                    )
+                versions[key] = version[0]
 
             cursor.execute(
                 """

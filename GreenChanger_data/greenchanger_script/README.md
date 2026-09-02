@@ -30,6 +30,7 @@ repository.
 | `extract_bom.py` | Download and normalise the BOM feed without loading the database. |
 | `extract_vicmap_canopy_api.py` | Create the documented lower-resolution Vicmap canopy tile proxy. |
 | `prepare_vicmap_tree_extent.py` | Download the four official Tree Extent map-sheet packages intersecting Melbourne, verify/extract their native 20 cm analytical GeoTIFFs and build a checksummed VRT catalogue. |
+| `aggregate_vicmap_tree_extent.py` | Resume-safe tile-wise aggregation of the 57 native analytical tiles into compact 500 m Melbourne canopy cells. |
 | `inspect_canopy.py` | Inspect raster CRS, bands, values and dimensions before ingestion. |
 | `prepare_vector.py` | Repair/reproject/clip a general vector source. |
 | `validate_csv.py` | Apply configured quality rules to a staging CSV and write rejected rows. |
@@ -40,7 +41,7 @@ repository.
 | `sanity_check_melbourne.py` | Print real-address parcel, heat, canopy and mapped-tree outputs across six representative Melbourne scenarios. |
 | `clip_to_melbourne.py` | Create audited `2GMEL`-only Address, Property, heat and canopy dataset versions without deleting parent versions. |
 | `build_heat_baseline.py` | Resolve overlapping Landsat observations into one versioned, application-ready baseline cell per location. |
-| `build_canopy_baseline.py` | Publish one quality-checked, versioned 500 m canopy baseline and verify exact alignment with the heat grid. |
+| `build_canopy_baseline.py` | Publish one quality-checked, versioned 500 m canopy baseline and verify that it spatially covers current heat-cell centroids. |
 | `build_property_canopy.py` | Clip a registered <=2 m analytical Tree Extent GeoTIFF to Melbourne parcels, enforce the 95% quality gate and publish property canopy summaries. |
 | `build_environmental_classifications.py` | Calculate and activate versioned Low/Medium/High tercile thresholds from current Melbourne heat and canopy baselines. |
 | `apply_database.py` | Legacy/simple schema application helper; numbered migrations are preferred. |
@@ -82,11 +83,15 @@ python greenchanger_script/build_canopy_baseline.py --confirm-shared
 # Raw packages, extracted tiles, VRT and manifest are ignored by Git.
 python greenchanger_script/prepare_vicmap_tree_extent.py
 
-# Register the prepared analytical mosaic. This is a heavy offline batch job,
-# not part of an address-search request. Do not publish it until it completes
-# the quality gate and the Melbourne-only clip/baseline steps are rerun.
+# Aggregate tile-wise with an atomic checkpoint. Rerun the same command after
+# interruption; two workers keeps GDAL memory bounded on a development laptop.
+python greenchanger_script/aggregate_vicmap_tree_extent.py --workers 2
+
+# Register the original VRT for parcel clipping and the compact aggregate for
+# the neighbourhood baseline.
 python greenchanger_script/ingestion.py canopy \
   --canopy-file data/raw/vicmap/tree_extent_analytical/melbourne_tree_extent_20cm.vrt \
+  --canopy-aggregate-file data/processed/vicmap/melbourne_tree_extent_500m.jsonl.gz \
   --canopy-analytical --tree-value 1 \
   --canopy-observed-from 2013-12-07 --canopy-observed-on 2020-11-02 \
   --confirm-shared
@@ -95,11 +100,12 @@ python greenchanger_script/ingestion.py canopy \
 # proxy is intentionally rejected for property calculations.
 python greenchanger_script/build_property_canopy.py \
   --canopy-file data/raw/vicmap/tree_extent_analytical/melbourne_tree_extent_20cm.vrt \
-  --tree-value 1 --confirm-shared
+  --tree-value 1 --batch-size 1000 --confirm-shared
 
 # Calculate versioned Melbourne-relative Low/Medium/High thresholds
 python greenchanger_script/build_environmental_classifications.py \
-  --version-label melbourne-terciles-v1 --confirm-shared
+  --version-label melbourne-terciles-v2 \
+  --require-analytical-canopy --confirm-shared
 
 # Read-only threshold and class-distribution check
 python greenchanger_script/build_environmental_classifications.py --status

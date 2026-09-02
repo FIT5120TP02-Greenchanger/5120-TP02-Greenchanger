@@ -173,14 +173,15 @@ def heat_alignment_check(connection, output_id) -> dict:
                WHERE EXISTS (
                    SELECT 1 FROM canopy_baseline_cell AS c
                    WHERE c.dataset_version_id = %s
-                     AND ST_Equals(c.cell_geometry, h.cell_geometry)
+                     AND c.cell_geometry && ST_Centroid(h.cell_geometry)
+                     AND ST_Covers(c.cell_geometry, ST_Centroid(h.cell_geometry))
                )""",
             (output_id,),
         )
         passed = cursor.fetchone()["count"]
     return {
         "code": "CANOPY_BASELINE_HEAT_GRID_ALIGNMENT", "dimension": "consistency",
-        "description": "every current heat-baseline cell has an exactly matching canopy cell",
+        "description": "every current heat-baseline centroid is covered by a canopy cell",
         "assessed": assessed, "passed": passed, "failed": assessed - passed,
         "pass_rate": passed * 100 / assessed if assessed else 0,
     }

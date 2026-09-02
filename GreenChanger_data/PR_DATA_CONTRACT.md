@@ -72,8 +72,8 @@ new contract.
 - `environmental_classification_scheme` and
   `environmental_classification_threshold` bind terciles to exact heat/canopy
   dataset-version IDs. The current documented label is
-  `melbourne-terciles-v1`; a changed baseline requires a new label rather than
-  overwriting v1.
+  `melbourne-terciles-v1`; the analytical replacement is published as
+  `melbourne-terciles-v2` rather than overwriting v1.
 - `environmental_classification_reference` stores threshold evidence, source
   locator, limitation, role, duration requirement and historical status.
 - `config/environmental_classification_evidence.json` is versioned as
@@ -115,7 +115,8 @@ manual workflow dispatches.
 
 ## Known limitations
 
-- The current canopy baseline is a rendered API proxy at approximately 19.1 m
+- Until the analytical pipeline is fully loaded and quality-passed in Aurora,
+  the current canopy baseline is a rendered API proxy at approximately 19.1 m
   source resolution, aggregated to 500 m neighbourhood cells. It is unsuitable
   for individual-tree or property canopy measurement and cannot be passed to
   the absolute canopy helper.

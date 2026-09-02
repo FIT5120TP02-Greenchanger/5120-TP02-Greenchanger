@@ -48,6 +48,7 @@ greenchanger_sql/
 | `migrations/007_melbourne_scoped_versions.sql` | Adds boundary tiles and provenance for Melbourne-only derived dataset versions. |
 | `migrations/008_heat_baseline_mosaic.sql` | Creates the deduplicated 500 m Landsat heat baseline structure and current view. |
 | `migrations/009_canopy_baseline.sql` | Creates the aligned 500 m canopy baseline structure and current view. |
+| `migrations/025_current_dataset_sources.sql` | Registers the current multi-station Melbourne BOM source without changing the checksum of historical migration 002. |
 | `migrations/010_property_baseline_lookup.sql` | Adds model validation gates and the application-facing property baseline lookup. |
 | `migrations/011_tree_urban_quality_scope.sql` | Adds Tree Urban record quality status and the dataset-version index required by API ingestion. |
 | `migrations/012_property_tree_limitations.sql` | Restricts property tree lookup to the current `2GMEL` version and always returns the machine-derived-data warning. |

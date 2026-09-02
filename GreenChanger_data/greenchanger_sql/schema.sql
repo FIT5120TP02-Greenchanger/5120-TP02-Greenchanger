@@ -1792,6 +1792,25 @@ COMMENT ON FUNCTION classify_canopy_benchmark(NUMERIC) IS
 
 COMMIT;
 
+-- Current multi-station BOM source (migration 025). The earlier Olympic Park
+-- record is retained for provenance of historical versions.
+INSERT INTO dataset_source (
+    source_name, publisher, source_url, licence, source_category,
+    geographic_coverage, access_method, update_frequency
+) VALUES (
+    'BOM Melbourne station observations', 'Bureau of Meteorology',
+    'https://www.bom.gov.au/fwo/IDV60901/', NULL, 'weather', 'Melbourne',
+    'Official station-specific JSON feeds listed in config/bom_stations.json',
+    'frequent'
+)
+ON CONFLICT (source_name, publisher) DO UPDATE SET
+    source_url = EXCLUDED.source_url,
+    licence = EXCLUDED.licence,
+    source_category = EXCLUDED.source_category,
+    geographic_coverage = EXCLUDED.geographic_coverage,
+    access_method = EXCLUDED.access_method,
+    update_frequency = EXCLUDED.update_frequency;
+
 -- Defined here before the property-canopy function; migration 022 later
 -- replaces it with the same current implementation in the cumulative schema.
 CREATE OR REPLACE FUNCTION normalize_melbourne_address_search(p_address TEXT)

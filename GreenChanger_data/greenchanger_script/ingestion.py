@@ -11,6 +11,7 @@ from __future__ import annotations
 import argparse
 import csv
 from datetime import datetime, timezone
+import gzip
 import json
 from pathlib import Path
 import sys
@@ -1127,16 +1128,46 @@ def ingest_canopy(connection, args: argparse.Namespace) -> dict[str, Any]:
                 analytical_source, asset_role="canopy_analytical_geotiff"
             )
         analytical_manifest = analytical_canopy_manifest(args.canopy_file)
-    rows, metadata = aggregate_canopy(
-        args.canopy_file,
-        observed_on=observed_on,
-        bbox_wgs84=(
-            analytical_manifest["boundary"]["boundary_wgs84_bounds"]
-            if analytical_manifest else (144.4, -38.5, 146.0, -37.4)
-        ),
-        grid_size_m=args.grid_size_m,
-        tree_value=args.tree_value,
-    )
+    aggregate_manifest = None
+    if args.canopy_aggregate_file:
+        aggregate_manifest_path = args.canopy_aggregate_file.with_suffix(
+            args.canopy_aggregate_file.suffix + ".manifest.json"
+        )
+        if not aggregate_manifest_path.exists():
+            raise FileNotFoundError(
+                f"Prepared canopy aggregate requires manifest: {aggregate_manifest_path}"
+            )
+        aggregate_manifest = json.loads(
+            aggregate_manifest_path.read_text(encoding="utf-8")
+        )
+        if not aggregate_manifest.get("complete"):
+            raise ValueError("Prepared canopy aggregate is not complete")
+        if aggregate_manifest.get("output_sha256") != sha256_file(args.canopy_aggregate_file):
+            raise ValueError("Prepared canopy aggregate checksum does not match its manifest")
+        if analytical_manifest and (
+            aggregate_manifest.get("source_manifest_sha256")
+            != sha256_file(Path(analytical_manifest["manifest_path"]))
+        ):
+            raise ValueError("Canopy aggregate was not produced from this analytical manifest")
+        with gzip.open(args.canopy_aggregate_file, "rt", encoding="utf-8") as source:
+            rows = [json.loads(line) for line in source if line.strip()]
+        metadata = {
+            **profile_canopy_raster(args.canopy_file),
+            **aggregate_manifest,
+        }
+        if len(rows) != aggregate_manifest.get("output_rows"):
+            raise ValueError("Prepared canopy aggregate row count does not match its manifest")
+    else:
+        rows, metadata = aggregate_canopy(
+            args.canopy_file,
+            observed_on=observed_on,
+            bbox_wgs84=(
+                analytical_manifest["boundary"]["boundary_wgs84_bounds"]
+                if analytical_manifest else (144.4, -38.5, 146.0, -37.4)
+            ),
+            grid_size_m=args.grid_size_m,
+            tree_value=args.tree_value,
+        )
     registered_source_id = source_id(
         connection, "Vicmap Vegetation - Tree Extent", "Victorian Government"
     )
@@ -1144,18 +1175,16 @@ def ingest_canopy(connection, args: argparse.Namespace) -> dict[str, Any]:
         connection,
         registered_source_id=registered_source_id,
         row_count=int(metadata["width"]) * int(metadata["height"]),
-        checksum=(
-            sha256_file(Path(analytical_manifest["manifest_path"]))
-            if analytical_manifest else sha256_file(args.canopy_file)
-        ),
+        checksum=(sha256_file(args.canopy_aggregate_file)
+                  if args.canopy_aggregate_file else
+                  sha256_file(Path(analytical_manifest["manifest_path"]))
+                  if analytical_manifest else sha256_file(args.canopy_file)),
         observed_from=observed_from,
         observed_to=observed_on,
         spatial_resolution_m=args.grid_size_m,
     )
-    register_spatial_assets(
-        connection,
-        version_id,
-        [{
+    canopy_assets = [
+        {
             "asset_role": (
                 "canopy_api_tile_mosaic" if api_metadata
                 else "canopy_analytical_geotiff" if args.canopy_analytical
@@ -1192,7 +1221,25 @@ def ingest_canopy(connection, args: argparse.Namespace) -> dict[str, Any]:
                     },
                 } if analytical_manifest else metadata
             ),
-        }],
+        }
+    ]
+    if args.canopy_aggregate_file:
+        canopy_assets.append({
+            "asset_role": "canopy_500m_tilewise_aggregate",
+            "source_scene_id": args.canopy_aggregate_file.stem,
+            "source_href": analytical_manifest.get("datashare_url"),
+            "local_path": str(args.canopy_aggregate_file.resolve()),
+            "media_type": "application/x-ndjson+gzip",
+            "source_crs": f"EPSG:{aggregate_manifest['target_srid']}",
+            "pixel_size_m": aggregate_manifest["grid_size_m"],
+            "checksum": sha256_file(args.canopy_aggregate_file),
+            "acquired_at": aggregate_manifest["prepared_at"],
+            "metadata": aggregate_manifest,
+        })
+    register_spatial_assets(
+        connection,
+        version_id,
+        canopy_assets,
     )
     if api_metadata:
         with connection.cursor() as cursor:
@@ -1403,6 +1450,10 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument("--cost-file", type=Path, default=DEFAULT_COST_FILE)
     parser.add_argument("--canopy-file", type=Path)
+    parser.add_argument(
+        "--canopy-aggregate-file", type=Path,
+        help="Completed .jsonl.gz from aggregate_vicmap_tree_extent.py.",
+    )
     parser.add_argument(
         "--canopy-analytical", action="store_true",
         help="Register a verified <=2 m single-band analytical GeoTIFF for property canopy.",

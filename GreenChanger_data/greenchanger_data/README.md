@@ -69,10 +69,13 @@ neighbourhood canopy baseline.
 
 ## Environmental classification logic
 
-`classification.py` supports the versioned `melbourne-terciles-v1` scheme. It
+`classification.py` supports versioned Melbourne tercile schemes. The deployed
+proxy baseline remains `melbourne-terciles-v1`; after the analytical tile-wise
+baseline passes its quality gate, it must be published separately as
+`melbourne-terciles-v2`. The calculation
 uses the 33.33rd and 66.67th percentiles of the application-ready Greater
 Melbourne cells, calculated separately for Landsat land-surface temperature and
-the 500 m neighbourhood canopy proxy. The active results are:
+the 500 m neighbourhood canopy baseline. The current v1 results are:
 
 | Metric | Low | Medium | High | Distribution |
 | --- | --- | --- | --- | --- |
@@ -236,6 +239,8 @@ domains.
 | Zero/negative reported property area | Reject through `PARCEL_AREA_POSITIVE`. |
 | Address has no matching accepted property | Retain the address, exclude unavailable property analytics and document the limitation. |
 | Tree Extent source is only a rendered proxy | Publish neighbourhood canopy only and suppress property canopy percentage. |
+| Whole analytical VRT aggregation is interrupted | Resume from the atomic per-tile checkpoint; never restart completed tiles. |
+| Property-canopy batch is interrupted | Resume the same internal output version; application views ignore it until all parcels and the 95% gate pass. |
 | Tree Urban API times out during a large extract | Retry/subdivide tiles, preserve `.partial`, and resume using a completed raw extract only. |
 | Heat model has not passed validation | Suppress precise projected temperature and reduction in application output. |
 | Study measures air, wall or globe temperature rather than Landsat LST | Retain the evidence for its named outcome only; prohibit cross-metric coefficient reuse. |

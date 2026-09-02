@@ -13,6 +13,7 @@ except ImportError:
 else:
     GEOSPATIAL_TEST_STACK = True
 
+from greenchanger_data.canopy import aggregate_canopy_tiles_resumable
 from greenchanger_script.prepare_vicmap_tree_extent import build_vrt
 from greenchanger_script.ingestion import analytical_canopy_manifest
 
@@ -47,6 +48,7 @@ class PrepareTreeExtentTests(unittest.TestCase):
             return {
                 "path": str(path.resolve()),
                 "filename": path.name,
+                "sha256": sha256(path.read_bytes()).hexdigest(),
                 "epsg": 7899,
                 "width": source.width,
                 "height": source.height,
@@ -99,6 +101,44 @@ class PrepareTreeExtentTests(unittest.TestCase):
         vrt.write_text("not used", encoding="utf-8")
         with self.assertRaisesRegex(FileNotFoundError, "provenance manifest"):
             analytical_canopy_manifest(vrt)
+
+    def test_tilewise_aggregation_resumes_from_atomic_checkpoint(self):
+        def projected_tile(name, value, left):
+            path = self.root / name
+            with rasterio.open(
+                path, "w", driver="GTiff", width=5, height=5, count=1,
+                dtype="uint8", crs="EPSG:3857",
+                transform=from_origin(left, 1000, 100, 100), nodata=2,
+            ) as target:
+                target.write(np.full((5, 5), value, dtype="uint8"), 1)
+            return {
+                "path": str(path), "filename": name,
+                "sha256": sha256(path.read_bytes()).hexdigest(),
+            }
+
+        records = [
+            projected_tile("west.tif", 0, 0),
+            projected_tile("east.tif", 1, 500),
+        ]
+        checkpoint = self.root / "checkpoint.npz"
+        first_rows, first_metadata = aggregate_canopy_tiles_resumable(
+            records, observed_on=__import__("datetime").date(2020, 11, 2),
+            bbox_wgs84=(0, 0, 0.009, 0.009), checkpoint_path=checkpoint,
+            target_srid=3857, grid_size_m=500, stop_after_tiles=1,
+        )
+        self.assertFalse(first_metadata["complete"])
+        self.assertEqual(first_rows, [])
+
+        rows, metadata = aggregate_canopy_tiles_resumable(
+            records, observed_on=__import__("datetime").date(2020, 11, 2),
+            bbox_wgs84=(0, 0, 0.009, 0.009), checkpoint_path=checkpoint,
+            target_srid=3857, grid_size_m=500,
+        )
+        self.assertTrue(metadata["complete"])
+        self.assertEqual(metadata["processed_tile_count"], 2)
+        percentages = sorted(row["vegetation_percentage"] for row in rows)
+        self.assertIn(0.0, percentages)
+        self.assertIn(100.0, percentages)
 
 
 if __name__ == "__main__":

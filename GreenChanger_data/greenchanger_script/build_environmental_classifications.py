@@ -61,13 +61,42 @@ def current_status(connection, scheme_id=None) -> dict:
     }
 
 
-def build(connection, version_label: str) -> dict:
+def build(
+    connection, version_label: str, *, require_analytical_canopy: bool = False
+) -> dict:
     with connection.cursor() as cursor:
+        cursor.execute(
+            """SELECT source_type, source_is_proxy, dataset_version_id
+               FROM latest_greater_melbourne_canopy_baseline LIMIT 1"""
+        )
+        canopy_source = cursor.fetchone()
+        if canopy_source is None:
+            raise RuntimeError("No application-ready Melbourne canopy baseline exists")
+        if require_analytical_canopy and (
+            canopy_source["source_type"] != "analytical_geotiff"
+            or canopy_source["source_is_proxy"]
+        ):
+            raise RuntimeError(
+                "Refusing to publish the requested scheme from the rendered canopy proxy"
+            )
         cursor.execute(
             "SELECT refresh_environmental_classifications(%s) AS scheme_id",
             (version_label,),
         )
         scheme_id = cursor.fetchone()["scheme_id"]
+        if canopy_source["source_type"] == "analytical_geotiff":
+            cursor.execute(
+                """UPDATE environmental_classification_threshold
+                   SET explanation = %s
+                   WHERE classification_scheme_id = %s AND metric_code = 'canopy'""",
+                (
+                    "Relative to application-ready Melbourne 500 m neighbourhood "
+                    "canopy cells aggregated tile-wise from the official native "
+                    "analytical Vicmap Tree Extent raster; source imagery spans "
+                    "2013-2020 and is not a current field survey.",
+                    scheme_id,
+                ),
+            )
     return current_status(connection, scheme_id)
 
 
@@ -83,6 +112,10 @@ def parse_args() -> argparse.Namespace:
         default="melbourne-terciles-v1",
         help="Unique label for this source-version-specific threshold scheme.",
     )
+    parser.add_argument(
+        "--require-analytical-canopy", action="store_true",
+        help="Refuse to create the scheme while the rendered canopy proxy is current.",
+    )
     parser.add_argument("--confirm-shared", action="store_true")
     return parser.parse_args()
 
@@ -97,7 +130,10 @@ def main() -> None:
             result = current_status(connection)
             connection.rollback()
         else:
-            result = build(connection, args.version_label)
+            result = build(
+                connection, args.version_label,
+                require_analytical_canopy=args.require_analytical_canopy,
+            )
             connection.commit()
         print(json.dumps(result, indent=2, default=str))
     except Exception:
