@@ -407,7 +407,8 @@ All source versions retain extraction time, observation period, checksum, source
 - The current Tree Extent baseline is an official rendered API proxy with approximately 19.1 m source pixels, aggregated into 500 m cells.
 - It is suitable for neighbourhood comparison, not property-level canopy area or individual crown measurement.
 - `property_canopy_percentage` remains null; the application must display `neighbourhood_canopy_percentage` with scope `neighbourhood_500m`.
-- The original analytical Vicmap Tree Extent GeoTIFF remains the preferred future replacement.
+- The official analytical source has now been obtained as four DataShare map-sheet packages and prepared as a 57-tile, 0.20 m EPSG:7899 VRT catalogue covering the Melbourne boundary. Its checksummed manifest is stored with the Git-ignored raw data.
+- The analytical source is not yet the application-ready database baseline: the first exact whole-mosaic 500 m aggregation was terminated after 4,117.70 seconds (68.6 minutes) without producing output. It requires a tile-wise resumable batch implementation. Do not claim the proxy is replaced until that batch, Melbourne clip, quality gate, baseline rebuild and new classification version all pass.
 
 ### Tree Urban points
 
@@ -544,9 +545,10 @@ The next data-science work, in recommended order, is:
    approved contract to scenario persistence and the application data handoff.
 2. Update any remaining legacy Clayton-only acceptance criteria, fixtures or
    presentation text to the official Melbourne `2GMEL` scope.
-3. Obtain the original analytical Vicmap Tree Extent GeoTIFF, rebuild the canopy
-   baseline, and publish a newly versioned classification scheme after quality
-   and imagery checks. Do not silently replace the current proxy-derived v1.
+3. Run the prepared analytical Tree Extent VRT as an offline ingestion batch,
+   rebuild the Melbourne canopy baseline, and publish a newly versioned
+   classification scheme after quality and imagery checks. Do not silently
+   replace the current proxy-derived v1.
 4. Add 10 m and 25 m buffered mapped-tree counts so property context does not
    rely only on parcel intersection.
 5. Refresh BOM observations before demonstrations, rerun the six Melbourne

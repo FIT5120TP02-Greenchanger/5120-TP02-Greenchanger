@@ -60,6 +60,28 @@ QUALITY_CONFIG = ROOT / "config" / "quality_rules.json"
 DEFAULT_COST_FILE = ROOT / "data" / "reference" / "cost_estimates_template.csv"
 
 
+def analytical_canopy_manifest(raster_path: Path) -> dict[str, Any] | None:
+    """Load and verify the manifest beside a prepared analytical VRT."""
+
+    if raster_path.suffix.lower() != ".vrt":
+        return None
+    manifest_path = raster_path.parent / "melbourne_tree_extent_manifest.json"
+    if not manifest_path.exists():
+        raise FileNotFoundError(
+            f"Prepared analytical VRT requires its provenance manifest: {manifest_path}"
+        )
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    if manifest.get("dataset_uuid") != "f6800447-ef34-5f66-acaa-77a5f2936546":
+        raise ValueError("Analytical canopy manifest has the wrong DataShare dataset UUID")
+    mosaic = manifest.get("virtual_mosaic", {})
+    if mosaic.get("sha256") != sha256_file(raster_path):
+        raise ValueError("Analytical canopy VRT checksum does not match its manifest")
+    bounds = manifest.get("boundary", {}).get("boundary_wgs84_bounds")
+    if not isinstance(bounds, list) or len(bounds) != 4:
+        raise ValueError("Analytical canopy manifest has no Melbourne boundary bounds")
+    return {**manifest, "manifest_path": str(manifest_path.resolve())}
+
+
 def write_batches(connection, sql: str, rows: Sequence[Sequence[Any]]) -> int:
     """Send PostgreSQL writes in bounded batches."""
 
@@ -1092,6 +1114,7 @@ def ingest_canopy(connection, args: argparse.Namespace) -> dict[str, Any]:
         json.loads(sidecar_path.read_text(encoding="utf-8"))
         if sidecar_path.exists() else None
     )
+    analytical_manifest = None
     if args.canopy_analytical:
         import rasterio
 
@@ -1103,9 +1126,14 @@ def ingest_canopy(connection, args: argparse.Namespace) -> dict[str, Any]:
             validate_property_canopy_source(
                 analytical_source, asset_role="canopy_analytical_geotiff"
             )
+        analytical_manifest = analytical_canopy_manifest(args.canopy_file)
     rows, metadata = aggregate_canopy(
         args.canopy_file,
         observed_on=observed_on,
+        bbox_wgs84=(
+            analytical_manifest["boundary"]["boundary_wgs84_bounds"]
+            if analytical_manifest else (144.4, -38.5, 146.0, -37.4)
+        ),
         grid_size_m=args.grid_size_m,
         tree_value=args.tree_value,
     )
@@ -1116,7 +1144,10 @@ def ingest_canopy(connection, args: argparse.Namespace) -> dict[str, Any]:
         connection,
         registered_source_id=registered_source_id,
         row_count=int(metadata["width"]) * int(metadata["height"]),
-        checksum=sha256_file(args.canopy_file),
+        checksum=(
+            sha256_file(Path(analytical_manifest["manifest_path"]))
+            if analytical_manifest else sha256_file(args.canopy_file)
+        ),
         observed_from=observed_from,
         observed_to=observed_on,
         spatial_resolution_m=args.grid_size_m,
@@ -1131,14 +1162,36 @@ def ingest_canopy(connection, args: argparse.Namespace) -> dict[str, Any]:
                 else "canopy_source_raster"
             ),
             "source_scene_id": args.canopy_file.stem,
-            "source_href": api_metadata.get("source_service") if api_metadata else None,
+            "source_href": (
+                api_metadata.get("source_service") if api_metadata
+                else analytical_manifest.get("datashare_url") if analytical_manifest
+                else None
+            ),
             "local_path": str(args.canopy_file.resolve()),
-            "media_type": "image/tiff; application=geotiff",
+            "media_type": (
+                "application/xml; subtype=gdal-vrt"
+                if args.canopy_file.suffix.lower() == ".vrt"
+                else "image/tiff; application=geotiff"
+            ),
             "source_crs": metadata["crs"],
             "pixel_size_m": max(metadata["pixel_size"]),
             "checksum": sha256_file(args.canopy_file),
             "acquired_at": f"{observed_on.isoformat()}T00:00:00Z",
-            "metadata": {**metadata, "api_extraction": api_metadata} if api_metadata else metadata,
+            "metadata": (
+                {**metadata, "api_extraction": api_metadata} if api_metadata
+                else {
+                    **metadata,
+                    "analytical_manifest": {
+                        "path": analytical_manifest["manifest_path"],
+                        "dataset_uuid": analytical_manifest["dataset_uuid"],
+                        "selected_tile_count": len(analytical_manifest["selected_tiles"]),
+                        "package_sha256": {
+                            package["name"]: package["sha256"]
+                            for package in analytical_manifest["packages"]
+                        },
+                    },
+                } if analytical_manifest else metadata
+            ),
         }],
     )
     if api_metadata:
