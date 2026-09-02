@@ -1,9 +1,14 @@
 import unittest
 
-import numpy as np
-from rasterio.io import MemoryFile
-from rasterio.transform import from_origin
-from shapely.geometry import box, mapping
+try:
+    import numpy as np
+    from rasterio.io import MemoryFile
+    from rasterio.transform import from_origin
+    from shapely.geometry import box, mapping
+except ImportError:
+    GEOSPATIAL_TEST_STACK = False
+else:
+    GEOSPATIAL_TEST_STACK = True
 
 from greenchanger_data.property_canopy import (
     calculate_property_canopy,
@@ -11,6 +16,10 @@ from greenchanger_data.property_canopy import (
 )
 
 
+@unittest.skipUnless(
+    GEOSPATIAL_TEST_STACK,
+    "install requirements.txt to run property-canopy raster tests",
+)
 class PropertyCanopyTests(unittest.TestCase):
     def raster(self, pixels, *, pixel_size=1.0, nodata=255):
         memory = MemoryFile()
