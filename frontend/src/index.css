@@ -1,0 +1,8 @@
+body, html, #root {
+  height: 100vh;
+  margin: 0;
+  font-family: "Inter", sans-serif;
+}
+button ::hover {
+  cursor: pointer;
+}

@@ -1,0 +1,39 @@
+import { useState } from 'react'
+import LandingPage from './pages/LandingPage.jsx'
+import MapView from './pages/MapView.jsx'
+import PlantTreePage from './pages/PlantTreePage.jsx';
+
+
+function App() {
+  const [page, setPage] = useState('landing');
+  const [selectedLocation, setSelectedLocation] = useState('');
+  const [planTarget, setplanTarget] = useState(null)
+  const [simulatedTrees, setSimulatedTrees] = useState(null);
+
+  const goToPlant = (target) => {
+    setplanTarget(target);
+    setPage('plant')
+  }
+
+  const finishPlanting = (trees) => {
+    setSimulatedTrees(trees || []);
+    setPage('map');
+  }
+
+  if (page === 'landing') {
+      return <LandingPage onNavigate={setPage} selectedLocation={selectedLocation} setSelectedLocation={setSelectedLocation} />;
+    }
+    if (page === 'plant') {
+      return <PlantTreePage planTarget={planTarget} onDone={finishPlanting} />;
+    }
+    return (
+      <MapView
+        selectedLocation={selectedLocation}
+        setSelectedLocation={setSelectedLocation}
+        simulatedTrees={simulatedTrees}
+        onPlantTree={goToPlant}
+      />
+    );
+}
+
+export default App

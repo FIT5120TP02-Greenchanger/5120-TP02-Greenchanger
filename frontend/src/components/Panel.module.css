@@ -1,0 +1,449 @@
+.side-panel {
+    border: 1px solid black;
+    width: 350px;
+    position: absolute;
+    top: 26px;
+    right: 26px;
+    bottom: 16px;
+    background-color: #FFFFFF;
+    border-radius: 16px;
+    box-shadow: 0 2px 6px 0 #0F171C1A;
+    padding: 22px 22px 18px 22px;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    overflow-y: auto;
+}
+
+.side-panel * {
+    font-family: inherit;
+}
+
+.canopy-neighborhood {
+    border-bottom: 1px solid #EBEEF0;
+}
+.canopy-neighborhood > span {
+    margin-bottom: 10px;
+    font-size: 0.875rem;
+    font-weight: 400;
+    color: #5E666C;
+}
+
+.canopy-pct {
+    display: flex;
+    gap: 10px;
+}
+.canopy-pct span {
+    font-weight: 600;
+    font-size: 2.75rem;
+    line-height: 100%;
+    letter-spacing: -1.3px;
+    color: #B8512D;
+}
+.canopy-pct p {
+    position: relative;
+    top: 10px;
+    font-size: 0.875rem;
+    font-weight: 400;
+    color: #5E666C
+}
+
+.canopy-bar {
+    width: 100%;
+    height: 10px;
+    border-radius: 10px;
+    /* overflow: hidden; */
+    background-color: #EFF1F3;
+}
+.canopy-bar__fill {
+    height: 100%;
+    background-color: #B8512D;
+    border-radius: 10px;
+}
+
+.canopy-verdict {
+    font-size: 13px;
+    line-height: 19px;
+    font-weight: 400;
+}
+
+.canopy-view {
+    padding: 10px 0px;
+    border-bottom: 1px solid #EBEEF0;
+    gap: 10px;
+}
+.canopy-view span{
+    margin-bottom: 10px;
+    font-size: 0.875rem;
+    font-weight: 400;
+    color: #5E666C;
+}
+
+.canopy-stats {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 8px 20px;
+    margin: 0;
+    gap: 11px;
+}
+.canopy-stats dt,
+.lot-rows dt {
+    font-weight: 400;
+    color: #5E666C;
+}
+.canopy-stats dd,
+.lot-rows dd {
+    margin: 0;
+    text-align: right;
+    font-weight: 500;
+}
+
+.property-panel {
+    padding: 15px 16px 15px 16px;
+    box-shadow: 0px 18px 40px 0px #0F171C2E;
+}
+.lot-hint {
+    padding: 15px 16px;
+    font-size: 0.8125rem;
+    color: #5E666C;
+    margin: 0;
+    background: white;
+    border-radius: 8px;
+    box-shadow: 0px 18px 40px 0px #0F171C2E;
+}
+.property-panel p {
+    font-weight: 600;
+    font-size: 0.875rem;
+}
+.property-panel button {
+    color: #FFFFFF;
+    background-color: #2F7D5A;
+    width: 100%;
+    padding: 10px 0;
+    border-radius: 7px;
+    margin-top: 5px;
+}
+.property-panel button:hover {
+    cursor: pointer;
+}
+
+.lot-rows {
+    display: grid;
+    grid-template-columns: 120px auto;
+    gap: 8px 20px;
+    margin: 0;
+    gap: 11px;
+}
+
+/* Tree Panel */
+.crosshair-overlay {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    pointer-events: none;
+}
+.crosshair {
+    width: 36px;
+    height: 36px;
+    border: 2px dashed #2F7D5A;
+    border-radius: 50%;
+    position: relative;
+}
+.crosshair::before,
+.crosshair::after {
+    content: "";
+    position: absolute;
+    background: #2F7D5A;
+}
+.crosshair::before {
+    width: 2px;
+    height: 14px;
+    left: 50%;
+    top: -20px;
+    transform: translateX(-50%);
+}
+.crosshair::after {
+    width: 14px;
+    height: 2px;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+}
+
+.placement-panel {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    padding: 22px;
+    gap: 8px;
+    border-radius: 16px;
+    border: 1px solid black;
+}
+.placement-panel > span {
+    font-size: 0.875rem;
+    font-weight: 400;
+    color: #5E666C;
+}
+.placement-panel h3 {
+    margin: 0;
+}
+.placement-panel > p {
+    margin: 0;
+    color: #5E666C;
+    font-size: 0.875rem;
+}
+.placement-step {
+    background: #EFF6F2;
+    border-radius: 8px;
+    padding: 10px 12px;
+    font-size: 0.8125rem;
+}
+.placement-step strong {
+    color: #2F7D5A;
+}
+.placement-step p {
+    margin: 4px 0 0;
+    color: #5E666C;
+}
+.place-button {
+    background: #2F7D5A;
+    color: white;
+    border: none;
+    border-radius: 8px;
+    padding: 10px;
+    font-size: 0.875rem;
+    cursor: pointer;
+}
+.cancel-button {
+    background: #795F55;
+    color: white;
+    border: none;
+    border-radius: 8px;
+    padding: 10px;
+    font-size: 0.875rem;
+    cursor: pointer;
+}
+.placement-hint {
+    font-size: 0.75rem;
+    color: #8C949A;
+}
+.plant-button {
+    margin-top: 10px;
+    width: 100%;
+    background: #2F7D5A;
+    color: white;
+    border: none;
+    border-radius: 8px;
+    padding: 10px;
+    font-size: 0.875rem;
+    cursor: pointer;
+}
+
+
+/* Tree Plant */
+.simulator-container {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    padding: 10px 0px;
+}
+.simulator-container span{
+    margin-bottom: 5px;
+    font-size: 0.875rem;
+    font-weight: 400;
+    color: #5E666C;
+}
+.tree-options-container h4 {
+    margin: 0;
+    font-size: 0.875rem;
+    font-weight: 400;
+} 
+.tree-options-container p {
+    margin: 0;
+    font-size: 0.6875rem;
+    font-weight: 400;
+}
+
+.tree-options-container {
+    display: flex;
+    justify-content: space-around;
+    gap: 8px;
+}
+.tree-options-container div {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+
+    width: 100px;
+    height: 80px;
+    box-sizing: border-box;
+
+    padding: 9px 0;
+    gap: 2px;
+
+    border: 1px solid #E5E8EA;
+    border-radius: 7px;
+    color: #5E666C;
+}
+.tree-options-container div:hover {
+    cursor: pointer;
+}
+.tree-options-container .selected {
+    background-color: #2F7D5A;
+    color: white;
+    border-color: #2F7D5A;
+}
+
+
+/* Comparison Panel */
+.scenario-panel {
+    display: flex;
+    flex-direction: column;
+    padding: 30px;
+    gap: 15px;
+}
+.scenario-panel > span {
+    font-style: bold;
+    font-size: 0.75rem;
+    font-weight: 700;
+    color: #63806F;
+    margin: 0;
+}
+.scenario-panel > h3 {
+    font-size: 1.4375rem;
+    font-style: bold;
+    font-weight: 700;
+    color: #17392E;
+    margin: 0;
+    margin-bottom: 22px;
+}
+.scenario-card {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    border: 1px solid #D7DDD9;
+    background-color: #F4F5F4;
+    border-radius: 10px;
+    padding: 15px 20px;
+}
+.scenario-card--simulated {
+    border: 1px solid #ACD0B0;
+    background-color: #EEF7F0;
+}
+.scenario-card-label {
+    font-size: 0.75rem;
+    font-weight: 700;
+    color: #68736D;
+    font-style: bold;
+    margin: 0;
+}
+.scenario-card-pct {
+    font-size: 1.875rem;
+    color: #435249;
+    margin: 0;
+}
+.scenario-card--simulated .scenario-card-pct {
+    font-size: 1.875rem;
+    color: #1F7A55;
+}
+.scenario-card-note {
+    color: #7B847F;
+    font-size: 0.675rem;
+    font-weight: 400;
+    margin: 0;
+}
+.scenario-card-highlight {
+    font-weight: 700;
+    font-size: 0.8125rem;
+    color: #346B45;
+    margin: 0;
+}
+
+.tree-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+.tree-list-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    background: #F5F6F7;
+    border-radius: 6px;
+    padding: 6px 10px;
+    font-size: 0.8125rem;
+}
+.tree-list-remove {
+    background: none;
+    border: none;
+    color: #8C949A;
+    font-size: 1rem;
+    line-height: 1;
+    cursor: pointer;
+    padding: 0 4px;
+}
+.tree-list-remove:hover {
+    color: #B8672D;
+}
+
+.assumptions-box {
+    background-color: #FFF5EF;
+    border-radius: 10px;
+    padding: 15px 20px;
+}
+.assumptions-box span {
+    font-size: 0.75rem;
+    color: #8D5B48;
+    font-weight: 700;
+    font-style: bold;
+}
+.assumptions-box p {
+    font-size: 0.675rem;
+    font-weight: 400;
+    color: #795F55;
+}
+
+.scenario-actions {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+.scenario-actions button {
+    width: 120px;
+    height: 50px;
+    border-radius: 10px;
+}
+.scenario-actions button:hover {
+    cursor: pointer;
+}
+.reset-button {
+    border: 2px solid #1F7A55;
+    color: #1F7A55;
+    background: #FFFFFF;
+}
+.new-scenario-button {
+    color: #FFFFFF;
+    background-color: #17392E;
+}
+
+.heat-section {
+    margin-top: 10px;
+    padding-top: 10px;
+    border-top: 1px solid #EBEEF0;
+}
+.heat-section-label {
+    font-size: 0.6875rem;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    color: #8C949A;
+}
+.heat-caveat {
+    margin: 6px 0 0;
+    font-size: 0.6875rem;
+    color: #8C949A;
+    line-height: 1.4;
+}

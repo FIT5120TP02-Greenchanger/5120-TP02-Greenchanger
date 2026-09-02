@@ -1,0 +1,78 @@
+.plant-page {
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+    width: 100vw;
+}
+
+.plant-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 14px 20px;
+    background: #17392E;
+    color: white;
+}
+
+.brand {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-weight: 600;
+}
+.brand-dot {
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    background: #9BD27D;
+}
+.close-button {
+    background: none;
+    border: none;
+    color: white;
+    font-size: 1.25rem;
+    line-height: 1;
+    cursor: pointer;
+    padding: 4px 8px;
+}
+
+.plant-body {
+    flex: 1;
+    display: flex;
+    /* overflow: hidden; */
+}
+
+.map-area {
+    flex: 1;
+    position: relative;
+}
+
+.crosshair-overlay {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    pointer-events: none;
+}
+
+.pilot-badge {
+    position: absolute;
+    width: 300px;
+    left: 24px;
+    bottom: 24px;
+    background: #17392E;
+    color: white;
+    font-size: 0.75rem;
+    padding: 8px 12px;
+    border-radius: 6px;
+}
+
+.plant-sidebar {
+    width: 350px;
+    flex-shrink: 0;
+    background: white;
+    box-sizing: border-box;
+    overflow-y: auto;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+}
