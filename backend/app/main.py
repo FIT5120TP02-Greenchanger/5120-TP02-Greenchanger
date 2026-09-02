@@ -54,6 +54,16 @@ app.add_middleware(
 )
 
 
+def _like_prefix(text: str) -> str:
+    """Escape LIKE metacharacters so a typed % cannot become a wildcard.
+
+    Without this, searching for "%" produces a pattern with no fixed prefix --
+    the planner cannot use the index and we are back to a full scan of the
+    address table on every keystroke.
+    """
+    return text.strip().replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+
+
 # Health check endpoint
 @app.get("/api/health")
 def health() -> dict[str, str]:
@@ -67,23 +77,24 @@ def search_addresses(
     db: Connection = Depends(get_db),
 ) -> list[dict]:
     """Lightweight address autocomplete. No environmental joins -- keep this cheap."""
-    pattern = q.strip() + "%"
+    prefix = _like_prefix(q)
     with db.cursor() as cur:
         cur.execute(
             """
             SELECT address_id, full_address, locality_name, postcode,
                    parcel_area_m2, lot_size_category
             FROM latest_greater_melbourne_address_property
-            WHERE full_address ILIKE %(pattern)s
+            WHERE UPPER(full_address) LIKE UPPER(%(prefix)s) || '%%'
             ORDER BY
-                CASE WHEN full_address ILIKE %(exact)s THEN 0 ELSE 1 END,
+                CASE WHEN UPPER(full_address) = UPPER(%(prefix)s) THEN 0 ELSE 1 END,
                 CASE WHEN is_primary = 'Y' THEN 0 ELSE 1 END,
                 full_address
             LIMIT %(limit)s
             """,
-            {"pattern": pattern, "exact": q.strip(), "limit": limit},
+            {"prefix": prefix, "limit": limit},
         )
         return [jsonable_row(row) for row in cur.fetchall()]
+
 
 @app.get("/api/properties/baseline")
 def get_property_baseline_view(
