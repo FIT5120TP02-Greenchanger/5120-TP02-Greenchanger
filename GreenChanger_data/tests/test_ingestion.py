@@ -25,7 +25,9 @@ class IngestionHelperTests(unittest.TestCase):
         source = inspect.getsource(ingest_bom)
         self.assertIn("%s::text IS NULL", source)
         self.assertIn("ST_GeomFromText(%s::text, %s::integer)", source)
-        self.assertIn('"application_ready" if multi_station_run else "internal"', source)
+        self.assertIn("station_coverage_pct >= 80.0", source)
+        self.assertIn('"application_ready" if publish_weather else "internal"', source)
+        self.assertIn("partial_station_feed_availability", source)
 
 
 if __name__ == "__main__":

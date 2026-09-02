@@ -445,8 +445,16 @@ def ingest_bom(connection, args: argparse.Namespace) -> dict[str, Any]:
         registry = load_station_registry(args.bom_stations_file)
         document = fetch_station_documents(registry)
         raw_rows = extract_station_rows(document)
-        station_codes = [str(station["station_code"]) for station in registry["stations"]]
+        station_codes = [
+            str(feed["station"]["station_code"])
+            for feed in document["station_feeds"]
+        ]
+        failed_stations = document.get("failed_station_feeds", [])
+        requested_station_count = len(registry["stations"])
         registry_version = registry["registry_version"]
+    if args.bom_url:
+        failed_stations = []
+        requested_station_count = len(station_codes)
     rows = normalise_rows(raw_rows)
 
     stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
@@ -523,14 +531,40 @@ def ingest_bom(connection, args: argparse.Namespace) -> dict[str, Any]:
         for row in accepted_rows
     ]
     written = write_batches(connection, sql, values)
+    station_coverage_pct = round(
+        len(station_codes) * 100.0 / requested_station_count, 2
+    ) if requested_station_count else 0.0
+    publish_weather = multi_station_run and station_coverage_pct >= 80.0
     with connection.cursor() as cursor:
         cursor.execute(
             """UPDATE dataset_version
                SET integration_status = 'integrated',
-                   publication_status = %s
+                   publication_status = %s,
+                   coverage_pass_rate = %s,
+                   quality_status = %s
                WHERE dataset_version_id = %s""",
-            ("application_ready" if multi_station_run else "internal", version_id),
+            (
+                "application_ready" if publish_weather else "internal",
+                station_coverage_pct,
+                "passed_with_limitations" if failed_stations else "passed",
+                version_id,
+            ),
         )
+        if failed_stations:
+            cursor.execute(
+                """INSERT INTO data_limitation (
+                       dataset_version_id, limitation_type, description,
+                       affected_area, analytical_impact, mitigation
+                   ) VALUES (%s, %s, %s, %s, %s, %s)""",
+                (
+                    version_id,
+                    "partial_station_feed_availability",
+                    f"{len(failed_stations)} of {requested_station_count} configured BOM station feeds failed during extraction.",
+                    ", ".join(item["coverage_role"] for item in failed_stations),
+                    "Some properties may use a more distant station or return Unavailable.",
+                    "Retry ingestion and retain the distance, timestamp and context status in every property result.",
+                ),
+            )
     return {
         "rows_in": len(raw_rows),
         "rows_written": written,
@@ -538,10 +572,13 @@ def ingest_bom(connection, args: argparse.Namespace) -> dict[str, Any]:
         "quality_pass_rate": report.pass_rate,
         "dataset_version_id": str(version_id),
         "station_count": len(station_codes),
+        "requested_station_count": requested_station_count,
+        "station_coverage_pct": station_coverage_pct,
         "station_codes": station_codes,
+        "failed_stations": failed_stations,
         "registry_version": registry_version,
         "publication_status": (
-            "application_ready" if multi_station_run else "internal"
+            "application_ready" if publish_weather else "internal"
         ),
         "message": (
             f"{written} BOM observations from {len(station_codes)} stations "

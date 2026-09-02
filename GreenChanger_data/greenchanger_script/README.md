@@ -185,7 +185,7 @@ spatially. Blank searches return no rows and the result limit is constrained to
 1–50. Missing property or environmental matches are returned with an explicit
 partial quality status instead of being silently dropped.
 
-The default BOM job downloads the ten official station feeds in
+The default BOM job independently downloads the ten official station feeds in
 `config/bom_stations.json`, rejects identity mismatches, preserves one combined
 raw document, applies the 95% record-quality gate and publishes one dataset
 version. The registry covers central, western, northern, eastern,
@@ -197,9 +197,13 @@ Migration 016 makes the property lookup eligible for only observations no older
 than three hours. At most 10 km is `good_local_context`; 10–25 km is
 `regional_context_warning`; beyond 25 km temperature is suppressed; and no
 eligible observation is explicitly unavailable. Station name, time and distance
-remain traceable. The lookup returns Landsat land-surface temperature and BOM
+remain traceable. An individual feed outage is retained as a limitation rather
+than aborting every station; at least 80% station coverage and the 95%
+record-quality gate are required for application publication. The lookup
+returns Landsat land-surface temperature and BOM
 station air temperature as separate fields. Canopy from the proxy is labelled
-`neighbourhood_500m`; property canopy percentage is null. The `trees` job uses
+`neighbourhood_500m`; property canopy remains separate unless migration 023 has
+an analytical parcel result. The `trees` job uses
 the official Tree Urban Feature Service to add mapped tree counts and dimensions
 without claiming that they are a current field survey.
 

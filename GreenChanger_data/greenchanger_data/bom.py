@@ -66,27 +66,47 @@ def load_station_registry(path: Path = DEFAULT_STATION_REGISTRY) -> dict[str, An
 def fetch_station_documents(
     registry: dict[str, Any], *, timeout: int = 30
 ) -> dict[str, Any]:
-    """Fetch every configured official BOM station feed as one raw document."""
+    """Fetch available station feeds and preserve individual feed failures.
+
+    A temporary or retired station endpoint must not discard valid observations
+    from every other Melbourne station. The caller decides whether the achieved
+    station coverage is sufficient for application publication.
+    """
 
     feeds = []
+    failures = []
     for station in registry["stations"]:
-        document = fetch_observations(station["source_url"], timeout=timeout)
-        rows = extract_rows(document)
-        if not rows:
-            raise ValueError(f"BOM station {station['station_code']} returned no rows")
-        feed_codes = {
-            str(row.get("wmo") or row.get("history_product") or "") for row in rows
-        }
-        if feed_codes != {str(station["station_code"])}:
-            raise ValueError(
-                f"BOM feed identity mismatch for {station['station_code']}: "
-                f"received {sorted(feed_codes)}"
+        try:
+            document = fetch_observations(station["source_url"], timeout=timeout)
+            rows = extract_rows(document)
+            if not rows:
+                raise ValueError("feed returned no observation rows")
+            feed_codes = {
+                str(row.get("wmo") or row.get("history_product") or "")
+                for row in rows
+            }
+            if feed_codes != {str(station["station_code"])}:
+                raise ValueError(f"feed identity mismatch: received {sorted(feed_codes)}")
+            feeds.append({"station": station, "document": document})
+        except Exception as error:  # Each official endpoint fails independently.
+            failures.append(
+                {
+                    "station_code": str(station["station_code"]),
+                    "station_name": station["station_name"],
+                    "coverage_role": station["coverage_role"],
+                    "source_url": station["source_url"],
+                    "error_type": type(error).__name__,
+                    "error": str(error),
+                }
             )
-        feeds.append({"station": station, "document": document})
+    if not feeds:
+        raise ValueError("all configured BOM station feeds failed")
     return {
         "registry_version": registry["registry_version"],
         "fetched_at": datetime.now(timezone.utc).isoformat(),
+        "requested_station_count": len(registry["stations"]),
         "station_feeds": feeds,
+        "failed_station_feeds": failures,
     }
 
 

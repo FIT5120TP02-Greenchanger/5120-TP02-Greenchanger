@@ -62,6 +62,7 @@ greenchanger_sql/
 | `migrations/021_historical_temperature_context.sql` | Corrects the one-day historical temperature contract: 27.2°C becomes duration-qualified context and the retired 30°C method returns structured JSON metadata rather than a current-risk label. |
 | `migrations/022_address_search_and_indexes.sql` | Adds missing foreign-key/application lookup indexes and expands supported address abbreviations such as `RD` to `ROAD` before Vicmap lookup. |
 | `migrations/023_property_level_canopy.sql` | Stores versioned parcel-clipped analytical canopy, publishes only >=95%-quality results and adds an address lookup with explicit `Unavailable` handling. |
+| `migrations/024_property_current_air_temperature.sql` | Adds an indexed, source-labelled property address lookup for nearest BOM observations within three hours, with distance warnings and >25 km suppression. |
 | `seeds/001_reference_data.sql` | Defines sources, greening options, analytical measures, model metadata and sample test cases. |
 | `analytics/001_views.sql` | Defines reusable analytical views for dataset quality, site baselines and scenario comparison. |
 
@@ -236,7 +237,7 @@ To add a schema change:
 5. Run `python -m unittest discover -v`.
 6. Check status before applying to shared Aurora.
 
-The next migration number is `024`. Never modify `001`–`023` after they have
+The next migration number is `025`. Never modify `001`–`024` after they have
 been applied. Their checksums are part of the migration audit trail.
 
 ## Data preparation and database integration

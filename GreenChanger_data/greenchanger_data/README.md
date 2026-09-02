@@ -11,7 +11,7 @@ functions and perform database writes.
 | --- | --- |
 | `__init__.py` | Marks this directory as the reusable `greenchanger_data` Python package. |
 | `boundary.py` | Download, preserve and normalise the official ABS ASGS 2026 Melbourne GCCSA boundary. |
-| `bom.py` | Validate the Melbourne station registry, download each official BOM feed, verify feed identity, flatten and normalise observations. |
+| `bom.py` | Validate the Melbourne station registry, independently download official BOM feeds, preserve per-station failures, verify feed identity, flatten and normalise observations. |
 | `canopy.py` | Inspect and aggregate a binary tree-extent raster into Melbourne grid summaries. |
 | `canopy_baseline.py` | Define versioned baseline and source-provenance rules, including analytical-versus-proxy classification. |
 | `classification.py` | Apply versioned Melbourne-relative heat/canopy terciles plus evidence-backed daily-mean air-temperature and canopy benchmark helpers, with explicit missing-data handling. |
@@ -121,6 +121,13 @@ official source URLs and coverage roles. Feed station identity must match the
 registry before rows are combined. Air-temperature records require station
 name, timestamp, temperature and coordinates; a wind-only feed cannot pass the
 weather quality gate.
+
+A failure from one official station endpoint no longer discards valid data from
+all other stations. The raw extraction records successful and failed feeds,
+station coverage is stored on `dataset_version`, and partial availability is
+recorded in `data_limitation`. At least 80% of configured stations must load
+before a multi-station version can become application-ready; record-level
+completeness and validity must still satisfy the separate 95% quality gate.
 
 Tree Urban cleaning retains points with valid identifiers and locations while
 suppressing optional machine-derived canopy radii outside 0.25–50 m and heights

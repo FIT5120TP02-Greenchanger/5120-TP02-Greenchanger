@@ -9,7 +9,7 @@ class MigrationFileTests(unittest.TestCase):
     def test_migrations_are_numbered_and_ordered(self):
         self.assertEqual(
             [version for version, _ in migration_files()],
-            [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23],
+            [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24],
         )
 
     def test_include_is_expanded(self):
@@ -188,6 +188,21 @@ class MigrationFileTests(unittest.TestCase):
         self.assertIn("get_property_baseline_pre_property_canopy_legacy", sql)
         self.assertIn("analytical_geotiff_property_clip", sql)
         self.assertIn("The canopy classification remains neighbourhood-relative", sql)
+
+    def test_property_air_temperature_is_fresh_local_and_sourced(self):
+        migration = next(
+            path for version, path in migration_files() if version == 24
+        )
+        sql = expanded_sql(migration)
+        self.assertIn("get_property_air_temperature_by_address", sql)
+        self.assertIn("INTERVAL '3 hours'", sql)
+        self.assertIn("weather.distance_m <= 10000", sql)
+        self.assertIn("weather.distance_m <= 25000", sql)
+        self.assertIn("too_distant_temperature_suppressed", sql)
+        self.assertIn("'degC'::TEXT AS temperature_unit", sql)
+        self.assertIn("source_dataset_version_id", sql)
+        self.assertIn("not a temperature measured at the property", sql)
+        self.assertIn("idx_weather_current_property_lookup", sql)
 
 
 if __name__ == "__main__":

@@ -123,6 +123,19 @@ SELECT * FROM get_property_canopy_by_address(
 );
 ```
 
+Current air-temperature context for each matched property is available through:
+
+```sql
+SELECT * FROM get_property_air_temperature_by_address(
+    '1 COLLINS STREET MELBOURNE 3000', 5
+);
+```
+
+It selects the nearest application-ready BOM station observation no older than
+three hours. Results include `degC`, station, timestamp, age, distance, status,
+dataset version, source and the database limitation. Temperatures are suppressed
+beyond 25 km because this is station context, not a property measurement.
+
 This returns canopy area, parcel canopy percentage, raster coverage, source
 resolution and observation date. No approved result returns `Unavailable`,
 never an assumed 0% canopy.
@@ -228,7 +241,7 @@ conversion; their 500 m source resolution is unchanged.
 
 | Output | Current result | Quality/status |
 | --- | ---: | --- |
-| Repository migrations | 001–023 | Deployment state must be confirmed with `migrate.py --status` |
+| Repository migrations | 001–024 | Deployment state must be confirmed with `migrate.py --status` |
 | Automated tests | Fast unit suite + opt-in PostGIS integration suite | Use the validation commands below and in `PR_DATA_CONTRACT.md` |
 | Melbourne Address records | 3,007,474 | 100% boundary membership |
 | Melbourne Property records | 3,001,053 | 100% boundary membership |

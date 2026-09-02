@@ -105,6 +105,7 @@ class PostgisEnvironmentContextIntegrationTests(unittest.TestCase):
                 ("property", "Vicmap Property", "clip_to_abs_gccsa_2GMEL_2026_v1:test"),
                 ("trees", "Vicmap Vegetation - Tree Urban Point", "tree_fixture_v1"),
                 ("heat", "USGS Landsat Collection 2 Surface Temperature", "landsat_latest_daily_mosaic_v1"),
+                ("weather", "BOM Melbourne station observations", "bom_multi_station_fixture_v1"),
             )
             for key, source_name, method in specifications:
                 cursor.execute(
@@ -187,6 +188,22 @@ class PostgisEnvironmentContextIntegrationTests(unittest.TestCase):
                 )
                 """,
                 (versions["heat"], area_id),
+            )
+            cursor.execute(
+                """
+                INSERT INTO weather_observation (
+                    dataset_version_id, station_code, station_name,
+                    observation_location, observed_at, air_temperature_c,
+                    apparent_temperature_c, quality_status
+                ) VALUES
+                (%s, '95936', 'Melbourne (Olympic Park)',
+                 ST_Transform(ST_SetSRID(ST_MakePoint(144.961, -37.81), 4326), 7855),
+                 CURRENT_TIMESTAMP - INTERVAL '30 minutes', 21.5, 20.8, 'passed'),
+                (%s, '94864', 'Coldstream',
+                 ST_Transform(ST_SetSRID(ST_MakePoint(145.41, -37.72), 4326), 7855),
+                 CURRENT_TIMESTAMP - INTERVAL '20 minutes', 19.0, 18.1, 'passed')
+                """,
+                (versions["weather"], versions["weather"]),
             )
             cursor.execute(
                 """
@@ -325,6 +342,30 @@ class PostgisEnvironmentContextIntegrationTests(unittest.TestCase):
         self.assertIsNone(missing[0])
         self.assertEqual(missing[1], "Unavailable")
         self.assertIn("not zero canopy", missing[2])
+
+    def test_property_air_temperature_is_nearest_recent_station_context(self):
+        row = self._rows(
+            """SELECT air_temperature_c, apparent_temperature_c,
+                      temperature_unit, station_code, observation_age_minutes,
+                      station_distance_km, context_status, data_status,
+                      measurement_type, source_name, source_publisher, limitation
+               FROM get_property_air_temperature_by_address(%s, 1)""",
+            ("10 TEST STREET MELBOURNE 3000",),
+        )[0]
+        self.assertEqual(float(row[0]), 21.5)
+        self.assertEqual(float(row[1]), 20.8)
+        self.assertEqual(row[2], "degC")
+        self.assertEqual(row[3], "95936")
+        self.assertGreaterEqual(float(row[4]), 0)
+        self.assertLess(float(row[5]), 10)
+        self.assertEqual(row[6], "good_local_context")
+        self.assertEqual(row[7], "Available")
+        self.assertEqual(
+            row[8], "nearest_recent_bom_station_air_temperature_context"
+        )
+        self.assertEqual(row[9], "BOM Melbourne station observations")
+        self.assertEqual(row[10], "Bureau of Meteorology")
+        self.assertIn("not a temperature measured at the property", row[11])
 
 
 if __name__ == "__main__":
