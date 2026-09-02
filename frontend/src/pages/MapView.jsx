@@ -163,7 +163,7 @@ export default function MapView({ selectedLocation, setSelectedLocation, simulat
 
         await propertySelected.selectAtPoint(features, parcels.parcelFeatures, zoom < MIN_PARCEL_ZOOM, e.lngLat);
 
-        setIsPropertyClick(true);
+        // setIsPropertyClick(true);
     }, [propertySelected, parcels.parcelFeatures, zoom]);
 
 
