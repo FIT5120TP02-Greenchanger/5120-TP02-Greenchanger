@@ -3,10 +3,12 @@ initialize fastapi app and define health check endpoint
 
 running: localhost:8000/api/health
 """
+import os
 from contextlib import asynccontextmanager
 from typing import Any
 
 from fastapi import Depends, FastAPI, HTTPException, Query
+from fastapi.middleware.cors import CORSMiddleware
 from psycopg import Connection
 from pydantic import BaseModel
 
@@ -16,6 +18,17 @@ from app.greening_model.scenario_inputs import calculate_simulated_action, load_
 # Read once at import time -- avoid re-parsing the JSON contract off disk on
 # every /simulate and /meta/assumptions request.
 SCENARIO_INPUT_CONTRACT = load_input_contract()
+
+# Browsers refuse to hand a cross-origin response to page JavaScript unless the
+# server says the origin may read it. In production the frontend is served from
+# the same host as this API, so nothing here applies -- these entries exist for
+# local development, where Vite runs on its own port. Override with a
+# comma-separated CORS_ORIGINS if your dev server uses a different one.
+CORS_ORIGINS = os.environ.get(
+    "CORS_ORIGINS",
+    "http://localhost:5173,http://127.0.0.1:5173,"
+    "https://greenchanger.me,https://www.greenchanger.me",
+).split(",")
 
 
 @asynccontextmanager
@@ -31,6 +44,13 @@ app = FastAPI(
     docs_url="/api/docs",
     openapi_url="/api/openapi.json",
     lifespan=lifespan,
+)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=CORS_ORIGINS,
+    allow_methods=["GET", "POST"],
+    allow_headers=["*"],
 )
 
 
