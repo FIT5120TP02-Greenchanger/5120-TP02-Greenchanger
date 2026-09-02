@@ -173,6 +173,9 @@ FROM get_environment_context_by_address(
 ```
 
 The wrapper accepts one unique prefix result or one exact full-address match.
+Migration 022 normalises case and repeated whitespace and expands supported
+street types before lookup; for example, `10 Smith Rd` is searched as
+`10 SMITH ROAD`. `ST` is intentionally not expanded because it may mean Saint.
 It rejects missing, unmatched and ambiguous searches instead of silently using
 the wrong property. After resolving the address coordinate, it delegates to the
 coordinate-based function:
@@ -199,7 +202,7 @@ conversion; their 500 m source resolution is unchanged.
 
 | Output | Current result | Quality/status |
 | --- | ---: | --- |
-| Repository migrations | 001–021 | Deployment state must be confirmed with `migrate.py --status` |
+| Repository migrations | 001–022 | Deployment state must be confirmed with `migrate.py --status` |
 | Automated tests | Fast unit suite + opt-in PostGIS integration suite | Use the validation commands below and in `PR_DATA_CONTRACT.md` |
 | Melbourne Address records | 3,007,474 | 100% boundary membership |
 | Melbourne Property records | 3,001,053 | 100% boundary membership |

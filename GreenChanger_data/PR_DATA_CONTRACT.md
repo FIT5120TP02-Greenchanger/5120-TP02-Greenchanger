@@ -12,7 +12,7 @@ handling remain separate team components.
 | Function | Purpose | Contract and scope |
 | --- | --- | --- |
 | `get_environment_context(longitude, latitude, radius_m, layers, result_limit)` | Returns nearby mapped-tree points and clipped Landsat heat cells. | EPSG:4326 input is transformed to EPSG:7855; Melbourne boundary required; radius `(0, 2000]` m; layers are `trees` and/or `heat`; limit `1–2000` applies independently per layer. |
-| `get_environment_context_by_address(address, radius_m, layers, result_limit)` | Resolves one Vicmap address and delegates to the coordinate function. | Rejects missing, unmatched and ambiguous searches. An exact full-address match is preferred. |
+| `get_environment_context_by_address(address, radius_m, layers, result_limit)` | Normalises supported street abbreviations, resolves one Vicmap address and delegates to the coordinate function. | `RD` is expanded to `ROAD`; missing, unmatched and ambiguous searches are rejected. An exact full-address match is preferred. |
 | `get_property_baseline(address, result_limit)` | Joins application-ready address, parcel, Landsat, canopy, tree and recent BOM context. | Returns source/version details and limitations; BOM air temperature remains separate from Landsat land-surface temperature. |
 | `classify_environmental_value(metric, value, version)` | Applies an active, versioned Melbourne-relative tercile scheme to comparable baseline cells. | `Low/Medium/High` are relative rank groups, not health or safety categories. Missing data returns `Unavailable`. |
 | `classify_melbourne_daily_mean_air_temperature(maximum, following_minimum)` | Returns structured context for the retired Victorian Central District 30°C daily-mean threshold. | Returns JSON metadata with `status: historical_context`; it is never a current BOM warning. The 27.2°C research percentile is metadata only because it requires at least two consecutive days. |
@@ -46,6 +46,8 @@ files in order:
 - 020: sourced absolute reference records and original helpers.
 - 021: forward-only correction that converts historical temperature output to
   structured JSON and records the 27.2°C duration requirement.
+- 022: missing query/foreign-key indexes and supported Australian street-type
+  abbreviation expansion for address lookup.
 
 Check and deploy to the shared database:
 
@@ -139,3 +141,6 @@ manual workflow dispatches.
 - Verify migration 021 returns JSONB and 27.2°C is not a one-day category.
 - Coordinate backend consumers with the return-type change.
 - Retain the resident-facing measurement labels, sources and limitations.
+- Schedule migration 022 during a low-write period because building indexes on
+  multi-million-row address, parcel and tree tables can temporarily increase
+  database load and lock writes.

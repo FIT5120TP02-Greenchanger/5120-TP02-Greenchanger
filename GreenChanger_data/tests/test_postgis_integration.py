@@ -235,6 +235,18 @@ class PostgisEnvironmentContextIntegrationTests(unittest.TestCase):
                 ("10 TEST", 500, ["trees"], 1),
             )
 
+    def test_address_function_expands_road_abbreviation(self):
+        rows = self._rows(
+            "SELECT layer FROM get_environment_context_by_address(%s,%s,%s,%s)",
+            ("10 test rd melbourne 3000", 500, ["heat"], 1),
+        )
+        self.assertEqual(rows, [("heat",)])
+        normalized = self._rows(
+            "SELECT normalize_melbourne_address_search(%s)",
+            (" 10  test rd melbourne 3000 ",),
+        )[0][0]
+        self.assertEqual(normalized, "10 TEST ROAD MELBOURNE 3000")
+
     def test_historical_temperature_function_returns_metadata(self):
         result = self._rows(
             "SELECT classify_melbourne_daily_mean_air_temperature(32, 22.4)"

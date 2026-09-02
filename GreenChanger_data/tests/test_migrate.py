@@ -9,7 +9,7 @@ class MigrationFileTests(unittest.TestCase):
     def test_migrations_are_numbered_and_ordered(self):
         self.assertEqual(
             [version for version, _ in migration_files()],
-            [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21],
+            [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22],
         )
 
     def test_include_is_expanded(self):
@@ -156,6 +156,22 @@ class MigrationFileTests(unittest.TestCase):
         self.assertIn("is not used to classify this one-day pair", sql)
         self.assertNotIn("THEN 'Medium'", sql)
         self.assertNotIn("THEN 'High'", sql)
+
+    def test_address_search_and_foreign_key_indexes_are_added(self):
+        migration = next(
+            path for version, path in migration_files() if version == 22
+        )
+        sql = expanded_sql(migration)
+        self.assertIn("normalize_melbourne_address_search", sql)
+        self.assertIn("'\\mRD\\M', 'ROAD'", sql)
+        self.assertIn("idx_address_upper_full_address_prefix", sql)
+        self.assertIn("text_pattern_ops", sql)
+        self.assertIn("idx_dataset_version_application_lookup", sql)
+        self.assertIn("idx_weather_version_station_time", sql)
+        self.assertIn("idx_urban_tree_version_quality", sql)
+        self.assertIn(
+            "normalize_melbourne_address_search(p_address_search)", sql
+        )
 
 
 if __name__ == "__main__":
