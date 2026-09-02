@@ -65,7 +65,7 @@ export default function MapView({ selectedLocation, setSelectedLocation, simulat
     const shouldFlyToSelection = useRef(false);
 
     const [zoom, setZoom] = useState(START_ZOOM);
-    const [isPropertyclicked, setIsPropertyClick] = useState(false)
+    // const [isPropertyclicked, setIsPropertyClick] = useState(false)
     const [propertyAnchor, setPropertyAnchor] = useState(null)
     
     const trees = useTreeCanopy();
@@ -92,23 +92,43 @@ export default function MapView({ selectedLocation, setSelectedLocation, simulat
         setPropertyAnchor({ lng: longitude, lat: latitude });
     }, []);
 
+    const flyToFeature = useCallback((result) => {
+        const geom = result?.feature?.geometry;
+        if (!geom) return;
+        const centroid = centroidOfGeometry(geom);
+        if (centroid) transitCoordinates(centroid.lng, centroid.lat);
+    }, [transitCoordinates]);
+
 
     const handleAddressSelect = async (location) => {
         setSelectedLocation({ address: location.full_address, addressId: location.address_id });
         setAddressInput(location.full_address);
-        shouldFlyToSelection.current = true;
-        const result = await resolveFromBaseline(location.full_address);
+        flyToFeature(await resolveFromBaseline(location.full_address));
+        //shouldFlyToSelection.current = true;
+        // const result = await resolveFromBaseline(location.full_address);
     };
 
+
+
+    // useEffect(() => {
+    //     const geom = propertySelected.selected?.geometry;
+    //     if (!geom || !shouldFlyToSelection.current) return;
+    //     shouldFlyToSelection.current = false;
+    //     const centroid = centroidOfGeometry(geom);
+    //     if (centroid) {
+    //         transitCoordinates(centroid.lng, centroid.lat);
+    //     }
+    // }, [propertySelected.selected, transitCoordinates]);
+
     useEffect(() => {
-        const geom = propertySelected.selected?.geometry;
-        if (!geom || !shouldFlyToSelection.current) return;
-        shouldFlyToSelection.current = false;
-        const centroid = centroidOfGeometry(geom);
-        if (centroid) {
-            transitCoordinates(centroid.lng, centroid.lat);
-        }
-    }, [propertySelected.selected, transitCoordinates]);
+        if (!isMapLoaded || !selectedLocation?.address || consumedInitialLocation.current) return;
+        consumedInitialLocation.current = true;
+        let cancelled = false;
+        resolveFromBaseline(selectedLocation.address).then((result) => {
+            if (!cancelled) flyToFeature(result);
+        });
+        return () => { cancelled = true; };
+    }, [isMapLoaded, selectedLocation, resolveFromBaseline, flyToFeature]);
 
 
     const handleAddressChange = (location) => {
