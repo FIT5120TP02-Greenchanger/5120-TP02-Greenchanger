@@ -101,14 +101,35 @@ class PostgisEnvironmentContextIntegrationTests(unittest.TestCase):
 
             versions = {}
             specifications = (
-                ("address", "Vicmap Address", "clip_to_abs_gccsa_2GMEL_2026_v1:test"),
-                ("property", "Vicmap Property", "clip_to_abs_gccsa_2GMEL_2026_v1:test"),
-                ("trees", "Vicmap Vegetation - Tree Urban Point", "tree_fixture_v1"),
-                ("heat", "USGS Landsat Collection 2 Surface Temperature", "landsat_latest_daily_mosaic_v1"),
+                ("address", "Vicmap Address", "Victorian Government", "address",
+                 "clip_to_abs_gccsa_2GMEL_2026_v1:test"),
+                ("property", "Vicmap Property", "Victorian Government", "property",
+                 "clip_to_abs_gccsa_2GMEL_2026_v1:test"),
+                ("trees", "Vicmap Vegetation - Tree Urban Point", "Victorian Government",
+                 "canopy", "tree_fixture_v1"),
+                ("heat", "USGS Landsat Collection 2 Surface Temperature",
+                 "United States Geological Survey", "heat",
+                 "landsat_latest_daily_mosaic_v1"),
+                ("weather", "BOM Melbourne station observations",
+                 "Bureau of Meteorology", "weather", "bom_multi_station_fixture_v1"),
             )
-            for key, source_name, method in specifications:
+            for key, source_name, publisher, category, method in specifications:
                 cursor.execute(
                     """
+                    WITH fixture_source AS (
+                        INSERT INTO dataset_source (
+                            source_name, publisher, source_url,
+                            source_category, geographic_coverage,
+                            access_method, update_frequency
+                        ) VALUES (
+                            %s, %s, 'https://example.invalid/integration-fixture',
+                            %s, 'Melbourne integration fixture',
+                            'integration fixture', 'test only'
+                        )
+                        ON CONFLICT (source_name, publisher) DO UPDATE
+                        SET source_name = EXCLUDED.source_name
+                        RETURNING source_id
+                    )
                     INSERT INTO dataset_version (
                         source_id, analysis_area_id, derivation_method,
                         quality_status, integration_status, publication_status,
@@ -116,13 +137,17 @@ class PostgisEnvironmentContextIntegrationTests(unittest.TestCase):
                     )
                     SELECT source_id, %s, %s, 'passed', 'integrated',
                            'application_ready', DATE '2020-01-01', DATE '2026-01-01'
-                    FROM dataset_source
-                    WHERE source_name = %s
+                    FROM fixture_source
                     RETURNING dataset_version_id
                     """,
-                    (area_id, method, source_name),
+                    (source_name, publisher, category, area_id, method),
                 )
-                versions[key] = cursor.fetchone()[0]
+                version = cursor.fetchone()
+                if version is None:
+                    raise AssertionError(
+                        f"integration fixture could not create {source_name!r} version"
+                    )
+                versions[key] = version[0]
 
             cursor.execute(
                 """
@@ -134,7 +159,7 @@ class PostgisEnvironmentContextIntegrationTests(unittest.TestCase):
                     ST_SetSRID(ST_MakePoint(144.96, -37.81), 4326), 7855
                 ), 30)), 2800, 'residential', 'active'),
                 (%s, 'PARCEL-B', ST_Multi(ST_Buffer(ST_Transform(
-                    ST_SetSRID(ST_MakePoint(144.97, -37.81), 4326), 7855
+                    ST_SetSRID(ST_MakePoint(144.965, -37.81), 4326), 7855
                 ), 30)), 2800, 'residential', 'active')
                 """,
                 (versions["property"], versions["property"]),
@@ -151,7 +176,7 @@ class PostgisEnvironmentContextIntegrationTests(unittest.TestCase):
                     ST_SetSRID(ST_MakePoint(144.96, -37.81), 4326), 7855)),
                 (%s, 'ADDRESS-B', 'PARCEL-B', '10 TEST ROAD MELBOURNE 3000',
                  'MELBOURNE', '3000', 'Y', ST_Transform(
-                    ST_SetSRID(ST_MakePoint(144.97, -37.81), 4326), 7855))
+                    ST_SetSRID(ST_MakePoint(144.965, -37.81), 4326), 7855))
                 """,
                 (versions["address"], versions["address"]),
             )
@@ -187,6 +212,59 @@ class PostgisEnvironmentContextIntegrationTests(unittest.TestCase):
                 )
                 """,
                 (versions["heat"], area_id),
+            )
+            cursor.execute(
+                """
+                INSERT INTO weather_observation (
+                    dataset_version_id, station_code, station_name,
+                    observation_location, observed_at, air_temperature_c,
+                    apparent_temperature_c, quality_status
+                ) VALUES
+                (%s, '95936', 'Melbourne (Olympic Park)',
+                 ST_Transform(ST_SetSRID(ST_MakePoint(144.961, -37.81), 4326), 7855),
+                 CURRENT_TIMESTAMP - INTERVAL '30 minutes', 21.5, 20.8, 'passed'),
+                (%s, '94864', 'Coldstream',
+                 ST_Transform(ST_SetSRID(ST_MakePoint(145.41, -37.72), 4326), 7855),
+                 CURRENT_TIMESTAMP - INTERVAL '20 minutes', 19.0, 18.1, 'passed')
+                """,
+                (versions["weather"], versions["weather"]),
+            )
+            cursor.execute(
+                """
+                INSERT INTO dataset_version (
+                    source_id, analysis_area_id, derivation_method,
+                    spatial_resolution_m, quality_pass_rate, quality_status,
+                    integration_status, publication_status,
+                    source_observed_from, source_observed_to
+                )
+                SELECT source_id, %s, 'property_canopy_raster_clip_v1',
+                       0.5, 100, 'passed', 'integrated', 'application_ready',
+                       DATE '2020-01-01', DATE '2020-12-31'
+                FROM dataset_source
+                WHERE source_name = 'Vicmap Vegetation - Tree Extent'
+                RETURNING dataset_version_id
+                """,
+                (area_id,),
+            )
+            property_canopy_version = cursor.fetchone()[0]
+            cursor.execute(
+                """
+                INSERT INTO property_canopy_summary (
+                    dataset_version_id, source_canopy_version_id, parcel_id,
+                    observed_on, canopy_area_m2, parcel_area_m2,
+                    raster_covered_area_m2, canopy_percentage,
+                    coverage_percentage, source_pixel_size_m,
+                    quality_status
+                )
+                SELECT %s, %s, parcel_id, DATE '2020-12-31',
+                       700, parcel_area_m2, parcel_area_m2, 25, 100, 0.5, 'passed'
+                FROM parcel
+                WHERE dataset_version_id = %s AND source_parcel_id = 'PARCEL-A'
+                """,
+                (
+                    property_canopy_version, property_canopy_version,
+                    versions["property"],
+                ),
             )
 
     def _rows(self, query, parameters=()):
@@ -235,6 +313,18 @@ class PostgisEnvironmentContextIntegrationTests(unittest.TestCase):
                 ("10 TEST", 500, ["trees"], 1),
             )
 
+    def test_address_function_expands_road_abbreviation(self):
+        rows = self._rows(
+            "SELECT layer FROM get_environment_context_by_address(%s,%s,%s,%s)",
+            ("10 test rd melbourne 3000", 500, ["heat"], 1),
+        )
+        self.assertEqual(rows, [("heat",)])
+        normalized = self._rows(
+            "SELECT normalize_melbourne_address_search(%s)",
+            (" 10  test rd melbourne 3000 ",),
+        )[0][0]
+        self.assertEqual(normalized, "10 TEST ROAD MELBOURNE 3000")
+
     def test_historical_temperature_function_returns_metadata(self):
         result = self._rows(
             "SELECT classify_melbourne_daily_mean_air_temperature(32, 22.4)"
@@ -249,6 +339,57 @@ class PostgisEnvironmentContextIntegrationTests(unittest.TestCase):
             result["historical_percentile_context"]["source"]["publisher"],
             "BMJ Open",
         )
+
+    def test_property_canopy_is_parcel_specific_and_missing_safe(self):
+        available = self._rows(
+            """SELECT property_canopy_percentage, raster_coverage_percentage,
+                      source_pixel_size_m, data_status
+               FROM get_property_canopy_by_address(%s, 1)""",
+            ("10 TEST STREET MELBOURNE 3000",),
+        )
+        self.assertEqual(available, [(25, 100, 0.5, "Available")])
+        baseline = self._rows(
+            """SELECT property_canopy_percentage, canopy_analysis_scope,
+                      canopy_source_type, canopy_classification
+               FROM get_property_baseline(%s, 1)""",
+            ("10 TEST STREET MELBOURNE 3000",),
+        )
+        self.assertEqual(
+            baseline,
+            [(25, "property_raster_clip", "analytical_geotiff_property_clip", "Unavailable")],
+        )
+        missing = self._rows(
+            """SELECT property_canopy_percentage, data_status, limitation
+               FROM get_property_canopy_by_address(%s, 1)""",
+            ("10 TEST ROAD MELBOURNE 3000",),
+        )[0]
+        self.assertIsNone(missing[0])
+        self.assertEqual(missing[1], "Unavailable")
+        self.assertIn("not zero canopy", missing[2])
+
+    def test_property_air_temperature_is_nearest_recent_station_context(self):
+        row = self._rows(
+            """SELECT air_temperature_c, apparent_temperature_c,
+                      temperature_unit, station_code, observation_age_minutes,
+                      station_distance_km, context_status, data_status,
+                      measurement_type, source_name, source_publisher, limitation
+               FROM get_property_air_temperature_by_address(%s, 1)""",
+            ("10 TEST STREET MELBOURNE 3000",),
+        )[0]
+        self.assertEqual(float(row[0]), 21.5)
+        self.assertEqual(float(row[1]), 20.8)
+        self.assertEqual(row[2], "degC")
+        self.assertEqual(row[3], "95936")
+        self.assertGreaterEqual(float(row[4]), 0)
+        self.assertLess(float(row[5]), 10)
+        self.assertEqual(row[6], "good_local_context")
+        self.assertEqual(row[7], "Available")
+        self.assertEqual(
+            row[8], "nearest_recent_bom_station_air_temperature_context"
+        )
+        self.assertEqual(row[9], "BOM Melbourne station observations")
+        self.assertEqual(row[10], "Bureau of Meteorology")
+        self.assertIn("not a temperature measured at the property", row[11])
 
 
 if __name__ == "__main__":

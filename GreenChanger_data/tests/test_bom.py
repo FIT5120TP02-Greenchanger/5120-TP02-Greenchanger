@@ -7,6 +7,7 @@ from greenchanger_data.bom import (
     DEFAULT_STATION_REGISTRY,
     extract_rows,
     extract_station_rows,
+    fetch_station_documents,
     load_station_registry,
     normalise_rows,
 )
@@ -88,6 +89,54 @@ class BomTests(unittest.TestCase):
             ]
         }
         self.assertEqual(len(extract_station_rows(document)), 2)
+
+    def test_one_failed_station_does_not_discard_available_feeds(self):
+        registry = {
+            "registry_version": "test-v1",
+            "stations": [
+                {
+                    "station_code": "1", "station_name": "Available",
+                    "coverage_role": "central", "source_url": "https://example.test/1",
+                },
+                {
+                    "station_code": "2", "station_name": "Unavailable",
+                    "coverage_role": "east", "source_url": "https://example.test/2",
+                },
+            ],
+        }
+        documents = {
+            "https://example.test/1": {
+                "observations": {"data": [{"wmo": "1", "air_temp": 20}]}
+            },
+            "https://example.test/2": {"observations": {"data": []}},
+        }
+        from unittest.mock import patch
+
+        with patch(
+            "greenchanger_data.bom.fetch_observations",
+            side_effect=lambda url, timeout=30: documents[url],
+        ):
+            combined = fetch_station_documents(registry)
+        self.assertEqual(len(combined["station_feeds"]), 1)
+        self.assertEqual(combined["failed_station_feeds"][0]["station_code"], "2")
+        self.assertEqual(len(extract_station_rows(combined)), 1)
+
+    def test_all_failed_stations_are_rejected(self):
+        registry = {
+            "registry_version": "test-v1",
+            "stations": [{
+                "station_code": "1", "station_name": "Unavailable",
+                "coverage_role": "central", "source_url": "https://example.test/1",
+            }],
+        }
+        from unittest.mock import patch
+
+        with patch(
+            "greenchanger_data.bom.fetch_observations",
+            return_value={"observations": {"data": []}},
+        ):
+            with self.assertRaisesRegex(ValueError, "all configured"):
+                fetch_station_documents(registry)
 
 
 if __name__ == "__main__":

@@ -73,11 +73,14 @@ python greenchanger_script/ingestion.py property --confirm-shared
 # 4. Load weather, Landsat surface heat and Vicmap canopy
 python greenchanger_script/ingestion.py bom --confirm-shared
 python greenchanger_script/ingestion.py heat --confirm-shared
+python greenchanger_script/aggregate_vicmap_tree_extent.py --workers 2
 python greenchanger_script/ingestion.py canopy \
-  --canopy-file data/raw/vicmap/tree_extent_api_z13.tif \
+  --canopy-file data/raw/vicmap/tree_extent_analytical/melbourne_tree_extent_20cm.vrt \
+  --canopy-aggregate-file data/processed/vicmap/melbourne_tree_extent_500m.jsonl.gz \
+  --canopy-analytical \
   --canopy-observed-from 2013-12-07 \
   --canopy-observed-on 2020-11-02 \
-  --tree-value 255 --confirm-shared
+  --tree-value 1 --confirm-shared
 
 # 5. Load official Vicmap Tree Urban points through the Feature Service API
 python greenchanger_script/ingestion.py trees --confirm-shared
@@ -92,7 +95,13 @@ python greenchanger_script/clip_to_melbourne.py --confirm-shared
 python greenchanger_script/build_heat_baseline.py --confirm-shared
 python greenchanger_script/build_canopy_baseline.py --confirm-shared
 python greenchanger_script/build_environmental_classifications.py \
-  --version-label melbourne-terciles-v1 --confirm-shared
+  --version-label melbourne-terciles-v2 \
+  --require-analytical-canopy --confirm-shared
+
+# Parcel processing is resumable and remains internal until its quality gate passes.
+python greenchanger_script/build_property_canopy.py \
+  --canopy-file data/raw/vicmap/tree_extent_analytical/melbourne_tree_extent_20cm.vrt \
+  --tree-value 1 --batch-size 1000 --confirm-shared
 
 # 7. Validate and load reviewed cost references
 python greenchanger_script/validate_csv.py cost_estimate \
@@ -104,6 +113,35 @@ python greenchanger_script/ingestion.py costs \
 python greenchanger_script/migrate.py --status
 python -m unittest discover -v
 ```
+
+Query a property result with:
+
+```sql
+SELECT * FROM get_property_canopy_by_address(
+    '1 COLLINS STREET MELBOURNE', 5
+);
+```
+
+Current air-temperature context for each matched property is available through:
+
+```sql
+SELECT * FROM get_property_air_temperature_by_address(
+    '1 COLLINS STREET MELBOURNE 3000', 5
+);
+```
+
+It selects the nearest application-ready BOM station observation no older than
+three hours. Results include `degC`, station, timestamp, age, distance, status,
+dataset version, source and the database limitation. Temperatures are suppressed
+beyond 25 km because this is station context, not a property measurement.
+
+This returns canopy area, parcel canopy percentage, raster coverage, source
+resolution and observation date. No approved result returns `Unavailable`,
+never an assumed 0% canopy.
+
+The same approved value also fills `property_canopy_percentage` in
+`get_property_baseline()`. Its separate `neighbourhood_canopy_percentage` and
+neighbourhood-relative classification remain unchanged.
 
 To inspect every **Data Analytics & Insight Development** formula and sample output:
 
@@ -173,6 +211,9 @@ FROM get_environment_context_by_address(
 ```
 
 The wrapper accepts one unique prefix result or one exact full-address match.
+Migration 022 normalises case and repeated whitespace and expands supported
+street types before lookup; for example, `10 Smith Rd` is searched as
+`10 SMITH ROAD`. `ST` is intentionally not expanded because it may mean Saint.
 It rejects missing, unmatched and ambiguous searches instead of silently using
 the wrong property. After resolving the address coordinate, it delegates to the
 coordinate-based function:
@@ -199,7 +240,7 @@ conversion; their 500 m source resolution is unchanged.
 
 | Output | Current result | Quality/status |
 | --- | ---: | --- |
-| Repository migrations | 001–021 | Deployment state must be confirmed with `migrate.py --status` |
+| Repository migrations | 001–024 | Deployment state must be confirmed with `migrate.py --status` |
 | Automated tests | Fast unit suite + opt-in PostGIS integration suite | Use the validation commands below and in `PR_DATA_CONTRACT.md` |
 | Melbourne Address records | 3,007,474 | 100% boundary membership |
 | Melbourne Property records | 3,001,053 | 100% boundary membership |
@@ -362,10 +403,11 @@ All source versions retain extraction time, observation period, checksum, source
 
 ### Canopy
 
-- The current Tree Extent baseline is an official rendered API proxy with approximately 19.1 m source pixels, aggregated into 500 m cells.
-- It is suitable for neighbourhood comparison, not property-level canopy area or individual crown measurement.
-- `property_canopy_percentage` remains null; the application must display `neighbourhood_canopy_percentage` with scope `neighbourhood_500m`.
-- The original analytical Vicmap Tree Extent GeoTIFF remains the preferred future replacement.
+- The official analytical source has now been obtained as four DataShare map-sheet packages and prepared as a 57-tile, 0.20 m EPSG:7899 VRT catalogue covering the Melbourne boundary. Its checksummed manifest is stored with the Git-ignored raw data.
+- `aggregate_vicmap_tree_extent.py` replaces the failed whole-mosaic approach with atomic tile checkpoints and a compact 500 m valid-area-weighted extract. Rerunning it skips completed tiles.
+- Until the analytical aggregate, Melbourne clip, quality gate and `melbourne-terciles-v2` publication complete in Aurora, the existing 19.1 m rendered proxy remains the current application-ready neighbourhood baseline.
+- Property canopy is calculated separately by clipping the unchanged 0.20 m VRT to each parcel. Raster coverage below 95% returns `Unavailable`, never 0%.
+- Property batches are resumable and remain internal until all parcels are assessed and the dataset-level 95% quality gate passes.
 
 ### Tree Urban points
 
@@ -502,9 +544,10 @@ The next data-science work, in recommended order, is:
    approved contract to scenario persistence and the application data handoff.
 2. Update any remaining legacy Clayton-only acceptance criteria, fixtures or
    presentation text to the official Melbourne `2GMEL` scope.
-3. Obtain the original analytical Vicmap Tree Extent GeoTIFF, rebuild the canopy
-   baseline, and publish a newly versioned classification scheme after quality
-   and imagery checks. Do not silently replace the current proxy-derived v1.
+3. Run the prepared analytical Tree Extent VRT as an offline ingestion batch,
+   rebuild the Melbourne canopy baseline, and publish a newly versioned
+   classification scheme after quality and imagery checks. Do not silently
+   replace the current proxy-derived v1.
 4. Add 10 m and 25 m buffered mapped-tree counts so property context does not
    rely only on parcel intersection.
 5. Refresh BOM observations before demonstrations, rerun the six Melbourne

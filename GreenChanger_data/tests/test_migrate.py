@@ -9,7 +9,7 @@ class MigrationFileTests(unittest.TestCase):
     def test_migrations_are_numbered_and_ordered(self):
         self.assertEqual(
             [version for version, _ in migration_files()],
-            [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21],
+            [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25],
         )
 
     def test_include_is_expanded(self):
@@ -156,6 +156,53 @@ class MigrationFileTests(unittest.TestCase):
         self.assertIn("is not used to classify this one-day pair", sql)
         self.assertNotIn("THEN 'Medium'", sql)
         self.assertNotIn("THEN 'High'", sql)
+
+    def test_address_search_and_foreign_key_indexes_are_added(self):
+        migration = next(
+            path for version, path in migration_files() if version == 22
+        )
+        sql = expanded_sql(migration)
+        self.assertIn("normalize_melbourne_address_search", sql)
+        self.assertIn("'\\mRD\\M', 'ROAD'", sql)
+        self.assertIn("idx_address_upper_full_address_prefix", sql)
+        self.assertIn("text_pattern_ops", sql)
+        self.assertIn("idx_dataset_version_application_lookup", sql)
+        self.assertIn("idx_weather_version_station_time", sql)
+        self.assertIn("idx_urban_tree_version_quality", sql)
+        self.assertIn(
+            "normalize_melbourne_address_search(p_address_search)", sql
+        )
+
+    def test_property_canopy_requires_analytical_application_ready_data(self):
+        migration = next(
+            path for version, path in migration_files() if version == 23
+        )
+        sql = expanded_sql(migration)
+        self.assertIn("CREATE TABLE property_canopy_summary", sql)
+        self.assertIn("coverage_percentage >= 95", sql)
+        self.assertIn("source_pixel_size_m <= 2", sql)
+        self.assertIn("latest_melbourne_property_canopy", sql)
+        self.assertIn("property_canopy_raster_clip_v1", sql)
+        self.assertIn("get_property_canopy_by_address", sql)
+        self.assertIn("missing data is not zero canopy", sql)
+        self.assertIn("get_property_baseline_pre_property_canopy_legacy", sql)
+        self.assertIn("analytical_geotiff_property_clip", sql)
+        self.assertIn("The canopy classification remains neighbourhood-relative", sql)
+
+    def test_property_air_temperature_is_fresh_local_and_sourced(self):
+        migration = next(
+            path for version, path in migration_files() if version == 24
+        )
+        sql = expanded_sql(migration)
+        self.assertIn("get_property_air_temperature_by_address", sql)
+        self.assertIn("INTERVAL '3 hours'", sql)
+        self.assertIn("weather.distance_m <= 10000", sql)
+        self.assertIn("weather.distance_m <= 25000", sql)
+        self.assertIn("too_distant_temperature_suppressed", sql)
+        self.assertIn("'degC'::TEXT AS temperature_unit", sql)
+        self.assertIn("source_dataset_version_id", sql)
+        self.assertIn("not a temperature measured at the property", sql)
+        self.assertIn("idx_weather_current_property_lookup", sql)
 
 
 if __name__ == "__main__":

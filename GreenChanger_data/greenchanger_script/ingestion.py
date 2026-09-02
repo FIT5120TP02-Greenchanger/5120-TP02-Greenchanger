@@ -11,6 +11,7 @@ from __future__ import annotations
 import argparse
 import csv
 from datetime import datetime, timezone
+import gzip
 import json
 from pathlib import Path
 import sys
@@ -38,6 +39,7 @@ from greenchanger_data.boundary import (
     save_raw as save_boundary_raw,
 )
 from greenchanger_data.canopy import aggregate_canopy, profile_canopy_raster
+from greenchanger_data.property_canopy import validate_property_canopy_source
 from greenchanger_data.landsat import (
     aggregate_surface_temperature,
     asset_metadata,
@@ -57,6 +59,28 @@ TARGET_SRID = 7855
 DATASETS_CONFIG = ROOT / "config" / "datasets.json"
 QUALITY_CONFIG = ROOT / "config" / "quality_rules.json"
 DEFAULT_COST_FILE = ROOT / "data" / "reference" / "cost_estimates_template.csv"
+
+
+def analytical_canopy_manifest(raster_path: Path) -> dict[str, Any] | None:
+    """Load and verify the manifest beside a prepared analytical VRT."""
+
+    if raster_path.suffix.lower() != ".vrt":
+        return None
+    manifest_path = raster_path.parent / "melbourne_tree_extent_manifest.json"
+    if not manifest_path.exists():
+        raise FileNotFoundError(
+            f"Prepared analytical VRT requires its provenance manifest: {manifest_path}"
+        )
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    if manifest.get("dataset_uuid") != "f6800447-ef34-5f66-acaa-77a5f2936546":
+        raise ValueError("Analytical canopy manifest has the wrong DataShare dataset UUID")
+    mosaic = manifest.get("virtual_mosaic", {})
+    if mosaic.get("sha256") != sha256_file(raster_path):
+        raise ValueError("Analytical canopy VRT checksum does not match its manifest")
+    bounds = manifest.get("boundary", {}).get("boundary_wgs84_bounds")
+    if not isinstance(bounds, list) or len(bounds) != 4:
+        raise ValueError("Analytical canopy manifest has no Melbourne boundary bounds")
+    return {**manifest, "manifest_path": str(manifest_path.resolve())}
 
 
 def write_batches(connection, sql: str, rows: Sequence[Sequence[Any]]) -> int:
@@ -444,8 +468,16 @@ def ingest_bom(connection, args: argparse.Namespace) -> dict[str, Any]:
         registry = load_station_registry(args.bom_stations_file)
         document = fetch_station_documents(registry)
         raw_rows = extract_station_rows(document)
-        station_codes = [str(station["station_code"]) for station in registry["stations"]]
+        station_codes = [
+            str(feed["station"]["station_code"])
+            for feed in document["station_feeds"]
+        ]
+        failed_stations = document.get("failed_station_feeds", [])
+        requested_station_count = len(registry["stations"])
         registry_version = registry["registry_version"]
+    if args.bom_url:
+        failed_stations = []
+        requested_station_count = len(station_codes)
     rows = normalise_rows(raw_rows)
 
     stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
@@ -522,14 +554,40 @@ def ingest_bom(connection, args: argparse.Namespace) -> dict[str, Any]:
         for row in accepted_rows
     ]
     written = write_batches(connection, sql, values)
+    station_coverage_pct = round(
+        len(station_codes) * 100.0 / requested_station_count, 2
+    ) if requested_station_count else 0.0
+    publish_weather = multi_station_run and station_coverage_pct >= 80.0
     with connection.cursor() as cursor:
         cursor.execute(
             """UPDATE dataset_version
                SET integration_status = 'integrated',
-                   publication_status = %s
+                   publication_status = %s,
+                   coverage_pass_rate = %s,
+                   quality_status = %s
                WHERE dataset_version_id = %s""",
-            ("application_ready" if multi_station_run else "internal", version_id),
+            (
+                "application_ready" if publish_weather else "internal",
+                station_coverage_pct,
+                "passed_with_limitations" if failed_stations else "passed",
+                version_id,
+            ),
         )
+        if failed_stations:
+            cursor.execute(
+                """INSERT INTO data_limitation (
+                       dataset_version_id, limitation_type, description,
+                       affected_area, analytical_impact, mitigation
+                   ) VALUES (%s, %s, %s, %s, %s, %s)""",
+                (
+                    version_id,
+                    "partial_station_feed_availability",
+                    f"{len(failed_stations)} of {requested_station_count} configured BOM station feeds failed during extraction.",
+                    ", ".join(item["coverage_role"] for item in failed_stations),
+                    "Some properties may use a more distant station or return Unavailable.",
+                    "Retry ingestion and retain the distance, timestamp and context status in every property result.",
+                ),
+            )
     return {
         "rows_in": len(raw_rows),
         "rows_written": written,
@@ -537,10 +595,13 @@ def ingest_bom(connection, args: argparse.Namespace) -> dict[str, Any]:
         "quality_pass_rate": report.pass_rate,
         "dataset_version_id": str(version_id),
         "station_count": len(station_codes),
+        "requested_station_count": requested_station_count,
+        "station_coverage_pct": station_coverage_pct,
         "station_codes": station_codes,
+        "failed_stations": failed_stations,
         "registry_version": registry_version,
         "publication_status": (
-            "application_ready" if multi_station_run else "internal"
+            "application_ready" if publish_weather else "internal"
         ),
         "message": (
             f"{written} BOM observations from {len(station_codes)} stations "
@@ -1054,12 +1115,59 @@ def ingest_canopy(connection, args: argparse.Namespace) -> dict[str, Any]:
         json.loads(sidecar_path.read_text(encoding="utf-8"))
         if sidecar_path.exists() else None
     )
-    rows, metadata = aggregate_canopy(
-        args.canopy_file,
-        observed_on=observed_on,
-        grid_size_m=args.grid_size_m,
-        tree_value=args.tree_value,
-    )
+    analytical_manifest = None
+    if args.canopy_analytical:
+        import rasterio
+
+        if api_metadata:
+            raise ValueError(
+                "A rendered API extraction cannot be registered as an analytical GeoTIFF"
+            )
+        with rasterio.open(args.canopy_file) as analytical_source:
+            validate_property_canopy_source(
+                analytical_source, asset_role="canopy_analytical_geotiff"
+            )
+        analytical_manifest = analytical_canopy_manifest(args.canopy_file)
+    aggregate_manifest = None
+    if args.canopy_aggregate_file:
+        aggregate_manifest_path = args.canopy_aggregate_file.with_suffix(
+            args.canopy_aggregate_file.suffix + ".manifest.json"
+        )
+        if not aggregate_manifest_path.exists():
+            raise FileNotFoundError(
+                f"Prepared canopy aggregate requires manifest: {aggregate_manifest_path}"
+            )
+        aggregate_manifest = json.loads(
+            aggregate_manifest_path.read_text(encoding="utf-8")
+        )
+        if not aggregate_manifest.get("complete"):
+            raise ValueError("Prepared canopy aggregate is not complete")
+        if aggregate_manifest.get("output_sha256") != sha256_file(args.canopy_aggregate_file):
+            raise ValueError("Prepared canopy aggregate checksum does not match its manifest")
+        if analytical_manifest and (
+            aggregate_manifest.get("source_manifest_sha256")
+            != sha256_file(Path(analytical_manifest["manifest_path"]))
+        ):
+            raise ValueError("Canopy aggregate was not produced from this analytical manifest")
+        with gzip.open(args.canopy_aggregate_file, "rt", encoding="utf-8") as source:
+            rows = [json.loads(line) for line in source if line.strip()]
+        metadata = {
+            **profile_canopy_raster(args.canopy_file),
+            **aggregate_manifest,
+        }
+        if len(rows) != aggregate_manifest.get("output_rows"):
+            raise ValueError("Prepared canopy aggregate row count does not match its manifest")
+    else:
+        rows, metadata = aggregate_canopy(
+            args.canopy_file,
+            observed_on=observed_on,
+            bbox_wgs84=(
+                analytical_manifest["boundary"]["boundary_wgs84_bounds"]
+                if analytical_manifest else (144.4, -38.5, 146.0, -37.4)
+            ),
+            grid_size_m=args.grid_size_m,
+            tree_value=args.tree_value,
+        )
     registered_source_id = source_id(
         connection, "Vicmap Vegetation - Tree Extent", "Victorian Government"
     )
@@ -1067,26 +1175,71 @@ def ingest_canopy(connection, args: argparse.Namespace) -> dict[str, Any]:
         connection,
         registered_source_id=registered_source_id,
         row_count=int(metadata["width"]) * int(metadata["height"]),
-        checksum=sha256_file(args.canopy_file),
+        checksum=(sha256_file(args.canopy_aggregate_file)
+                  if args.canopy_aggregate_file else
+                  sha256_file(Path(analytical_manifest["manifest_path"]))
+                  if analytical_manifest else sha256_file(args.canopy_file)),
         observed_from=observed_from,
         observed_to=observed_on,
         spatial_resolution_m=args.grid_size_m,
     )
-    register_spatial_assets(
-        connection,
-        version_id,
-        [{
-            "asset_role": "canopy_api_tile_mosaic" if api_metadata else "canopy_source_raster",
+    canopy_assets = [
+        {
+            "asset_role": (
+                "canopy_api_tile_mosaic" if api_metadata
+                else "canopy_analytical_geotiff" if args.canopy_analytical
+                else "canopy_source_raster"
+            ),
             "source_scene_id": args.canopy_file.stem,
-            "source_href": api_metadata.get("source_service") if api_metadata else None,
+            "source_href": (
+                api_metadata.get("source_service") if api_metadata
+                else analytical_manifest.get("datashare_url") if analytical_manifest
+                else None
+            ),
             "local_path": str(args.canopy_file.resolve()),
-            "media_type": "image/tiff; application=geotiff",
+            "media_type": (
+                "application/xml; subtype=gdal-vrt"
+                if args.canopy_file.suffix.lower() == ".vrt"
+                else "image/tiff; application=geotiff"
+            ),
             "source_crs": metadata["crs"],
             "pixel_size_m": max(metadata["pixel_size"]),
             "checksum": sha256_file(args.canopy_file),
             "acquired_at": f"{observed_on.isoformat()}T00:00:00Z",
-            "metadata": {**metadata, "api_extraction": api_metadata} if api_metadata else metadata,
-        }],
+            "metadata": (
+                {**metadata, "api_extraction": api_metadata} if api_metadata
+                else {
+                    **metadata,
+                    "analytical_manifest": {
+                        "path": analytical_manifest["manifest_path"],
+                        "dataset_uuid": analytical_manifest["dataset_uuid"],
+                        "selected_tile_count": len(analytical_manifest["selected_tiles"]),
+                        "package_sha256": {
+                            package["name"]: package["sha256"]
+                            for package in analytical_manifest["packages"]
+                        },
+                    },
+                } if analytical_manifest else metadata
+            ),
+        }
+    ]
+    if args.canopy_aggregate_file:
+        canopy_assets.append({
+            "asset_role": "canopy_500m_tilewise_aggregate",
+            "source_scene_id": args.canopy_aggregate_file.stem,
+            "source_href": analytical_manifest.get("datashare_url"),
+            "local_path": str(args.canopy_aggregate_file.resolve()),
+            "media_type": "application/x-ndjson+gzip",
+            "source_crs": f"EPSG:{aggregate_manifest['target_srid']}",
+            "pixel_size_m": aggregate_manifest["grid_size_m"],
+            "checksum": sha256_file(args.canopy_aggregate_file),
+            "acquired_at": aggregate_manifest["prepared_at"],
+            "metadata": aggregate_manifest,
+        })
+    register_spatial_assets(
+        connection,
+        version_id,
+        canopy_assets,
     )
     if api_metadata:
         with connection.cursor() as cursor:
@@ -1297,6 +1450,14 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument("--cost-file", type=Path, default=DEFAULT_COST_FILE)
     parser.add_argument("--canopy-file", type=Path)
+    parser.add_argument(
+        "--canopy-aggregate-file", type=Path,
+        help="Completed .jsonl.gz from aggregate_vicmap_tree_extent.py.",
+    )
+    parser.add_argument(
+        "--canopy-analytical", action="store_true",
+        help="Register a verified <=2 m single-band analytical GeoTIFF for property canopy.",
+    )
     parser.add_argument("--canopy-observed-on", help="Source imagery date: YYYY-MM-DD")
     parser.add_argument("--canopy-observed-from", help="Earliest source imagery date: YYYY-MM-DD")
     parser.add_argument("--tree-value", type=float)

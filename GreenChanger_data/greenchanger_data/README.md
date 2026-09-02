@@ -11,7 +11,7 @@ functions and perform database writes.
 | --- | --- |
 | `__init__.py` | Marks this directory as the reusable `greenchanger_data` Python package. |
 | `boundary.py` | Download, preserve and normalise the official ABS ASGS 2026 Melbourne GCCSA boundary. |
-| `bom.py` | Validate the Melbourne station registry, download each official BOM feed, verify feed identity, flatten and normalise observations. |
+| `bom.py` | Validate the Melbourne station registry, independently download official BOM feeds, preserve per-station failures, verify feed identity, flatten and normalise observations. |
 | `canopy.py` | Inspect and aggregate a binary tree-extent raster into Melbourne grid summaries. |
 | `canopy_baseline.py` | Define versioned baseline and source-provenance rules, including analytical-versus-proxy classification. |
 | `classification.py` | Apply versioned Melbourne-relative heat/canopy terciles plus evidence-backed daily-mean air-temperature and canopy benchmark helpers, with explicit missing-data handling. |
@@ -21,6 +21,7 @@ functions and perform database writes.
 | `measures.py` | Evidence-gated calculations and sample outputs for canopy, future shade proxy, greenery, surface heat and cost measures. |
 | `melbourne_sanity.py` | Validate real-address parcel, 2GMEL boundary, heat, proxy-canopy, mapped-tree and weather-context outputs without requiring a database in unit tests. |
 | `property_baseline.py` | Reference-test the project-defined small, medium and large lot-size categories used by Priority 4. |
+| `property_canopy.py` | Validate fine-resolution analytical canopy and calculate parcel-clipped canopy area, percentage and raster coverage without treating nodata as zero. |
 | `quality.py` | Record-level completeness, uniqueness, validity and consistency rules, including memory-safe stream validation. |
 | `residential_scenarios.py` | Join real property baselines to four-action calculations and reviewed cost evidence while preserving measurement scope and warnings. |
 | `scenario_inputs.py` | Validate the versioned Residential Greening Scenario Simulation quantity, area, maturity, survival and suitability contract and translate it into evidence-bounded model inputs. |
@@ -55,12 +56,26 @@ never labelled as an analytical GeoTIFF. `coverage_confidence_pct` describes
 complete source-raster coverage, not classification accuracy. The source's
 multi-year imagery period and proxy resolution are recorded as limitations.
 
+Property canopy is a separate evidence scope. It accepts only a registered
+`canopy_analytical_geotiff` with one band, projected coordinates and pixels no
+larger than 2 m. Each Vicmap parcel is the clip mask; tree-class pixel area is
+divided by parcel area and raster coverage is reported separately. Rows below
+95% raster coverage return `Unavailable`, not 0%. The current 19.109 m rendered
+API mosaic cannot satisfy this contract.
+
+When available, the parcel result populates `property_canopy_percentage` and
+uses scope `property_raster_clip`; it does not replace or reclassify the 500 m
+neighbourhood canopy baseline.
+
 ## Environmental classification logic
 
-`classification.py` supports the versioned `melbourne-terciles-v1` scheme. It
+`classification.py` supports versioned Melbourne tercile schemes. The deployed
+proxy baseline remains `melbourne-terciles-v1`; after the analytical tile-wise
+baseline passes its quality gate, it must be published separately as
+`melbourne-terciles-v2`. The calculation
 uses the 33.33rd and 66.67th percentiles of the application-ready Greater
 Melbourne cells, calculated separately for Landsat land-surface temperature and
-the 500 m neighbourhood canopy proxy. The active results are:
+the 500 m neighbourhood canopy baseline. The current v1 results are:
 
 | Metric | Low | Medium | High | Distribution |
 | --- | --- | --- | --- | --- |
@@ -109,6 +124,13 @@ official source URLs and coverage roles. Feed station identity must match the
 registry before rows are combined. Air-temperature records require station
 name, timestamp, temperature and coordinates; a wind-only feed cannot pass the
 weather quality gate.
+
+A failure from one official station endpoint no longer discards valid data from
+all other stations. The raw extraction records successful and failed feeds,
+station coverage is stored on `dataset_version`, and partial availability is
+recorded in `data_limitation`. At least 80% of configured stations must load
+before a multi-station version can become application-ready; record-level
+completeness and validity must still satisfy the separate 95% quality gate.
 
 Tree Urban cleaning retains points with valid identifiers and locations while
 suppressing optional machine-derived canopy radii outside 0.25–50 m and heights
@@ -217,6 +239,8 @@ domains.
 | Zero/negative reported property area | Reject through `PARCEL_AREA_POSITIVE`. |
 | Address has no matching accepted property | Retain the address, exclude unavailable property analytics and document the limitation. |
 | Tree Extent source is only a rendered proxy | Publish neighbourhood canopy only and suppress property canopy percentage. |
+| Whole analytical VRT aggregation is interrupted | Resume from the atomic per-tile checkpoint; never restart completed tiles. |
+| Property-canopy batch is interrupted | Resume the same internal output version; application views ignore it until all parcels and the 95% gate pass. |
 | Tree Urban API times out during a large extract | Retry/subdivide tiles, preserve `.partial`, and resume using a completed raw extract only. |
 | Heat model has not passed validation | Suppress precise projected temperature and reduction in application output. |
 | Study measures air, wall or globe temperature rather than Landsat LST | Retain the evidence for its named outcome only; prohibit cross-metric coefficient reuse. |

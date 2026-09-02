@@ -1792,6 +1792,185 @@ COMMENT ON FUNCTION classify_canopy_benchmark(NUMERIC) IS
 
 COMMIT;
 
+-- Current multi-station BOM source (migration 025). The earlier Olympic Park
+-- record is retained for provenance of historical versions.
+INSERT INTO dataset_source (
+    source_name, publisher, source_url, licence, source_category,
+    geographic_coverage, access_method, update_frequency
+) VALUES (
+    'BOM Melbourne station observations', 'Bureau of Meteorology',
+    'https://www.bom.gov.au/fwo/IDV60901/', NULL, 'weather', 'Melbourne',
+    'Official station-specific JSON feeds listed in config/bom_stations.json',
+    'frequent'
+)
+ON CONFLICT (source_name, publisher) DO UPDATE SET
+    source_url = EXCLUDED.source_url,
+    licence = EXCLUDED.licence,
+    source_category = EXCLUDED.source_category,
+    geographic_coverage = EXCLUDED.geographic_coverage,
+    access_method = EXCLUDED.access_method,
+    update_frequency = EXCLUDED.update_frequency;
+
+-- Defined here before the property-canopy function; migration 022 later
+-- replaces it with the same current implementation in the cumulative schema.
+CREATE OR REPLACE FUNCTION normalize_melbourne_address_search(p_address TEXT)
+RETURNS TEXT
+LANGUAGE plpgsql
+IMMUTABLE
+STRICT
+PARALLEL SAFE
+AS $function$
+DECLARE
+    v_address TEXT;
+BEGIN
+    v_address := REGEXP_REPLACE(UPPER(BTRIM(p_address)), '[[:space:]]+', ' ', 'g');
+    v_address := REGEXP_REPLACE(v_address, '\mRD\M', 'ROAD', 'g');
+    v_address := REGEXP_REPLACE(v_address, '\mAVE\M', 'AVENUE', 'g');
+    v_address := REGEXP_REPLACE(v_address, '\mAV\M', 'AVENUE', 'g');
+    v_address := REGEXP_REPLACE(v_address, '\mBLVD\M', 'BOULEVARD', 'g');
+    v_address := REGEXP_REPLACE(v_address, '\mCRES\M', 'CRESCENT', 'g');
+    v_address := REGEXP_REPLACE(v_address, '\mCT\M', 'COURT', 'g');
+    v_address := REGEXP_REPLACE(v_address, '\mDR\M', 'DRIVE', 'g');
+    v_address := REGEXP_REPLACE(v_address, '\mHWY\M', 'HIGHWAY', 'g');
+    v_address := REGEXP_REPLACE(v_address, '\mLN\M', 'LANE', 'g');
+    v_address := REGEXP_REPLACE(v_address, '\mPDE\M', 'PARADE', 'g');
+    v_address := REGEXP_REPLACE(v_address, '\mPL\M', 'PLACE', 'g');
+    v_address := REGEXP_REPLACE(v_address, '\mTCE\M', 'TERRACE', 'g');
+    RETURN v_address;
+END;
+$function$;
+
+-- Property-level canopy (migration 023)
+BEGIN;
+
+CREATE TABLE property_canopy_summary (
+    property_canopy_summary_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    dataset_version_id UUID NOT NULL REFERENCES dataset_version(dataset_version_id),
+    source_canopy_version_id UUID NOT NULL REFERENCES dataset_version(dataset_version_id),
+    parcel_id UUID NOT NULL REFERENCES parcel(parcel_id),
+    observed_on DATE NOT NULL,
+    canopy_area_m2 NUMERIC CHECK (canopy_area_m2 IS NULL OR canopy_area_m2 >= 0),
+    parcel_area_m2 NUMERIC NOT NULL CHECK (parcel_area_m2 > 0),
+    raster_covered_area_m2 NUMERIC NOT NULL CHECK (raster_covered_area_m2 >= 0),
+    canopy_percentage NUMERIC(6, 2) CHECK (
+        canopy_percentage IS NULL OR canopy_percentage BETWEEN 0 AND 100
+    ),
+    coverage_percentage NUMERIC(6, 2) NOT NULL CHECK (
+        coverage_percentage BETWEEN 0 AND 100
+    ),
+    source_pixel_size_m NUMERIC NOT NULL CHECK (
+        source_pixel_size_m > 0 AND source_pixel_size_m <= 2
+    ),
+    calculation_method TEXT NOT NULL DEFAULT 'parcel_clip_pixel_centre_v1',
+    quality_status TEXT NOT NULL CHECK (quality_status IN ('passed', 'failed')),
+    failure_reason TEXT,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE (dataset_version_id, parcel_id),
+    CHECK (
+        (quality_status = 'passed' AND canopy_percentage IS NOT NULL
+         AND canopy_area_m2 IS NOT NULL AND coverage_percentage >= 95)
+        OR
+        (quality_status = 'failed' AND canopy_percentage IS NULL
+         AND failure_reason IS NOT NULL)
+    )
+);
+
+CREATE INDEX idx_property_canopy_parcel_version
+    ON property_canopy_summary(parcel_id, dataset_version_id);
+CREATE INDEX idx_property_canopy_source_version
+    ON property_canopy_summary(source_canopy_version_id);
+
+CREATE OR REPLACE VIEW latest_melbourne_property_canopy AS
+WITH latest_version AS (
+    SELECT dv.dataset_version_id
+    FROM dataset_version AS dv
+    JOIN dataset_source AS ds USING (source_id)
+    JOIN analysis_area AS aa USING (analysis_area_id)
+    WHERE ds.source_name = 'Vicmap Vegetation - Tree Extent'
+      AND aa.source_area_code = '2GMEL'
+      AND aa.source_year = 2026
+      AND dv.integration_status = 'integrated'
+      AND dv.publication_status = 'application_ready'
+      AND dv.quality_pass_rate >= 95
+      AND dv.derivation_method = 'property_canopy_raster_clip_v1'
+    ORDER BY dv.extracted_at DESC
+    LIMIT 1
+)
+SELECT summary.*
+FROM property_canopy_summary AS summary
+JOIN latest_version USING (dataset_version_id)
+WHERE summary.quality_status = 'passed';
+
+CREATE OR REPLACE FUNCTION get_property_canopy_by_address(
+    p_address_search TEXT,
+    p_result_limit INTEGER DEFAULT 10
+)
+RETURNS TABLE (
+    address_id UUID,
+    parcel_id UUID,
+    full_address TEXT,
+    parcel_area_m2 NUMERIC,
+    canopy_area_m2 NUMERIC,
+    property_canopy_percentage NUMERIC,
+    raster_coverage_percentage NUMERIC,
+    observed_on DATE,
+    source_pixel_size_m NUMERIC,
+    calculation_method TEXT,
+    data_status TEXT,
+    limitation TEXT
+)
+LANGUAGE SQL
+STABLE
+PARALLEL SAFE
+AS $function$
+WITH candidates AS (
+    SELECT property.*
+    FROM latest_greater_melbourne_address_property AS property
+    WHERE p_address_search IS NOT NULL
+      AND BTRIM(p_address_search) <> ''
+      AND normalize_melbourne_address_search(property.full_address)
+          LIKE normalize_melbourne_address_search(p_address_search) || '%'
+    ORDER BY
+        CASE WHEN normalize_melbourne_address_search(property.full_address) =
+                  normalize_melbourne_address_search(p_address_search) THEN 0 ELSE 1 END,
+        property.full_address,
+        property.source_address_id
+    LIMIT LEAST(GREATEST(COALESCE(p_result_limit, 10), 1), 50)
+)
+SELECT
+    candidate.address_id,
+    candidate.parcel_id,
+    candidate.full_address,
+    candidate.parcel_area_m2,
+    canopy.canopy_area_m2,
+    canopy.canopy_percentage,
+    canopy.coverage_percentage,
+    canopy.observed_on,
+    canopy.source_pixel_size_m,
+    canopy.calculation_method,
+    CASE
+        WHEN candidate.parcel_id IS NULL THEN 'Unavailable'
+        WHEN canopy.property_canopy_summary_id IS NULL THEN 'Unavailable'
+        ELSE 'Available'
+    END AS data_status,
+    CASE
+        WHEN candidate.parcel_id IS NULL THEN 'No parcel geometry is linked to this address.'
+        WHEN canopy.property_canopy_summary_id IS NULL THEN
+            'No application-ready analytical property-canopy result is loaded; missing data is not zero canopy.'
+        ELSE 'Machine-derived canopy from source imagery; not a current field survey.'
+    END AS limitation
+FROM candidates AS candidate
+LEFT JOIN latest_melbourne_property_canopy AS canopy
+  ON canopy.parcel_id = candidate.parcel_id;
+$function$;
+
+COMMENT ON TABLE property_canopy_summary IS
+    'Versioned parcel-clipped canopy measures from a <=2 m analytical Tree Extent GeoTIFF. Rendered API proxy mosaics are prohibited.';
+COMMENT ON FUNCTION get_property_canopy_by_address(TEXT, INTEGER) IS
+    'Returns canopy clipped to the matched Melbourne parcel. Missing analytical results return Unavailable, never zero canopy.';
+
+COMMIT;
+
 -- Migration 021: correct the historical temperature contract without changing
 -- the checksum of already-applied migration 020.
 BEGIN;
@@ -1880,5 +2059,492 @@ RETURN JSONB_BUILD_OBJECT(
 
 COMMENT ON FUNCTION classify_melbourne_daily_mean_air_temperature(NUMERIC, NUMERIC) IS
     'Returns structured historical context for one forecast maximum/following-minimum pair. It never returns a current heat warning; 27.2 C is recorded only as two-consecutive-day percentile context.';
+
+COMMIT;
+
+-- Migration 022: address abbreviation normalisation and query indexes.
+BEGIN;
+
+-- Cover missing foreign-key and high-frequency filter columns. Primary-key and
+-- existing unique/GiST indexes are deliberately not duplicated.
+CREATE INDEX IF NOT EXISTS idx_dataset_source_category
+    ON dataset_source(source_category);
+CREATE INDEX IF NOT EXISTS idx_dataset_version_application_lookup
+    ON dataset_version(
+        source_id, analysis_area_id, integration_status,
+        publication_status, extracted_at DESC
+    );
+CREATE INDEX IF NOT EXISTS idx_quality_result_rule
+    ON data_quality_result(quality_rule_id);
+CREATE INDEX IF NOT EXISTS idx_transformation_input_version
+    ON transformation_run(input_version_id);
+CREATE INDEX IF NOT EXISTS idx_transformation_output_version
+    ON transformation_run(output_version_id)
+    WHERE output_version_id IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_integration_run_version
+    ON integration_run(dataset_version_id);
+CREATE INDEX IF NOT EXISTS idx_data_limitation_version
+    ON data_limitation(dataset_version_id);
+
+CREATE INDEX IF NOT EXISTS idx_address_dataset_version
+    ON address(dataset_version_id);
+CREATE INDEX IF NOT EXISTS idx_address_upper_full_address_prefix
+    ON address(UPPER(full_address) text_pattern_ops);
+CREATE INDEX IF NOT EXISTS idx_address_postcode_locality
+    ON address(postcode, locality_name);
+CREATE INDEX IF NOT EXISTS idx_parcel_dataset_version
+    ON parcel(dataset_version_id);
+CREATE INDEX IF NOT EXISTS idx_site_address
+    ON site(address_id) WHERE address_id IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_site_parcel
+    ON site(parcel_id) WHERE parcel_id IS NOT NULL;
+
+CREATE INDEX IF NOT EXISTS idx_weather_version_station_time
+    ON weather_observation(dataset_version_id, station_code, observed_at DESC);
+CREATE INDEX IF NOT EXISTS idx_heat_observation_version
+    ON heat_observation(dataset_version_id);
+CREATE INDEX IF NOT EXISTS idx_heat_observation_site
+    ON heat_observation(site_id) WHERE site_id IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_vegetation_observation_version
+    ON vegetation_observation(dataset_version_id);
+CREATE INDEX IF NOT EXISTS idx_vegetation_observation_site
+    ON vegetation_observation(site_id) WHERE site_id IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_canopy_patch_version
+    ON canopy_patch(dataset_version_id);
+CREATE INDEX IF NOT EXISTS idx_canopy_patch_site
+    ON canopy_patch(site_id) WHERE site_id IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_urban_tree_version_quality
+    ON urban_tree(dataset_version_id, quality_status);
+CREATE INDEX IF NOT EXISTS idx_urban_tree_site
+    ON urban_tree(site_id) WHERE site_id IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_urban_tree_species
+    ON urban_tree(species_id) WHERE species_id IS NOT NULL;
+
+CREATE INDEX IF NOT EXISTS idx_cost_estimate_analysis_area
+    ON cost_estimate(analysis_area_id) WHERE analysis_area_id IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_analysis_run_site_time
+    ON analysis_run(site_id, started_at DESC);
+CREATE INDEX IF NOT EXISTS idx_analysis_run_dataset_version
+    ON analysis_run(dataset_version_id);
+CREATE INDEX IF NOT EXISTS idx_analysis_run_model_version
+    ON analysis_run(model_version_id) WHERE model_version_id IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_measure_result_measure
+    ON measure_result(measure_id);
+CREATE INDEX IF NOT EXISTS idx_measure_test_result_case
+    ON measure_test_result(test_case_id);
+CREATE INDEX IF NOT EXISTS idx_measure_test_result_model
+    ON measure_test_result(model_version_id)
+    WHERE model_version_id IS NOT NULL;
+
+CREATE INDEX IF NOT EXISTS idx_model_evidence_evidence
+    ON model_evidence(evidence_id);
+CREATE INDEX IF NOT EXISTS idx_intervention_parameter_source_evidence
+    ON intervention_model_parameter(source_evidence_id)
+    WHERE source_evidence_id IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_intervention_validation_run_model
+    ON intervention_model_validation_run(model_version_id, started_at DESC);
+CREATE INDEX IF NOT EXISTS idx_classification_scheme_area_status
+    ON environmental_classification_scheme(analysis_area_id, status);
+CREATE INDEX IF NOT EXISTS idx_classification_threshold_source_version
+    ON environmental_classification_threshold(source_dataset_version_id);
+CREATE INDEX IF NOT EXISTS idx_classification_reference_metric
+    ON environmental_classification_reference(metric_code, threshold_value);
+
+CREATE OR REPLACE FUNCTION normalize_melbourne_address_search(p_address TEXT)
+RETURNS TEXT
+LANGUAGE plpgsql
+IMMUTABLE
+STRICT
+PARALLEL SAFE
+AS $function$
+DECLARE
+    v_address TEXT;
+BEGIN
+    v_address := REGEXP_REPLACE(UPPER(BTRIM(p_address)), '[[:space:]]+', ' ', 'g');
+    v_address := REGEXP_REPLACE(v_address, '\mRD\M', 'ROAD', 'g');
+    v_address := REGEXP_REPLACE(v_address, '\mAVE\M', 'AVENUE', 'g');
+    v_address := REGEXP_REPLACE(v_address, '\mAV\M', 'AVENUE', 'g');
+    v_address := REGEXP_REPLACE(v_address, '\mBLVD\M', 'BOULEVARD', 'g');
+    v_address := REGEXP_REPLACE(v_address, '\mCRES\M', 'CRESCENT', 'g');
+    v_address := REGEXP_REPLACE(v_address, '\mCT\M', 'COURT', 'g');
+    v_address := REGEXP_REPLACE(v_address, '\mDR\M', 'DRIVE', 'g');
+    v_address := REGEXP_REPLACE(v_address, '\mHWY\M', 'HIGHWAY', 'g');
+    v_address := REGEXP_REPLACE(v_address, '\mLN\M', 'LANE', 'g');
+    v_address := REGEXP_REPLACE(v_address, '\mPDE\M', 'PARADE', 'g');
+    v_address := REGEXP_REPLACE(v_address, '\mPL\M', 'PLACE', 'g');
+    v_address := REGEXP_REPLACE(v_address, '\mTCE\M', 'TERRACE', 'g');
+    RETURN v_address;
+END;
+$function$;
+
+COMMENT ON FUNCTION normalize_melbourne_address_search(TEXT) IS
+    'Normalises case/whitespace and expands unambiguous Australian street-type abbreviations before Vicmap prefix matching. ST is intentionally not expanded because it can mean Saint, as in St Kilda.';
+
+CREATE OR REPLACE FUNCTION get_property_baseline(
+    p_address_search TEXT,
+    p_result_limit INTEGER DEFAULT 10
+)
+RETURNS TABLE (
+    address_id UUID,
+    parcel_id UUID,
+    full_address TEXT,
+    locality_name TEXT,
+    postcode TEXT,
+    source_property_id TEXT,
+    parcel_area_m2 NUMERIC,
+    lot_size_category TEXT,
+    property_type TEXT,
+    property_status TEXT,
+    longitude NUMERIC,
+    latitude NUMERIC,
+    parcel_geometry_geojson JSONB,
+    land_surface_temperature_c NUMERIC,
+    surface_temperature_observed_on DATE,
+    temperature_measurement_type TEXT,
+    heat_baseline_method TEXT,
+    heat_cell_geojson JSONB,
+    current_air_temperature_c NUMERIC,
+    current_apparent_temperature_c NUMERIC,
+    weather_station_name TEXT,
+    weather_observed_at TIMESTAMPTZ,
+    weather_station_distance_km NUMERIC,
+    air_temperature_context_status TEXT,
+    neighbourhood_canopy_percentage NUMERIC,
+    property_canopy_percentage NUMERIC,
+    canopy_analysis_scope TEXT,
+    canopy_observed_on DATE,
+    canopy_source_type TEXT,
+    canopy_source_is_proxy BOOLEAN,
+    canopy_cell_geojson JSONB,
+    mapped_property_tree_count BIGINT,
+    property_tree_data_status TEXT,
+    data_quality_status TEXT,
+    limitations JSONB,
+    heat_classification TEXT,
+    canopy_classification TEXT,
+    classification_scheme_version TEXT,
+    classification_scope TEXT
+)
+LANGUAGE SQL
+STABLE
+PARALLEL SAFE
+AS $function$
+WITH baseline AS (
+    SELECT *
+    FROM get_property_baseline_pre_classification_legacy(
+        normalize_melbourne_address_search(p_address_search), p_result_limit
+    )
+), current_scheme AS (
+    SELECT DISTINCT version_label, classification_scope
+    FROM current_environmental_classification_threshold
+)
+SELECT
+    baseline.*,
+    classify_environmental_value(
+        'heat', baseline.land_surface_temperature_c, scheme.version_label
+    ) AS heat_classification,
+    classify_environmental_value(
+        'canopy', baseline.neighbourhood_canopy_percentage, scheme.version_label
+    ) AS canopy_classification,
+    scheme.version_label AS classification_scheme_version,
+    scheme.classification_scope
+FROM baseline
+LEFT JOIN current_scheme AS scheme ON TRUE;
+$function$;
+
+COMMENT ON FUNCTION get_property_baseline(TEXT, INTEGER) IS
+    'Returns the property baseline with versioned classifications after expanding supported Australian street-type abbreviations such as RD to ROAD.';
+
+CREATE OR REPLACE FUNCTION get_environment_context_by_address(
+    p_address_search TEXT,
+    p_radius_m DOUBLE PRECISION DEFAULT 500.0,
+    p_layers TEXT[] DEFAULT ARRAY['trees', 'heat']::TEXT[],
+    p_result_limit INTEGER DEFAULT 1000
+)
+RETURNS TABLE (
+    layer TEXT,
+    feature_id TEXT,
+    dataset_version_id UUID,
+    distance_m NUMERIC,
+    observed_on DATE,
+    properties JSONB,
+    geometry_geojson JSONB
+)
+LANGUAGE plpgsql
+STABLE
+PARALLEL SAFE
+AS $function$
+DECLARE
+    v_normalized_search TEXT;
+    v_matched_address TEXT;
+    v_longitude DOUBLE PRECISION;
+    v_latitude DOUBLE PRECISION;
+    v_match_count INTEGER;
+    v_exact_match_count INTEGER;
+BEGIN
+    IF p_address_search IS NULL OR BTRIM(p_address_search) = '' THEN
+        RAISE EXCEPTION 'address search is required';
+    END IF;
+    v_normalized_search := normalize_melbourne_address_search(p_address_search);
+
+    WITH matches AS MATERIALIZED (
+        SELECT baseline.*,
+               normalize_melbourne_address_search(baseline.full_address) =
+                   v_normalized_search AS is_exact
+        FROM get_property_baseline(v_normalized_search, 2) AS baseline
+    ), ranked AS (
+        SELECT
+            matches.*,
+            COUNT(*) OVER ()::INTEGER AS match_count,
+            COUNT(*) FILTER (WHERE is_exact) OVER ()::INTEGER
+                AS exact_match_count,
+            ROW_NUMBER() OVER (
+                ORDER BY
+                    CASE WHEN is_exact THEN 0 ELSE 1 END,
+                    full_address,
+                    address_id
+            ) AS match_rank
+        FROM matches
+    )
+    SELECT
+        ranked.full_address,
+        ranked.longitude::DOUBLE PRECISION,
+        ranked.latitude::DOUBLE PRECISION,
+        ranked.match_count,
+        ranked.exact_match_count
+    INTO
+        v_matched_address,
+        v_longitude,
+        v_latitude,
+        v_match_count,
+        v_exact_match_count
+    FROM ranked
+    WHERE match_rank = 1;
+
+    IF NOT FOUND THEN
+        RAISE EXCEPTION 'no Melbourne address matched: %', BTRIM(p_address_search);
+    END IF;
+    IF v_exact_match_count > 1
+       OR (v_exact_match_count = 0 AND v_match_count > 1) THEN
+        RAISE EXCEPTION
+            'address search is ambiguous: %. Supply the complete address and postcode',
+            BTRIM(p_address_search);
+    END IF;
+    IF v_longitude IS NULL OR v_latitude IS NULL THEN
+        RAISE EXCEPTION 'matched address has no usable coordinate: %', v_matched_address;
+    END IF;
+
+    RETURN QUERY
+    SELECT context.*
+    FROM get_environment_context(
+        v_longitude, v_latitude, p_radius_m, p_layers, p_result_limit
+    ) AS context;
+END;
+$function$;
+
+COMMENT ON FUNCTION get_environment_context_by_address(
+    TEXT, DOUBLE PRECISION, TEXT[], INTEGER
+) IS
+    'Normalises supported street abbreviations, resolves one unambiguous Melbourne property address and returns bounded application-ready tree and heat context.';
+
+COMMIT;
+
+-- Integrate migration 023 property canopy into the current baseline contract.
+BEGIN;
+
+ALTER FUNCTION get_property_baseline(TEXT, INTEGER)
+    RENAME TO get_property_baseline_pre_property_canopy_legacy;
+
+CREATE OR REPLACE FUNCTION get_property_baseline(
+    p_address_search TEXT,
+    p_result_limit INTEGER DEFAULT 10
+)
+RETURNS TABLE (
+    address_id UUID, parcel_id UUID, full_address TEXT, locality_name TEXT,
+    postcode TEXT, source_property_id TEXT, parcel_area_m2 NUMERIC,
+    lot_size_category TEXT, property_type TEXT, property_status TEXT,
+    longitude NUMERIC, latitude NUMERIC, parcel_geometry_geojson JSONB,
+    land_surface_temperature_c NUMERIC, surface_temperature_observed_on DATE,
+    temperature_measurement_type TEXT, heat_baseline_method TEXT,
+    heat_cell_geojson JSONB, current_air_temperature_c NUMERIC,
+    current_apparent_temperature_c NUMERIC, weather_station_name TEXT,
+    weather_observed_at TIMESTAMPTZ, weather_station_distance_km NUMERIC,
+    air_temperature_context_status TEXT, neighbourhood_canopy_percentage NUMERIC,
+    property_canopy_percentage NUMERIC, canopy_analysis_scope TEXT,
+    canopy_observed_on DATE, canopy_source_type TEXT,
+    canopy_source_is_proxy BOOLEAN, canopy_cell_geojson JSONB,
+    mapped_property_tree_count BIGINT, property_tree_data_status TEXT,
+    data_quality_status TEXT, limitations JSONB, heat_classification TEXT,
+    canopy_classification TEXT, classification_scheme_version TEXT,
+    classification_scope TEXT
+)
+LANGUAGE SQL
+STABLE
+PARALLEL SAFE
+AS $function$
+WITH baseline AS (
+    SELECT *
+    FROM get_property_baseline_pre_property_canopy_legacy(
+        p_address_search, p_result_limit
+    )
+)
+SELECT
+    baseline.address_id, baseline.parcel_id, baseline.full_address,
+    baseline.locality_name, baseline.postcode, baseline.source_property_id,
+    baseline.parcel_area_m2, baseline.lot_size_category, baseline.property_type,
+    baseline.property_status, baseline.longitude, baseline.latitude,
+    baseline.parcel_geometry_geojson, baseline.land_surface_temperature_c,
+    baseline.surface_temperature_observed_on, baseline.temperature_measurement_type,
+    baseline.heat_baseline_method, baseline.heat_cell_geojson,
+    baseline.current_air_temperature_c, baseline.current_apparent_temperature_c,
+    baseline.weather_station_name, baseline.weather_observed_at,
+    baseline.weather_station_distance_km, baseline.air_temperature_context_status,
+    baseline.neighbourhood_canopy_percentage,
+    property_canopy.canopy_percentage AS property_canopy_percentage,
+    CASE WHEN property_canopy.property_canopy_summary_id IS NOT NULL
+         THEN 'property_raster_clip'
+         ELSE baseline.canopy_analysis_scope END AS canopy_analysis_scope,
+    COALESCE(property_canopy.observed_on, baseline.canopy_observed_on),
+    CASE WHEN property_canopy.property_canopy_summary_id IS NOT NULL
+         THEN 'analytical_geotiff_property_clip'
+         ELSE baseline.canopy_source_type END AS canopy_source_type,
+    CASE WHEN property_canopy.property_canopy_summary_id IS NOT NULL
+         THEN FALSE ELSE baseline.canopy_source_is_proxy END AS canopy_source_is_proxy,
+    baseline.canopy_cell_geojson, baseline.mapped_property_tree_count,
+    baseline.property_tree_data_status, baseline.data_quality_status,
+    baseline.limitations || JSONB_BUILD_OBJECT(
+        'property_canopy',
+        CASE WHEN property_canopy.property_canopy_summary_id IS NOT NULL THEN
+            FORMAT(
+                'Parcel-clipped analytical Tree Extent at %s m source resolution; %s%% raster coverage. Machine-derived, not a current field survey.',
+                property_canopy.source_pixel_size_m,
+                property_canopy.coverage_percentage
+            )
+        ELSE
+            'Unavailable until a quality-passed analytical Tree Extent result covers this parcel; missing is not zero canopy.'
+        END
+    ) AS limitations,
+    baseline.heat_classification,
+    baseline.canopy_classification,
+    baseline.classification_scheme_version,
+    baseline.classification_scope
+FROM baseline
+LEFT JOIN latest_melbourne_property_canopy AS property_canopy
+  ON property_canopy.parcel_id = baseline.parcel_id;
+$function$;
+
+COMMENT ON FUNCTION get_property_baseline(TEXT, INTEGER) IS
+    'Returns existing heat, weather and 500 m canopy context plus parcel-clipped analytical property canopy when an application-ready result exists. The canopy classification remains neighbourhood-relative.';
+
+COMMIT;
+
+-- Property current air temperature (migration 024)
+BEGIN;
+
+CREATE INDEX IF NOT EXISTS idx_weather_current_property_lookup
+    ON weather_observation(observed_at DESC, station_code)
+    INCLUDE (air_temperature_c, apparent_temperature_c, station_name)
+    WHERE observation_location IS NOT NULL
+      AND air_temperature_c IS NOT NULL
+      AND quality_status = 'passed';
+
+CREATE OR REPLACE FUNCTION get_property_air_temperature_by_address(
+    p_address_search TEXT,
+    p_result_limit INTEGER DEFAULT 10
+)
+RETURNS TABLE (
+    address_id UUID, parcel_id UUID, full_address TEXT,
+    air_temperature_c NUMERIC, apparent_temperature_c NUMERIC,
+    temperature_unit TEXT, station_code TEXT, station_name TEXT,
+    observed_at TIMESTAMPTZ, observation_age_minutes NUMERIC,
+    station_distance_km NUMERIC, context_status TEXT, data_status TEXT,
+    measurement_type TEXT, source_dataset_version_id UUID, source_name TEXT,
+    source_publisher TEXT, source_url TEXT, limitation TEXT
+)
+LANGUAGE SQL
+STABLE
+PARALLEL SAFE
+AS $function$
+WITH candidates AS (
+    SELECT property.*
+    FROM latest_greater_melbourne_address_property AS property
+    WHERE p_address_search IS NOT NULL
+      AND BTRIM(p_address_search) <> ''
+      AND normalize_melbourne_address_search(property.full_address)
+          LIKE normalize_melbourne_address_search(p_address_search) || '%'
+    ORDER BY
+        CASE WHEN normalize_melbourne_address_search(property.full_address) =
+                  normalize_melbourne_address_search(p_address_search) THEN 0 ELSE 1 END,
+        CASE WHEN property.is_primary = 'Y' THEN 0 ELSE 1 END,
+        property.full_address,
+        property.source_address_id
+    LIMIT LEAST(GREATEST(COALESCE(p_result_limit, 10), 1), 50)
+)
+SELECT
+    candidate.address_id, candidate.parcel_id, candidate.full_address,
+    CASE WHEN weather.distance_m <= 25000
+         THEN weather.air_temperature_c END,
+    CASE WHEN weather.distance_m <= 25000
+         THEN weather.apparent_temperature_c END,
+    'degC'::TEXT, weather.station_code, weather.station_name, weather.observed_at,
+    CASE WHEN weather.observed_at IS NULL THEN NULL
+         ELSE ROUND(GREATEST(
+             0, EXTRACT(EPOCH FROM (CURRENT_TIMESTAMP - weather.observed_at)) / 60
+         )::NUMERIC, 1) END,
+    CASE WHEN weather.distance_m IS NULL THEN NULL
+         ELSE ROUND((weather.distance_m / 1000.0)::NUMERIC, 2) END,
+    CASE
+        WHEN weather.weather_observation_id IS NULL
+            THEN 'unavailable_no_observation_within_3_hours'
+        WHEN weather.distance_m <= 10000 THEN 'good_local_context'
+        WHEN weather.distance_m <= 25000 THEN 'regional_context_warning'
+        ELSE 'too_distant_temperature_suppressed'
+    END,
+    CASE
+        WHEN weather.weather_observation_id IS NULL OR weather.distance_m > 25000
+            THEN 'Unavailable'
+        ELSE 'Available'
+    END,
+    'nearest_recent_bom_station_air_temperature_context'::TEXT,
+    weather.dataset_version_id, weather.source_name, weather.publisher,
+    weather.source_url,
+    CASE
+        WHEN weather.weather_observation_id IS NULL THEN
+            'No application-ready BOM station observation is available within the three-hour freshness window; missing temperature is not zero.'
+        WHEN weather.distance_m <= 10000 THEN
+            'Nearest BOM observation within 10 km; local station context, not a temperature measured at the property.'
+        WHEN weather.distance_m <= 25000 THEN
+            'Nearest BOM observation is 10-25 km away; regional context only, not a temperature measured at the property.'
+        ELSE
+            'Nearest recent BOM station is more than 25 km away; temperature is suppressed rather than presented as property context.'
+    END
+FROM candidates AS candidate
+LEFT JOIN LATERAL (
+    SELECT observation.*,
+           ST_Distance(observation.observation_location, candidate.address_location) AS distance_m
+    FROM (
+        SELECT DISTINCT ON (weather.station_code)
+               weather.*, source.source_name, source.publisher,
+               source.source_url, version.extracted_at
+        FROM weather_observation AS weather
+        JOIN dataset_version AS version USING (dataset_version_id)
+        JOIN dataset_source AS source USING (source_id)
+        WHERE version.integration_status = 'integrated'
+          AND version.publication_status = 'application_ready'
+          AND weather.quality_status = 'passed'
+          AND weather.air_temperature_c IS NOT NULL
+          AND weather.observation_location IS NOT NULL
+          AND weather.observed_at >= CURRENT_TIMESTAMP - INTERVAL '3 hours'
+          AND weather.observed_at <= CURRENT_TIMESTAMP + INTERVAL '5 minutes'
+        ORDER BY weather.station_code, weather.observed_at DESC,
+                 version.extracted_at DESC
+    ) AS observation
+    ORDER BY observation.observation_location <-> candidate.address_location
+    LIMIT 1
+) AS weather ON TRUE;
+$function$;
+
+COMMENT ON FUNCTION get_property_air_temperature_by_address(TEXT, INTEGER) IS
+    'Returns nearest recent BOM station air-temperature context for each matched Melbourne property. Values are in degrees Celsius, observations older than three hours are unavailable, and temperatures beyond 25 km are suppressed. This is not a temperature measured at the property.';
 
 COMMIT;

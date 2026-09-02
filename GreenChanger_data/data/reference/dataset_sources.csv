@@ -3,7 +3,7 @@ abs_greater_melbourne_2026,ABS ASGS Edition 4 Greater Capital City Statistical A
 vicmap_property,Vicmap Property,Victorian Government,https://data.gov.au/data/dataset/vicmap-property1,property,Victoria,continuously maintained,download and spatial web services
 vicmap_address,Vicmap Address,Victorian Government,https://www.data.gov.au/data/dataset/vicmap-address1,address,Victoria,continuously maintained,download and spatial web services
 vicmap_tree_urban,Vicmap Vegetation - Tree Urban Point,Victorian Government,https://discover.data.vic.gov.au/dataset/vicmap-vegetation-tree-urban-point,canopy,Metropolitan Melbourne,2019-2020,WFS WMS REST and download
-vicmap_tree_extent,Vicmap Vegetation - Tree Extent,Victorian Government,https://discover.data.vic.gov.au/dataset/vicmap-vegetation-tree-extent,canopy,Victoria,varies by location up to 2020,GeoTIFF REST and download
+vicmap_tree_extent,Vicmap Vegetation - Tree Extent,Victorian Government,https://discover.data.vic.gov.au/dataset/vicmap-vegetation-tree-extent,canopy,Victoria,2013-12-07 to 2020-11-02,Native GeoTIFF map-sheet packages via DataShare
 melbourne_canopy_2021,Tree Canopies 2021 (Urban Forest),City of Melbourne,https://discover.data.vic.gov.au/en_AU/dataset/tree-canopies-2021-urban-forest,canopy,City of Melbourne municipality,2021,API and download
 dea_sentinel2,DEA Sentinel-2 Surface Reflectance,Geoscience Australia,https://knowledge.dea.ga.gov.au/data/product/dea-surface-reflectance-sentinel-2a-msi/,vegetation,Australia,ongoing,STAC AWS WMS and download
 landsat_surface_temperature,USGS Landsat Collection 2 Surface Temperature,United States Geological Survey,https://www.usgs.gov/landsat-missions/landsat-collection-2-surface-temperature,heat,Global,ongoing,STAC EarthExplorer and cloud download

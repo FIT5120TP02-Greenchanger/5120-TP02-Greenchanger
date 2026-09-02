@@ -13,6 +13,10 @@ ADDRESS_MIGRATION = (
     Path(__file__).resolve().parents[1]
     / "greenchanger_sql/migrations/019_environment_context_by_address.sql"
 )
+SEARCH_MIGRATION = (
+    Path(__file__).resolve().parents[1]
+    / "greenchanger_sql/migrations/022_address_search_and_indexes.sql"
+)
 
 
 class EnvironmentContextContractTests(unittest.TestCase):
@@ -89,6 +93,16 @@ class EnvironmentContextContractTests(unittest.TestCase):
             "CREATE OR REPLACE FUNCTION get_environment_context_by_address",
             schema,
         )
+        self.assertIn("normalize_melbourne_address_search", schema)
+
+    def test_address_abbreviations_are_normalized_before_lookup(self):
+        sql = SEARCH_MIGRATION.read_text(encoding="utf-8")
+        self.assertIn("'\\mRD\\M', 'ROAD'", sql)
+        self.assertIn("v_normalized_search", sql)
+        self.assertIn(
+            "normalize_melbourne_address_search(p_address_search)", sql
+        )
+        self.assertIn("ST is intentionally not expanded", sql)
 
 
 if __name__ == "__main__":

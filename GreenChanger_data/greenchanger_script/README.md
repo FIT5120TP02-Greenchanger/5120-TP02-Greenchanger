@@ -29,6 +29,8 @@ repository.
 | `check_source_registry.py` | Validate source configuration and print target SRID/quality threshold. |
 | `extract_bom.py` | Download and normalise the BOM feed without loading the database. |
 | `extract_vicmap_canopy_api.py` | Create the documented lower-resolution Vicmap canopy tile proxy. |
+| `prepare_vicmap_tree_extent.py` | Download the four official Tree Extent map-sheet packages intersecting Melbourne, verify/extract their native 20 cm analytical GeoTIFFs and build a checksummed VRT catalogue. |
+| `aggregate_vicmap_tree_extent.py` | Resume-safe tile-wise aggregation of the 57 native analytical tiles into compact 500 m Melbourne canopy cells. |
 | `inspect_canopy.py` | Inspect raster CRS, bands, values and dimensions before ingestion. |
 | `prepare_vector.py` | Repair/reproject/clip a general vector source. |
 | `validate_csv.py` | Apply configured quality rules to a staging CSV and write rejected rows. |
@@ -39,7 +41,8 @@ repository.
 | `sanity_check_melbourne.py` | Print real-address parcel, heat, canopy and mapped-tree outputs across six representative Melbourne scenarios. |
 | `clip_to_melbourne.py` | Create audited `2GMEL`-only Address, Property, heat and canopy dataset versions without deleting parent versions. |
 | `build_heat_baseline.py` | Resolve overlapping Landsat observations into one versioned, application-ready baseline cell per location. |
-| `build_canopy_baseline.py` | Publish one quality-checked, versioned 500 m canopy baseline and verify exact alignment with the heat grid. |
+| `build_canopy_baseline.py` | Publish one quality-checked, versioned 500 m canopy baseline and verify that it spatially covers current heat-cell centroids. |
+| `build_property_canopy.py` | Clip a registered <=2 m analytical Tree Extent GeoTIFF to Melbourne parcels, enforce the 95% quality gate and publish property canopy summaries. |
 | `build_environmental_classifications.py` | Calculate and activate versioned Low/Medium/High tercile thresholds from current Melbourne heat and canopy baselines. |
 | `apply_database.py` | Legacy/simple schema application helper; numbered migrations are preferred. |
 
@@ -76,9 +79,33 @@ python greenchanger_script/build_heat_baseline.py --confirm-shared
 # Publish the matching 500 m canopy baseline
 python greenchanger_script/build_canopy_baseline.py --confirm-shared
 
+# Download and prepare the genuine analytical 20 cm GeoTIFF collection.
+# Raw packages, extracted tiles, VRT and manifest are ignored by Git.
+python greenchanger_script/prepare_vicmap_tree_extent.py
+
+# Aggregate tile-wise with an atomic checkpoint. Rerun the same command after
+# interruption; two workers keeps GDAL memory bounded on a development laptop.
+python greenchanger_script/aggregate_vicmap_tree_extent.py --workers 2
+
+# Register the original VRT for parcel clipping and the compact aggregate for
+# the neighbourhood baseline.
+python greenchanger_script/ingestion.py canopy \
+  --canopy-file data/raw/vicmap/tree_extent_analytical/melbourne_tree_extent_20cm.vrt \
+  --canopy-aggregate-file data/processed/vicmap/melbourne_tree_extent_500m.jsonl.gz \
+  --canopy-analytical --tree-value 1 \
+  --canopy-observed-from 2013-12-07 --canopy-observed-on 2020-11-02 \
+  --confirm-shared
+
+# Only after the analytical version is application-ready. The rendered API
+# proxy is intentionally rejected for property calculations.
+python greenchanger_script/build_property_canopy.py \
+  --canopy-file data/raw/vicmap/tree_extent_analytical/melbourne_tree_extent_20cm.vrt \
+  --tree-value 1 --batch-size 1000 --confirm-shared
+
 # Calculate versioned Melbourne-relative Low/Medium/High thresholds
 python greenchanger_script/build_environmental_classifications.py \
-  --version-label melbourne-terciles-v1 --confirm-shared
+  --version-label melbourne-terciles-v2 \
+  --require-analytical-canopy --confirm-shared
 
 # Read-only threshold and class-distribution check
 python greenchanger_script/build_environmental_classifications.py --status
@@ -163,13 +190,28 @@ the latest valid date for each grid cell. It does not average temperatures from
 different acquisition dates. The resulting view is
 `latest_greater_melbourne_heat_baseline`.
 
+`prepare_vicmap_tree_extent.py` uses the official DataShare distribution rather
+than the rendered map API. The Melbourne boundary intersects the MELBOURNE,
+PORT PHILLIP, WARBURTON and WARRAGUL 1:250,000 packages. The prepared catalogue
+contains 57 intersecting single-band EPSG:7899 tiles at approximately 0.20 m,
+with classes 0 (no mapped tree extent), 1 (mapped tree extent) and 2 (nodata).
+It records archive/tile SHA-256 checksums, source dates, licence, boundary
+checksum and limitations in `melbourne_tree_extent_manifest.json`. The VRT is a
+catalogue of unchanged native GeoTIFFs, not a resampled image; all referenced
+raw tiles must remain available. On the development Mac, the first exact 500 m
+whole-mosaic pass was terminated after 4,117.70 seconds (68.6 minutes) without
+an output. The analytical aggregation must therefore be redesigned as a
+tile-wise resumable offline batch before database publication.
+
 `build_canopy_baseline.py` retains zero-canopy cells, verifies percentages,
 geometry, uniqueness, Melbourne coverage and exact matching of every
 current heat-baseline cell. Its `coverage_confidence_pct` means complete raster
 coverage only; it is not classification or positional accuracy. The current
 official rendered-tile proxy is labelled `api_tile_proxy` and is appropriate
-for 500 m summaries, not property-level tree-crown decisions. Replace it with
-the original analytical GeoTIFF when obtained through the DataVic order flow.
+for 500 m summaries, not property-level tree-crown decisions. The analytical
+source is locally prepared, but it must not replace the proxy in the database
+until ingestion, clipping, quality validation and a newly versioned baseline
+all complete successfully.
 
 Migration 010 provides `get_property_baseline(text, integer)` for the prototype.
 It performs a prefix address search, joins Vicmap Address to Vicmap Property by
@@ -178,7 +220,7 @@ spatially. Blank searches return no rows and the result limit is constrained to
 1–50. Missing property or environmental matches are returned with an explicit
 partial quality status instead of being silently dropped.
 
-The default BOM job downloads the ten official station feeds in
+The default BOM job independently downloads the ten official station feeds in
 `config/bom_stations.json`, rejects identity mismatches, preserves one combined
 raw document, applies the 95% record-quality gate and publishes one dataset
 version. The registry covers central, western, northern, eastern,
@@ -190,9 +232,13 @@ Migration 016 makes the property lookup eligible for only observations no older
 than three hours. At most 10 km is `good_local_context`; 10–25 km is
 `regional_context_warning`; beyond 25 km temperature is suppressed; and no
 eligible observation is explicitly unavailable. Station name, time and distance
-remain traceable. The lookup returns Landsat land-surface temperature and BOM
+remain traceable. An individual feed outage is retained as a limitation rather
+than aborting every station; at least 80% station coverage and the 95%
+record-quality gate are required for application publication. The lookup
+returns Landsat land-surface temperature and BOM
 station air temperature as separate fields. Canopy from the proxy is labelled
-`neighbourhood_500m`; property canopy percentage is null. The `trees` job uses
+`neighbourhood_500m`; property canopy remains separate unless migration 023 has
+an analytical parcel result. The `trees` job uses
 the official Tree Urban Feature Service to add mapped tree counts and dimensions
 without claiming that they are a current field survey.
 

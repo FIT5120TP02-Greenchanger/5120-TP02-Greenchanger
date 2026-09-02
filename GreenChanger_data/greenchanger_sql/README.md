@@ -48,6 +48,7 @@ greenchanger_sql/
 | `migrations/007_melbourne_scoped_versions.sql` | Adds boundary tiles and provenance for Melbourne-only derived dataset versions. |
 | `migrations/008_heat_baseline_mosaic.sql` | Creates the deduplicated 500 m Landsat heat baseline structure and current view. |
 | `migrations/009_canopy_baseline.sql` | Creates the aligned 500 m canopy baseline structure and current view. |
+| `migrations/025_current_dataset_sources.sql` | Registers the current multi-station Melbourne BOM source without changing the checksum of historical migration 002. |
 | `migrations/010_property_baseline_lookup.sql` | Adds model validation gates and the application-facing property baseline lookup. |
 | `migrations/011_tree_urban_quality_scope.sql` | Adds Tree Urban record quality status and the dataset-version index required by API ingestion. |
 | `migrations/012_property_tree_limitations.sql` | Restricts property tree lookup to the current `2GMEL` version and always returns the machine-derived-data warning. |
@@ -60,6 +61,9 @@ greenchanger_sql/
 | `migrations/019_environment_context_by_address.sql` | Resolves one unambiguous Melbourne address and delegates to the bounded coordinate-radius query. |
 | `migrations/020_evidence_backed_absolute_classifications.sql` | Stores threshold evidence with exact source locators and adds measurement-specific daily-mean air-temperature and canopy benchmark functions. |
 | `migrations/021_historical_temperature_context.sql` | Corrects the one-day historical temperature contract: 27.2°C becomes duration-qualified context and the retired 30°C method returns structured JSON metadata rather than a current-risk label. |
+| `migrations/022_address_search_and_indexes.sql` | Adds missing foreign-key/application lookup indexes and expands supported address abbreviations such as `RD` to `ROAD` before Vicmap lookup. |
+| `migrations/023_property_level_canopy.sql` | Stores versioned parcel-clipped analytical canopy, publishes only >=95%-quality results and adds an address lookup with explicit `Unavailable` handling. |
+| `migrations/024_property_current_air_temperature.sql` | Adds an indexed, source-labelled property address lookup for nearest BOM observations within three hours, with distance warnings and >25 km suppression. |
 | `seeds/001_reference_data.sql` | Defines sources, greening options, analytical measures, model metadata and sample test cases. |
 | `analytics/001_views.sql` | Defines reusable analytical views for dataset quality, site baselines and scenario comparison. |
 
@@ -132,6 +136,14 @@ resolve coordinates, accepts a unique result or one exact full-address match,
 and rejects missing, unmatched or ambiguous searches. It then delegates radius,
 layer, boundary and result-limit enforcement to migration 018 rather than
 duplicating spatial-query logic.
+
+Migration 022 adds case/whitespace normalisation and expands unambiguous
+Australian street types including `RD`, `AVE`, `BLVD`, `CRES`, `CT`, `DR`,
+`HWY`, `LN`, `PDE`, `PL` and `TCE`. `ST` is deliberately not expanded because
+it can mean Saint, as in St Kilda. The migration also adds missing foreign-key,
+status/version, time-series and address-prefix indexes. Existing primary-key,
+unique and spatial GiST indexes are not duplicated. Because address, parcel and
+tree tables are large, schedule the shared migration during a low-write period.
 
 Migration 017 adds `environmental_classification_scheme` and
 `environmental_classification_threshold`. The active
@@ -226,7 +238,7 @@ To add a schema change:
 5. Run `python -m unittest discover -v`.
 6. Check status before applying to shared Aurora.
 
-The next migration number is `022`. Never modify `001`–`021` after they have
+The next migration number is `025`. Never modify `001`–`024` after they have
 been applied. Their checksums are part of the migration audit trail.
 
 ## Data preparation and database integration
