@@ -890,7 +890,6 @@ def ingest_property(connection, args: argparse.Namespace) -> dict[str, Any]:
             row["lga_code"],
             row["geometry_wkt"],
             row["source_srid"],
-            row["parcel_area_m2"],
         )
         for index, row in enumerate(read_jsonl(raw_path))
         if index not in rejected
@@ -902,10 +901,14 @@ def ingest_property(connection, args: argparse.Namespace) -> dict[str, Any]:
             dataset_version_id, source_parcel_id, property_number,
             property_type, property_status, lga_code, parcel_geometry,
             parcel_area_m2
-        ) VALUES (
-            %s, %s, %s, %s, %s, %s,
-            ST_Transform(ST_GeomFromText(%s::text, %s::integer), {TARGET_SRID}), %s
         )
+        SELECT %s, %s, %s, %s, %s, %s, prepared.geometry,
+               ST_Area(prepared.geometry)
+        FROM (
+            SELECT ST_Transform(
+                ST_GeomFromText(%s::text, %s::integer), {TARGET_SRID}
+            ) AS geometry
+        ) AS prepared
         """,
         values,
     )

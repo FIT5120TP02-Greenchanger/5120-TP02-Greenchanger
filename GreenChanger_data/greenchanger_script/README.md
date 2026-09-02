@@ -98,9 +98,14 @@ python greenchanger_script/ingestion.py canopy \
 
 # Only after the analytical version is application-ready. The rendered API
 # proxy is intentionally rejected for property calculations.
+python greenchanger_script/optimise_vicmap_tree_extent_tiles.py
 python greenchanger_script/build_property_canopy.py \
-  --canopy-file data/raw/vicmap/tree_extent_analytical/melbourne_tree_extent_20cm.vrt \
-  --tree-value 1 --batch-size 1000 --confirm-shared
+  --canopy-file data/interim/vicmap/tree_extent_tiled/melbourne_tree_extent_20cm_tiled.vrt \
+  --tree-value 1 --batch-size 1000 --max-parcels 100000 \
+  --workers 2 --confirm-shared
+
+# Repeat until application_ready is true. The script commits each batch and
+# bounds raster memory; extreme corridor geometries return Unavailable.
 
 # Calculate versioned Melbourne-relative Low/Medium/High thresholds
 python greenchanger_script/build_environmental_classifications.py \

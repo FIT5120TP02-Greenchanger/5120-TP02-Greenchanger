@@ -9,7 +9,7 @@ class MigrationFileTests(unittest.TestCase):
     def test_migrations_are_numbered_and_ordered(self):
         self.assertEqual(
             [version for version, _ in migration_files()],
-            [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25],
+            list(range(1, 29)),
         )
 
     def test_include_is_expanded(self):
@@ -203,6 +203,32 @@ class MigrationFileTests(unittest.TestCase):
         self.assertIn("source_dataset_version_id", sql)
         self.assertIn("not a temperature measured at the property", sql)
         self.assertIn("idx_weather_current_property_lookup", sql)
+
+    def test_property_canopy_batches_have_matching_composite_index(self):
+        migration = next(
+            path for version, path in migration_files() if version == 26
+        )
+        sql = expanded_sql(migration)
+        self.assertIn("idx_parcel_version_parcel_id", sql)
+        self.assertIn("parcel(dataset_version_id, parcel_id)", sql)
+
+    def test_property_canopy_v2_uses_metric_ground_area(self):
+        migration = next(
+            path for version, path in migration_files() if version == 27
+        )
+        sql = expanded_sql(migration)
+        self.assertIn("SET parcel_area_m2 = ST_Area(p.parcel_geometry)", sql)
+        self.assertIn("property_canopy_raster_clip_v2", sql)
+        self.assertIn("EPSG:7855 ground parcel area", sql)
+
+    def test_invalid_property_canopy_v1_is_retired(self):
+        migration = next(
+            path for version, path in migration_files() if version == 28
+        )
+        sql = expanded_sql(migration)
+        self.assertIn("property_canopy_raster_clip_v1", sql)
+        self.assertIn("ArcGIS Web Mercator Shape__Area", sql)
+        self.assertIn("run_status = 'failed'", sql)
 
 
 if __name__ == "__main__":

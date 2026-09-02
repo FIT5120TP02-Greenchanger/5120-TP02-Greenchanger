@@ -3,11 +3,14 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import math
 from typing import Any, Mapping
 
 
 MAX_PROPERTY_PIXEL_SIZE_M = 2.0
 REQUIRED_ASSET_ROLE = "canopy_analytical_geotiff"
+MAX_PROPERTY_WINDOW_PIXELS = 1_048_576
+MAX_PROPERTY_SCAN_PIXELS = 25_000_000
 
 
 @dataclass(frozen=True)
@@ -55,6 +58,8 @@ def calculate_property_canopy(
     parcel_area_m2: float,
     tree_value: float,
     minimum_coverage_percentage: float = 95.0,
+    maximum_window_pixels: int = MAX_PROPERTY_WINDOW_PIXELS,
+    maximum_scan_pixels: int = MAX_PROPERTY_SCAN_PIXELS,
 ) -> PropertyCanopyResult:
     """Clip one parcel and calculate canopy using pixel-centre inclusion.
 
@@ -66,32 +71,77 @@ def calculate_property_canopy(
     import numpy as np
     from rasterio.errors import WindowError
     from rasterio.features import geometry_mask, geometry_window
-    from rasterio.windows import transform as window_transform
+    from rasterio.windows import Window, transform as window_transform
 
     if parcel_area_m2 <= 0:
         raise ValueError("parcel_area_m2 must be greater than zero")
     if tree_value <= 0:
         raise ValueError("tree_value must be greater than zero")
+    if maximum_window_pixels < 1:
+        raise ValueError("maximum_window_pixels must be at least one")
+    if maximum_scan_pixels < 1:
+        raise ValueError("maximum_scan_pixels must be at least one")
     pixel_area_m2 = abs(float(source.transform.a) * float(source.transform.e))
 
-    try:
-        window = geometry_window(source, [parcel_geometry], boundless=False)
-    except WindowError:
+    geometry_type = parcel_geometry.get("type")
+    if geometry_type == "MultiPolygon":
+        geometry_parts = [
+            {"type": "Polygon", "coordinates": coordinates}
+            for coordinates in parcel_geometry.get("coordinates", [])
+        ]
+    else:
+        geometry_parts = [parcel_geometry]
+
+    chunk_side = max(1, math.isqrt(maximum_window_pixels))
+    part_windows = []
+    for geometry_part in geometry_parts:
+        try:
+            part_window = geometry_window(source, [geometry_part], boundless=False)
+        except WindowError:
+            continue
+        part_windows.append((geometry_part, part_window))
+
+    if not part_windows:
         return PropertyCanopyResult(
             None, parcel_area_m2, None, 0.0, 0.0, "failed",
             "parcel_outside_canopy_raster",
         )
-
-    band = source.read(1, window=window, masked=True)
-    inside = geometry_mask(
-        [parcel_geometry],
-        out_shape=band.shape,
-        transform=window_transform(window, source.transform),
-        invert=True,
-        all_touched=False,
+    scan_pixels = sum(
+        int(window.width) * int(window.height) for _, window in part_windows
     )
-    valid = inside & ~np.ma.getmaskarray(band)
-    covered_area = float(valid.sum()) * pixel_area_m2
+    if scan_pixels > maximum_scan_pixels:
+        return PropertyCanopyResult(
+            None, parcel_area_m2, None, 0.0, 0.0, "failed",
+            "parcel_window_exceeds_processing_limit",
+        )
+
+    covered_pixels = 0
+    canopy_pixels = 0
+    for geometry_part, part_window in part_windows:
+        column_start = int(part_window.col_off)
+        column_stop = int(part_window.col_off + part_window.width)
+        row_start = int(part_window.row_off)
+        row_stop = int(part_window.row_off + part_window.height)
+        for row_offset in range(row_start, row_stop, chunk_side):
+            height = min(chunk_side, row_stop - row_offset)
+            for column_offset in range(column_start, column_stop, chunk_side):
+                width = min(chunk_side, column_stop - column_offset)
+                window = Window(column_offset, row_offset, width, height)
+                band = source.read(1, window=window, masked=True)
+                inside = geometry_mask(
+                    [geometry_part],
+                    out_shape=band.shape,
+                    transform=window_transform(window, source.transform),
+                    invert=True,
+                    all_touched=False,
+                )
+                valid = inside & ~np.ma.getmaskarray(band)
+                covered_pixels += int(valid.sum())
+                canopy_pixels += int(
+                    np.count_nonzero(valid & np.isclose(band.data, tree_value))
+                )
+
+    covered_area = float(covered_pixels) * pixel_area_m2
     coverage_percentage = min(100.0, covered_area * 100.0 / parcel_area_m2)
     if coverage_percentage < minimum_coverage_percentage:
         return PropertyCanopyResult(
@@ -104,7 +154,7 @@ def calculate_property_canopy(
             "raster_coverage_below_95_percent",
         )
 
-    canopy_area = float(np.count_nonzero(valid & np.isclose(band.data, tree_value))) * pixel_area_m2
+    canopy_area = float(canopy_pixels) * pixel_area_m2
     canopy_percentage = min(100.0, canopy_area * 100.0 / parcel_area_m2)
     return PropertyCanopyResult(
         round(canopy_area, 3),

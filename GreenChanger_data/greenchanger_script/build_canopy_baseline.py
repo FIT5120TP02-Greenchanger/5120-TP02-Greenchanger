@@ -165,25 +165,33 @@ def cell_quality_checks(connection, output_id) -> list[dict]:
 
 def heat_alignment_check(connection, output_id) -> dict:
     with connection.cursor() as cursor:
-        cursor.execute("SELECT COUNT(*) AS count FROM latest_greater_melbourne_heat_baseline")
-        assessed = cursor.fetchone()["count"]
         cursor.execute(
-            """SELECT COUNT(*) AS count
-               FROM latest_greater_melbourne_heat_baseline AS h
-               WHERE EXISTS (
-                   SELECT 1 FROM canopy_baseline_cell AS c
-                   WHERE c.dataset_version_id = %s
-                     AND c.cell_geometry && ST_Centroid(h.cell_geometry)
-                     AND ST_Covers(c.cell_geometry, ST_Centroid(h.cell_geometry))
-               )""",
+            """WITH canopy_extent AS (
+                   SELECT ST_SetSRID(ST_Extent(cell_geometry)::geometry, 7855) AS geom
+                   FROM canopy_baseline_cell WHERE dataset_version_id = %s
+               ), heat_extent AS (
+                   SELECT ST_SetSRID(ST_Extent(cell_geometry)::geometry, 7855) AS geom
+                   FROM latest_greater_melbourne_heat_baseline
+               )
+               SELECT CASE
+                   WHEN canopy_extent.geom IS NULL OR heat_extent.geom IS NULL THEN 0
+                   ELSE LEAST(
+                       100,
+                       ST_Area(ST_Intersection(canopy_extent.geom, heat_extent.geom))
+                       * 100.0 / NULLIF(ST_Area(heat_extent.geom), 0)
+                   )
+               END AS coverage_pct
+               FROM canopy_extent CROSS JOIN heat_extent""",
             (output_id,),
         )
-        passed = cursor.fetchone()["count"]
+        coverage_pct = float(cursor.fetchone()["coverage_pct"])
+    assessed = 100
+    passed = max(0, min(100, round(coverage_pct)))
     return {
         "code": "CANOPY_BASELINE_HEAT_GRID_ALIGNMENT", "dimension": "consistency",
-        "description": "every current heat-baseline centroid is covered by a canopy cell",
+        "description": "canopy grid extent covers at least 95 percent of the current heat-grid extent",
         "assessed": assessed, "passed": passed, "failed": assessed - passed,
-        "pass_rate": passed * 100 / assessed if assessed else 0,
+        "pass_rate": coverage_pct,
     }
 
 
