@@ -1,3 +1,9 @@
+/* =====================================================================
+   Landing v1 — original rules, kept as comments for reference.
+   Replaced by the Landing v2 rules at the bottom of this file (2026-09-03).
+   ===================================================================== */
+
+/*
 .landing-container {
     width: 100vw;
     height: 100vh;
@@ -12,7 +18,9 @@
     align-items: center;
     justify-content: center;
 }
+*/
 
+/*
 .landing-page-brand {
     display: inline-flex;
     align-items: center;
@@ -21,13 +29,17 @@
     top: 20px;
     left: 40px;
 }
+*/
+/*
 .landing-page-mark {
     width: 22px;
     height: 22px;
     border-radius: 7px;
     background: #2F7D5A;
 }
+*/
 
+/*
 .hero-card {
     display: flex;
     align-items: flex-start;
@@ -42,7 +54,9 @@
     border-radius: 20px;
     box-shadow: 0 28px 64px 0 rgba(15, 23, 28, 0.16), 0 4px 10px 0 rgba(15, 23, 28, 0.10);
 }
+*/
 
+/*
 .hero-card h1 {
     color: #14181B;
     text-align: center;
@@ -51,11 +65,13 @@
     font-size: 34px;
     font-style: normal;
     font-weight: 600;
-    line-height: 42px; /* 123.529% */
+    line-height: 42px; */ /* 123.529% */ /*
     letter-spacing: -0.7px;
     margin-bottom: 15px;
 }
+*/
 
+/*
 .landing-description {
     color: #5E666C;
     text-align: center;
@@ -64,10 +80,12 @@
     font-size: 17px;
     font-style: normal;
     font-weight: 400;
-    line-height: 26px; /* 152.941% */
+    line-height: 26px; */ /* 152.941% */ /*
     margin-bottom: 30px;
 }
+*/
 
+/*
 .address-search-container {
     display: flex;
     align-items: center;
@@ -81,10 +99,14 @@
     gap: 12px;
     background-color: #F5F7F8;
 }
+*/
+/*
 .mapbox-search-wrapper :global(input) {
     width: 100%;
     box-sizing: border-box;
 }
+*/
+/*
 .address-search-container > button {
     color: #FFFFFF;
     border: none;
@@ -100,10 +122,14 @@
     cursor: pointer;
     transition: background-color 0.15s ease;
 }
+*/
+/*
 .address-search-container button:hover {
     background-color: #26654A;
 }
+*/
 
+/*
 .address-search-container input {
     width: 100%;
     padding: 10px;
@@ -113,7 +139,9 @@
     font-size: 1rem;
     font-weight: 400;
 }
+*/
 
+/*
 .info-container {
     display: flex;
     align-items: center;
@@ -122,31 +150,41 @@
     gap: 12px;
     margin-top: 20px;
 }
+*/
 
+/*
 .info-step {
     display: flex;
     align-items: center;
     gap: 8px;
     white-space: nowrap;
 }
+*/
 
+/*
 .step-number {
     color: #2F7D5A;
     font-weight: 700;
     font-size: 13px;
 }
+*/
 
+/*
 .step-label {
     color: #14181B;
     font-size: 15px;
     font-weight: 500;
 }
+*/
 
+/*
 .step-arrow {
     color: #C4CBD0;
     font-size: 15px;
 }
+*/
 
+/*
 .landing-page-legend-container {
     position: absolute;
     bottom: 20px;
@@ -160,6 +198,8 @@
     background: rgba(255, 255, 255, 0.92);
     box-shadow: 0 2px 6px 0 rgba(15, 23, 28, 0.09);
 }
+*/
+/*
 .landing-page-legend-container p {
     color: #8C949A;
     font-family: "IBM Plex Mono";
@@ -169,16 +209,22 @@
     line-height: normal;
     letter-spacing: 1.4px;
 }
+*/
+/*
 .legend-color-container {
     display: flex;
     align-items: flex-start;
 }
+*/
+/*
 .legend-color-box {
     width: 26px;
     height: 9px;
     border-radius: 2px;
     background: #E9E2D0;
 }
+*/
+/*
 .legend-labels {
     display: flex;
     justify-content: space-between;
@@ -186,6 +232,8 @@
     align-self: stretch;
     color: #5E666C;
 }
+*/
+/*
 .legend-labels span {
     color: #5E666C;
     font-family: "Instrument Sans";
@@ -193,4 +241,296 @@
     font-style: normal;
     font-weight: 400;
     line-height: normal;
+}
+*/
+
+/* =====================================================================
+   Landing v2 — 2026-09-03 — from Figma "0 · Landing v2"
+   Layout: full-screen illustrated map, hero card top-left,
+   decorative "sample result" card bottom-right.
+   ===================================================================== */
+
+/* Full-screen background. The house illustration sits on the right of the
+   image, so the crop is anchored to the right edge on narrower viewports.
+   overflow-x: clip (not hidden) so the address dropdown can still extend
+   below the fold and the page scrolls to it on short windows. */
+.landing-container {
+    position: relative;
+    width: 100%;
+    min-height: 100vh;
+    overflow-x: clip;
+    background-color: #FBFCFC;
+    background-image: url('../assets/landing-map.webp');
+    background-size: cover;
+    background-position: right top;
+    background-repeat: no-repeat;
+    font-family: "Instrument Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    color: #195437;
+}
+
+/* Brand wordmark, top-left */
+.landing-page-brand {
+    position: absolute;
+    top: 39px;
+    left: 44px;
+    margin: 0;
+    font-size: 30px;
+    font-weight: 600;
+    letter-spacing: -0.6px;
+    color: #195437;
+}
+
+/* Hero card: 672px wide in the design, shrinks instead of overflowing on narrow viewports */
+.hero-card {
+    position: absolute;
+    top: 129px;
+    left: 48px;
+    width: min(672px, calc(100vw - 96px));
+    box-sizing: border-box;
+    padding: 46px 52px 34px;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    background: #FFFFFF;
+    border-radius: 20px;
+    box-shadow: 0 28px 64px rgba(15, 23, 28, 0.16), 0 4px 10px rgba(15, 23, 28, 0.10);
+}
+
+.landing-title {
+    margin: 0 0 44px;
+    font-size: 54px;
+    font-weight: 600;
+    line-height: 60px;
+    letter-spacing: -1.62px;
+    color: #195437;
+}
+
+.landing-description {
+    max-width: 520px;
+    margin: 0 0 38px;
+    font-size: 18px;
+    font-weight: 400;
+    line-height: 29px;
+    color: #195437;
+}
+
+/* Search pill. The <form> wraps the shared AddressAutocomplete component (untouched)
+   and the submit button. */
+.address-search-container {
+    display: flex;
+    align-items: center;
+    width: 100%;
+    height: 64px;
+    box-sizing: border-box;
+    padding: 0 8px 0 4px;
+    background: #FFFFFF;
+    border: 1px solid #EBEEF0;
+    border-radius: 32px;
+    box-shadow: 0 4px 18px rgba(20, 24, 27, 0.10);
+    transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+/* Visible focus state for the whole pill (the input itself has outline: none) */
+.address-search-container:focus-within {
+    border-color: #2F7D5A;
+    box-shadow: 0 0 0 3px rgba(47, 125, 90, 0.18), 0 4px 18px rgba(20, 24, 27, 0.10);
+}
+/* The AddressAutocomplete wrapper (shared component, untouched) keeps its own padding;
+   min-width: 0 lets the input shrink instead of pushing the button out. */
+.address-search-container > div {
+    min-width: 0;
+}
+/* The design has no search icon in the field, so hide the component's circle here only.
+   With it gone the text starts 24px in (4px pill padding + 20px wrapper padding). */
+.address-search-container > div > svg {
+    display: none;
+}
+.address-search-container input {
+    width: 100%;
+    padding: 10px 8px 10px 0;
+    background: transparent;
+    border: none;
+    font-family: inherit;
+    font-size: 17px;
+    font-weight: 400;
+    color: #14181B;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+}
+/* Figma uses #8C949A here, but that is 3.1:1 on white (WCAG AA needs 4.5:1) */
+.address-search-container input::placeholder {
+    color: #5E666C;
+}
+
+/* "Explore address →" button */
+.address-search-container > button {
+    flex-shrink: 0;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 13px 20px 13px 24px;
+    border: none;
+    border-radius: 24px;
+    background: #2F7D5A;
+    color: #FFFFFF;
+    font-family: inherit;
+    font-size: 15px;
+    font-weight: 500;
+    line-height: 18px;
+    cursor: pointer;
+    transition: background-color 0.15s ease;
+}
+.address-search-container > button:hover {
+    background: #26654A;
+}
+.cta-arrow {
+    flex-shrink: 0;
+    width: 14px;
+    height: 14px;
+}
+.address-search-container > button:focus-visible {
+    outline: 2px solid #2F7D5A;
+    outline-offset: 2px;
+}
+
+/* Validation message under the pill (this class had no rule before) */
+.error {
+    margin: 12px 0 0;
+    font-size: 14px;
+    line-height: 20px;
+    color: #B8512D;
+}
+
+/* "01 Find your street  >  02 ...  >  03 ..." strip */
+.info-container {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    row-gap: 8px;
+    width: 100%;
+    margin-top: 38px;
+}
+.info-step {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    white-space: nowrap;
+}
+.step-number {
+    font-family: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 11px;
+    font-weight: 500;
+    letter-spacing: 0.8px;
+    color: #2F7D5A;
+}
+.step-label {
+    font-size: 14px;
+    font-weight: 500;
+    color: #5E666C;
+}
+.step-arrow {
+    flex-shrink: 0;
+    width: 7px;
+    height: 12px;
+    color: #C9D0D4;
+}
+
+/* Decorative sample card, bottom-right. left: max(760px, 60%) keeps it clear of the
+   hero card (which ends at 720px) and near the house illustration on wide screens. */
+.sample-result {
+    position: absolute;
+    left: max(760px, 60%);
+    bottom: 14%;
+    box-sizing: border-box;
+    padding: 18px 26px 19px 22px;
+    background: #FFFFFF;
+    border: 1px solid #EBEEF0;
+    border-radius: 16px;
+    box-shadow: 0 12px 32px rgba(20, 24, 27, 0.18);
+    white-space: nowrap;
+}
+.sample-address {
+    margin: 0 0 12px;
+    font-family: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 10px;
+    font-weight: 500;
+    letter-spacing: 0.8px;
+    color: #8C949A;
+}
+.sample-headline {
+    margin: 0 0 8px;
+    font-size: 22px;
+    font-weight: 600;
+    letter-spacing: -0.44px;
+    color: #14181B;
+}
+.sample-delta {
+    margin: 0 0 7px;
+    font-size: 15px;
+    font-weight: 500;
+    color: #2F7D5A;
+}
+.sample-note {
+    margin: 0;
+    font-size: 12px;
+    font-weight: 400;
+    color: #8C949A;
+}
+
+/* Below 1100px the sample card would collide with the hero card, so drop it */
+@media (max-width: 1100px) {
+    .sample-result {
+        display: none;
+    }
+}
+
+/* Narrow screens: hero card flows in the page instead of being pinned at 48/129 */
+@media (max-width: 900px) {
+    .landing-container {
+        box-sizing: border-box;
+        padding: 96px 16px 32px;
+    }
+    .landing-page-brand {
+        top: 28px;
+        left: 16px;
+    }
+    .hero-card {
+        position: static;
+        width: 100%;
+        padding: 32px 24px 24px;
+    }
+    .landing-title {
+        margin-bottom: 24px;
+        font-size: 36px;
+        line-height: 42px;
+        letter-spacing: -1px;
+    }
+    .landing-description {
+        margin-bottom: 24px;
+        font-size: 16px;
+        line-height: 24px;
+    }
+    .info-container {
+        margin-top: 24px;
+    }
+}
+
+/* Phones: the button would leave the input only a few characters wide,
+   so keep just the arrow (the button has an aria-label for its name) */
+@media (max-width: 600px) {
+    .cta-text {
+        display: none;
+    }
+    .address-search-container > button {
+        padding: 13px 16px;
+    }
+    /* Stack the three steps; a wrapped row leaves a chevron pointing at nothing */
+    .info-container {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+    .step-arrow {
+        display: none;
+    }
 }
