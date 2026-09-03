@@ -344,16 +344,26 @@ export default function MapView({ selectedLocation, setSelectedLocation, simulat
             </Map>
             <SidePanel stats = {propertySelected.stats} trees={trees}/>
 
-            {/* Home button (2026-09-03): brand pill bottom-left, styled after the Figma "Brand" element.
-                Goes back to the landing page; the address stays in the search box there. */}
+            {/* Brand pill (2026-09-03): static label bottom-left, styled after the Figma "Brand" element */}
+            <div className={styles["brand-pill"]}>
+                <span className={styles["brand-pill-mark"]} aria-hidden="true" />
+                GreenChanger
+            </div>
+
+            {/* Home button (2026-09-03, review #73): house icon at the top of the map, just left of
+                the side panel, like the Figma legend/help controls. Goes back to the landing page. */}
             <button
                 type="button"
                 className={styles["home-button"]}
                 onClick={() => onNavigate?.("landing")}
                 aria-label="Back to the home page"
+                title="Home"
             >
-                <span className={styles["home-button-mark"]} aria-hidden="true" />
-                GreenChanger
+                <svg viewBox="0 0 24 24" width="22" height="22" fill="none" aria-hidden="true">
+                    <path d="M3 11.5 12 4l9 7.5" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+                    <path d="M5.5 10.5V20h13v-9.5" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+                    <path d="M10 20v-6h4v6" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round" />
+                </svg>
             </button>
             
         </div>

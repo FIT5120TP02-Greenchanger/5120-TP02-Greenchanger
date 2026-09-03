@@ -97,9 +97,9 @@
     }
 }
 
-/* Home button (2026-09-03): the Figma "Brand" pill, bottom-left.
+/* Brand pill (2026-09-03): static label, the Figma "Brand" element, bottom-left.
    bottom: 44px keeps it above the Mapbox logo, which sits in the bottom 10-33px. */
-.home-button {
+.brand-pill {
     position: absolute;
     left: 28px;
     bottom: 44px;
@@ -108,7 +108,6 @@
     align-items: center;
     gap: 9px;
     padding: 9px 16px 9px 11px;
-    border: none;
     border-radius: 999px;
     background: #FFFFFF;
     box-shadow: 0 2px 6px rgba(15, 23, 28, 0.10);
@@ -117,19 +116,44 @@
     font-size: 14px;
     font-weight: 600;
     line-height: 20px;
-    cursor: pointer;
-    transition: box-shadow 0.15s ease;
+    pointer-events: none;
 }
-.home-button:hover {
-    box-shadow: 0 4px 12px rgba(15, 23, 28, 0.18);
-}
-.home-button:focus-visible {
-    outline: 2px solid #2F7D5A;
-    outline-offset: 2px;
-}
-.home-button-mark {
+.brand-pill-mark {
     width: 20px;
     height: 20px;
     border-radius: 6px;
     background: #2F7D5A;
+}
+
+/* Home button (2026-09-03, review #73): 44px house-icon control at the top of the map, just
+   left of the side panel. The side panel (Panel.module.css .side-panel) is absolute at
+   right: 26px, top: 26px and 396px wide (350 + 2x22 padding + 2x1 border), so
+   right = 26px + 396px + 28px gap. Same recipe as the Figma "Help" control. */
+.home-button {
+    position: absolute;
+    top: 26px;
+    right: calc(26px + 396px + 28px);
+    z-index: 100;
+    width: 44px;
+    height: 44px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    border: 1px solid #EBEEF0;
+    border-radius: 10px;
+    background: #FFFFFF;
+    box-shadow: 0 3px 10px rgba(15, 23, 28, 0.12);
+    color: #5E666C;
+    cursor: pointer;
+    pointer-events: auto;
+    transition: color 0.15s ease, box-shadow 0.15s ease;
+}
+.home-button:hover {
+    color: #2F7D5A;
+    box-shadow: 0 4px 14px rgba(15, 23, 28, 0.18);
+}
+.home-button:focus-visible {
+    outline: 2px solid #2F7D5A;
+    outline-offset: 2px;
 }
