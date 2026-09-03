@@ -82,8 +82,11 @@ function toBaselineAddressFormat(mapboxLabel) {
 
     let s = mapboxLabel
         .replace(/,\s*Australia$/i, '')      // drop trailing country
-        .replace(/,\s*(Victoria|VIC)\b(?=\s*\d{4}\b|\s*$)/i, ' ')       // drop state name, if present
-        .replace(/\bVIC\b/gi, '')            // drop state abbreviation, if present
+        // .replace(/,\s*(Victoria|VIC)\b(?=\s*\d{4}\b|\s*$)/i, ' ')       // drop state name, if present
+        // .replace(/\bVIC\b/gi, '')            // drop state abbreviation, if present
+        // (2026-09-03) Mapbox writes "Clayton Victoria 3168" with no comma before the state, so the
+        // comma-anchored pattern above never matched and every clicked lot 404ed on the baseline.
+        .replace(/\b(Victoria|VIC)\b/gi, ' ')  // drop the state wherever it sits
         .replace(/,/g, ' ')                  // commas -> spaces
         .replace(/\s+/g, ' ')                // collapse multiple spaces
         .trim()

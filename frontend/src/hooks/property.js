@@ -89,7 +89,9 @@ export function useSelectedProperty(treeFeatures) {
             const enriched = { ...best, properties: { ...best.properties, ...mapBaselineToProperties(baseline) } };
             selectFeature(enriched, label);
         } else {
-            selectFeature(best, label);
+            // selectFeature(best, label);
+            // (2026-09-03) flag the miss so HeatPanel can say "no record" rather than "Unavailable"
+            selectFeature({ ...best, properties: { ...best.properties, baselineMissing: true } }, label);
         }
 
         },
@@ -161,6 +163,9 @@ export function useSelectedProperty(treeFeatures) {
             weatherContext: selected.properties?.weatherContext,
             airTemperatureC: selected.properties?.airTemperatureC,
             // heat band + provenance (2026-09-03)
+            // undefined = baseline not loaded (yet); baselineMissing = lookup failed for this lot
+            baselineLoaded: selected.properties?.heatClassification !== undefined || selected.properties?.landSurfaceTempC !== undefined,
+            baselineMissing: !!selected.properties?.baselineMissing,
             heatClassification: selected.properties?.heatClassification,
             classificationScope: selected.properties?.classificationScope,
             classificationSchemeVersion: selected.properties?.classificationSchemeVersion,

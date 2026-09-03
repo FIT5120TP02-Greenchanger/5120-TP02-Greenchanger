@@ -17,6 +17,23 @@ export default function HeatPanel({ stats }) {
     if (!stats) {
         return null; // nothing selected yet — SidePanel is always mounted, so bail quietly
     }
+    // Clicked lots load their baseline after the outline appears; say so instead of showing
+    // "Unavailable" pills, and say "no record" when the lookup found nothing for this lot.
+    if (!stats.baselineLoaded) {
+        return (
+            <div className={styles["heat-panel"]}>
+                <div className={styles["heat-section"]}>
+                    <span className={styles["heat-section-label"]}>HEAT CONTEXT</span>
+                    <p className={styles["heat-address"]}>Current address · {stats.address}</p>
+                    <p className={styles["heat-caveat"]}>
+                        {stats.baselineMissing
+                            ? "No property record was found for this lot, so there is no heat or air temperature to show."
+                            : "Looking up this lot…"}
+                    </p>
+                </div>
+            </div>
+        );
+    }
     const band = stats.heatClassification || "Unavailable";
     const scope = SCOPE_LABEL[stats.classificationScope] || "";
     const heatNote = stats.limitations?.heat;
