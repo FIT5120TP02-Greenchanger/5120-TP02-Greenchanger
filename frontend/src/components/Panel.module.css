@@ -528,20 +528,16 @@
     cursor: not-allowed;
 }
 
-/* In-map planting (2026-09-03): the placement and scenario panels now sit inside the side
-   panel instead of filling a page of their own. */
+/* In-map planting (2026-09-03): the placement and scenario panels sit alone inside the side
+   panel while a scenario is open, like the old PlantTreePage sidebar. */
 .side-panel .placement-panel {
     height: auto;
-    margin-top: 14px;
-    padding: 14px 0 0;
+    padding: 0;
     border: none;
-    border-top: 1px solid #EBEEF0;
     border-radius: 0;
 }
 .side-panel .scenario-panel {
-    margin-top: 14px;
-    padding: 14px 0 0;
-    border-top: 1px solid #EBEEF0;
+    padding: 0;
 }
 .side-panel .scenario-panel > h3 {
     font-size: 1.125rem;
@@ -554,4 +550,21 @@
     width: auto;
     flex: 1;
     height: 44px;
+}
+
+/* Reset on the normal page (2026-09-03): clears the placed trees */
+.reset-trees-button {
+    width: 100%;
+    margin-top: 10px;
+    padding: 11px;
+    border: 2px solid #1F7A55;
+    border-radius: 10px;
+    background: #FFFFFF;
+    color: #1F7A55;
+    font-size: 0.9375rem;
+    font-weight: 600;
+    cursor: pointer;
+}
+.reset-trees-button:hover {
+    background: #EFF6F2;
 }

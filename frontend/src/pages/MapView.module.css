@@ -195,3 +195,17 @@
     line-height: 1.4;
     box-shadow: 0 4px 12px rgba(15, 23, 28, 0.2);
 }
+
+/* Scenario mode (2026-09-03): same badge PlantTreePage had, sitting above the brand pill */
+.pilot-badge {
+    position: absolute;
+    left: 28px;
+    bottom: 96px;
+    z-index: 100;
+    width: 300px;
+    padding: 8px 12px;
+    border-radius: 6px;
+    background: #17392E;
+    color: #FFFFFF;
+    font-size: 0.75rem;
+}

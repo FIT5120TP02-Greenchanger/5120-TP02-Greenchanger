@@ -104,6 +104,9 @@ export default function MapView({ selectedLocation, setSelectedLocation, simulat
     const [pendingPos, setPendingPos] = useState(null); // where the user clicked
     const [hoverPos, setHoverPos] = useState(null);     // cursor before the first click
     const [treeSize, setTreeSize] = useState("Medium");
+    // Scenario mode (2026-09-03): from "Plant a tree here" until Done. While open, the side panel
+    // shows only the planting / comparison panels, like the old PlantTreePage sidebar did.
+    const [scenarioOpen, setScenarioOpen] = useState(false);
     
 
 
@@ -237,6 +240,7 @@ export default function MapView({ selectedLocation, setSelectedLocation, simulat
         if (!home) return;
         propertySelected.selectFeature(home.feature, home.address);
         setPropertyAnchor({ lng: home.lng, lat: home.lat });
+        mapRef.current?.flyTo({ center: [home.lng, home.lat], zoom: 18, duration: 1200 }); // and bring the map back to the pin
     }, [propertySelected, home]);
 
     // "Simulate a change" in the side panel: open the card on the current selection (home by default)
@@ -259,13 +263,28 @@ export default function MapView({ selectedLocation, setSelectedLocation, simulat
         setPendingPos(null);
         setHoverPos(null);
         setPlacing(true);
+        setScenarioOpen(true);
     }, []);
+    // Done in the comparison panel: back to the normal page, trees stay on the map
+    const closeScenario = useCallback(() => {
+        setScenarioOpen(false);
+        setPlacing(false);
+        setPendingPos(null);
+        setHoverPos(null);
+        setSimulating(false);
+        resetCursor();
+    }, []);
+    // Cancel while placing: back to the comparison if trees exist, otherwise leave scenario mode
     const cancelPlacing = useCallback(() => {
         setPlacing(false);
         setPendingPos(null);
         setHoverPos(null);
         resetCursor();
-    }, []);
+        if (!simulatedTrees?.length) {
+            setScenarioOpen(false);
+            setSimulating(false);
+        }
+    }, [simulatedTrees]);
     const confirmPlacing = useCallback(() => {
         if (!pendingPos) return;
         const tree = { lng: pendingPos.lng, lat: pendingPos.lat, radiusM: TREE_SIZES[treeSize].radiusM, size: treeSize };
@@ -276,13 +295,32 @@ export default function MapView({ selectedLocation, setSelectedLocation, simulat
         setSimulating(false); // close the lot card, the scenario panel takes over
         resetCursor();
     }, [pendingPos, treeSize, setSimulatedTrees]);
+    // Remove / Reset inside the comparison panel behave like the old page: with no trees left,
+    // placement starts again. Reset on the normal page just clears the trees.
     const removeTreeAt = useCallback((index) => {
-        setSimulatedTrees((prev) => {
-            const next = (prev || []).filter((_, i) => i !== index);
-            return next.length ? next : null;
-        });
-    }, [setSimulatedTrees]);
-    const resetScenario = useCallback(() => setSimulatedTrees(null), [setSimulatedTrees]);
+        const next = (simulatedTrees || []).filter((_, i) => i !== index);
+        setSimulatedTrees(next.length ? next : null);
+        if (!next.length) startPlacing();
+    }, [simulatedTrees, setSimulatedTrees, startPlacing]);
+    const resetScenario = useCallback(() => {
+        setSimulatedTrees(null);
+        startPlacing();
+    }, [setSimulatedTrees, startPlacing]);
+    const clearTrees = useCallback(() => setSimulatedTrees(null), [setSimulatedTrees]);
+
+    // The canopy panel counts the placed trees as if they were mapped, so the numbers move
+    // with the scenario after Done. Heat cannot change with trees, so HeatPanel stays as is.
+    const treesForPanel = useMemo(() => {
+        if (!simulatedTrees?.length) return trees;
+        const addedM2 = simulatedTrees.reduce((sum, t) => sum + Math.PI * t.radiusM ** 2, 0);
+        const canopyM2 = trees.canopyM2 + addedM2;
+        return {
+            ...trees,
+            nTrees: trees.nTrees + simulatedTrees.length,
+            canopyM2,
+            pct: trees.viewM2 ? (canopyM2 / trees.viewM2) * 100 : trees.pct,
+        };
+    }, [trees, simulatedTrees]);
 
     // Dashed preview circle = canopy at maturity for the chosen size, at the cursor or the click
     const previewGeoJson = useMemo(() => {
@@ -522,8 +560,8 @@ export default function MapView({ selectedLocation, setSelectedLocation, simulat
                     </Marker>
                 )}
                 */}
-                {/* Arrive flow: the lot card only shows in simulate mode (and hides while placing a tree) */}
-                {simulating && !placing && propertyAnchor && propertySelected.stats && (
+                {/* Arrive flow: the lot card only shows in simulate mode (and hides in scenario mode) */}
+                {simulating && !scenarioOpen && propertyAnchor && propertySelected.stats && (
                     <Marker
                         longitude={propertyAnchor.lng}
                         latitude={propertyAnchor.lat}
@@ -568,7 +606,10 @@ export default function MapView({ selectedLocation, setSelectedLocation, simulat
             */}
             <SidePanel
                 stats={propertySelected.stats}
-                trees={trees}
+                trees={treesForPanel}
+                simulatedCount={simulatedTrees?.length || 0}
+                onResetScenario={clearTrees}
+                scenarioOpen={scenarioOpen}
                 simulating={simulating}
                 isHomeSelected={!home || sameAddress(propertySelected.stats?.address, home.address)}
                 onSimulate={startSimulating}
@@ -589,9 +630,14 @@ export default function MapView({ selectedLocation, setSelectedLocation, simulat
                     onAdd: startPlacing,
                     onReset: resetScenario,
                     onRemoveTree: removeTreeAt,
-                    // no onFinish: there is no page to leave any more, Reset / Remove are the exits
+                    onFinish: closeScenario, // Done: back to the normal page, trees kept
                 } : null}
             />
+
+            {/* Scenario mode (2026-09-03): the disclaimer the old planting page showed */}
+            {scenarioOpen && (
+                <div className={styles["pilot-badge"]}>Simulation is indicative, not professional advice</div>
+            )}
 
             {/* Arrive flow: hint toast (lookup, road/reserve click, errors) under the search box */}
             {propertySelected.hint && (

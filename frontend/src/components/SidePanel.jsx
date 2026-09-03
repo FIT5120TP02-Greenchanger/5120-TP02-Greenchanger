@@ -19,20 +19,26 @@ import styles from './Panel.module.css'
 // Arrive flow (2026-09-03): a "Test a change" section is the entry point into simulate mode
 // (Figma "Test a change"). simulating / isHomeSelected / onSimulate / onBackHome come from MapView.
 // export default function SidePanel({ stats, trees, simulating, isHomeSelected, onSimulate, onBackHome }) {
-// placing / placement / scenario added (2026-09-03): in-map planting
-export default function SidePanel({ stats, trees, simulating, isHomeSelected, onSimulate, onBackHome, placing, placement, scenario }) {
+// placing / placement / scenario added (2026-09-03): in-map planting.
+// scenarioOpen / simulatedCount / onResetScenario added (2026-09-03): while a scenario is open the
+// panel shows only the planting or comparison panel (like the old PlantTreePage sidebar); after
+// Done it is the normal panel again, with the placed trees counted in and a Reset button.
+export default function SidePanel({
+    stats, trees, simulating, isHomeSelected, onSimulate, onBackHome,
+    placing, placement, scenario, scenarioOpen, simulatedCount, onResetScenario,
+}) {
+    if (scenarioOpen) {
+        return (
+            <aside className={styles['side-panel']}>
+                {placing ? <TreePlacementPanel {...placement} /> : scenario ? <ComparisonPanel {...scenario} /> : null}
+            </aside>
+        );
+    }
     return (
         <aside className={styles['side-panel']}>
-            <CanopyPanel pct={trees.pct} nTrees={trees.nTrees} canopyM2={trees.canopyM2} viewM2={trees.viewM2} />
+            <CanopyPanel pct={trees.pct} nTrees={trees.nTrees} canopyM2={trees.canopyM2} viewM2={trees.viewM2} simulatedCount={simulatedCount} />
             <HeatPanel stats={stats} />
 
-            {/* Placing a tree: size picker + Plant/Cancel. Trees placed: scenario with Add/Remove/Reset.
-                Otherwise: the entry point into simulate mode. */}
-            {placing ? (
-                <TreePlacementPanel {...placement} />
-            ) : scenario ? (
-                <ComparisonPanel {...scenario} />
-            ) : (
             <div className={styles['test-change']}>
                 <span className={styles['test-change-label']}>TEST A CHANGE</span>
                 {isHomeSelected ? (
@@ -51,14 +57,21 @@ export default function SidePanel({ stats, trees, simulating, isHomeSelected, on
                         </p>
                     </>
                 )}
+                {simulatedCount > 0 && (
+                    <p>{simulatedCount} simulated tree{simulatedCount === 1 ? "" : "s"} on the map.</p>
+                )}
                 {/* The only way into simulate mode */}
                 {!simulating && (
                     <button type="button" className={styles['simulate-button']} onClick={onSimulate}>
                         + Simulate a change
                     </button>
                 )}
+                {simulatedCount > 0 && (
+                    <button type="button" className={styles['reset-trees-button']} onClick={onResetScenario}>
+                        Reset simulated trees
+                    </button>
+                )}
             </div>
-            )}
         </aside>
     )
 }
