@@ -221,8 +221,17 @@ Migration 022 normalises case and repeated whitespace and expands supported
 street types before lookup; for example, `10 Smith Rd` is searched as
 `10 SMITH ROAD`. `ST` is intentionally not expanded because it may mean Saint.
 It rejects missing, unmatched and ambiguous searches instead of silently using
-the wrong property. After resolving the address coordinate, it delegates to the
-coordinate-based function:
+the wrong property. Migration 030 groups repeated joins by normalised full
+address, so multiple parcels attached to the same official address no longer
+become a false “no match”. Consumers can inspect the retained parcel options:
+
+```sql
+SELECT full_address, parcel_count, parcel_ids
+FROM search_melbourne_addresses('251A BELMORE RD', 10);
+```
+
+Genuinely different matching addresses remain ambiguous. After resolving the
+address coordinate, the wrapper delegates to the coordinate-based function:
 
 ```sql
 SELECT layer, feature_id, distance_m, observed_on, properties, geometry_geojson

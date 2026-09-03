@@ -349,6 +349,14 @@ class PostgisEnvironmentContextIntegrationTests(unittest.TestCase):
         )[0][0]
         self.assertEqual(normalized, "10 TEST ROAD MELBOURNE 3000")
 
+    def test_address_search_returns_one_group_with_parcel_options(self):
+        rows = self._rows(
+            """SELECT full_address, parcel_count, cardinality(parcel_ids)
+               FROM search_melbourne_addresses(%s, 10)""",
+            ("10 test rd melbourne 3000",),
+        )
+        self.assertEqual(rows, [("10 TEST ROAD MELBOURNE 3000", 1, 1)])
+
     def test_historical_temperature_function_returns_metadata(self):
         result = self._rows(
             "SELECT classify_melbourne_daily_mean_air_temperature(32, 22.4)"

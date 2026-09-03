@@ -58,6 +58,7 @@ greenchanger_sql/
 | `migrations/016_multi_station_weather_context.sql` | Adds recent nearest-station BOM context, distance-status rules and suppression of stale or overly distant temperatures. |
 | `migrations/017_environmental_classifications.sql` | Adds versioned Melbourne tercile thresholds, missing-safe classification and property-lookup labels. |
 | `migrations/029_fixed_temperature_display_bands.sql` | Changes heat labels to fixed GreenChanger bands (≤27°C, >27–30°C, >30°C), preserves canopy thresholds and keeps missing/non-finite values unavailable. |
+| `migrations/030_address_match_deduplication.sql` | Groups repeated address–parcel joins by normalised full address, preserves parcel options and prevents false “ambiguous/no match” results for abbreviations such as `RD`. |
 | `migrations/018_environment_context_radius.sql` | Adds a bounded, application-facing radius query for current mapped-tree points and clipped 500 m heat cells. |
 | `migrations/019_environment_context_by_address.sql` | Resolves one unambiguous Melbourne address and delegates to the bounded coordinate-radius query. |
 | `migrations/020_evidence_backed_absolute_classifications.sql` | Stores threshold evidence with exact source locators and adds measurement-specific daily-mean air-temperature and canopy benchmark functions. |

@@ -9,7 +9,7 @@ class MigrationFileTests(unittest.TestCase):
     def test_migrations_are_numbered_and_ordered(self):
         self.assertEqual(
             [version for version, _ in migration_files()],
-            list(range(1, 30)),
+            list(range(1, 31)),
         )
 
     def test_include_is_expanded(self):
@@ -104,6 +104,17 @@ class MigrationFileTests(unittest.TestCase):
         self.assertIn("p_temperature_c <= 30.0", sql)
         self.assertIn("p_metric_code = 'heat'", sql)
         self.assertIn("not BOM heatwave, health-risk or comfort classifications", sql)
+
+    def test_address_matches_are_grouped_without_losing_parcel_options(self):
+        migration = next(
+            path for version, path in migration_files() if version == 30
+        )
+        sql = expanded_sql(migration)
+        self.assertIn("CREATE OR REPLACE FUNCTION search_melbourne_addresses", sql)
+        self.assertIn("DISTINCT ON (baseline.address_id, baseline.parcel_id)", sql)
+        self.assertIn("COUNT(DISTINCT distinct_pairs.parcel_id)", sql)
+        self.assertIn("ARRAY_AGG(DISTINCT distinct_pairs.parcel_id)", sql)
+        self.assertIn("v_exact_address_count = 0 AND v_address_count > 1", sql)
 
     def test_environment_context_uses_bounded_indexed_radius_queries(self):
         migration = next(
