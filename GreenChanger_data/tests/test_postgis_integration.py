@@ -237,7 +237,7 @@ class PostgisEnvironmentContextIntegrationTests(unittest.TestCase):
                     integration_status, publication_status,
                     source_observed_from, source_observed_to
                 )
-                SELECT source_id, %s, 'property_canopy_raster_clip_v1',
+                SELECT source_id, %s, 'property_canopy_raster_clip_v2',
                        0.5, 100, 'passed', 'integrated', 'application_ready',
                        DATE '2020-01-01', DATE '2020-12-31'
                 FROM dataset_source
