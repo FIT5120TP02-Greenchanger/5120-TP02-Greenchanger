@@ -1,6 +1,6 @@
 {
-  "scenario_set": "greater-melbourne-property-baseline-v1",
-  "purpose": "Real-address spot checks for parcel, neighbourhood canopy, mapped-tree and Landsat heat joins.",
+  "scenario_set": "melbourne-property-baseline-v2",
+  "purpose": "Real-address spot checks for parcel, property and neighbourhood canopy, mapped-tree and Landsat heat joins.",
   "scenarios": [
     {
       "scenario_code": "CBD_SMALL",
@@ -21,7 +21,7 @@
     {
       "scenario_code": "WEST_GROWTH_MEDIUM",
       "zone": "Western growth area",
-      "address": "5 KEIRA CIRCUIT WERRIBEE 3030",
+      "address": "14 XAVIER COURT WERRIBEE 3030",
       "expected_localities": ["WERRIBEE"],
       "expected_lot_size": "medium",
       "context": "Medium parcel in Melbourne's western growth corridor."
@@ -29,7 +29,7 @@
     {
       "scenario_code": "NORTH_GROWTH_MEDIUM",
       "zone": "Northern growth area",
-      "address": "47 WHITFIELD CRESCENT CRAIGIEBURN 3064",
+      "address": "50 NORTHLEIGH AVENUE CRAIGIEBURN 3064",
       "expected_localities": ["CRAIGIEBURN"],
       "expected_lot_size": "medium",
       "context": "Medium parcel in Melbourne's northern growth corridor."
@@ -37,7 +37,7 @@
     {
       "scenario_code": "EAST_LARGE",
       "zone": "Eastern suburbs",
-      "address": "4 CATHERINE STREET BOX HILL 3128",
+      "address": "9 STURDEE STREET BOX HILL 3128",
       "expected_localities": ["BOX HILL"],
       "expected_lot_size": "large",
       "context": "Large eastern-suburban parcel."
@@ -45,7 +45,7 @@
     {
       "scenario_code": "SOUTHEAST_LARGE",
       "zone": "Southeastern suburbs",
-      "address": "3 BRENTWOOD CRESCENT FRANKSTON 3199",
+      "address": "10 GLENVIEW CRESCENT FRANKSTON 3199",
       "expected_localities": ["FRANKSTON"],
       "expected_lot_size": "large",
       "context": "Large southeastern-suburban parcel."

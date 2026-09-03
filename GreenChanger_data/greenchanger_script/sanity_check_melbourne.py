@@ -113,9 +113,16 @@ def print_report(report: dict) -> None:
                 f"observed={actual['heat_observed_on']}",
             )
             print(
-                "  Canopy:",
+                "  Neighbourhood canopy:",
                 f"{actual['neighbourhood_canopy_percentage']:.2f}%",
                 f"classification={actual['canopy_classification']}",
+                "classification_scope=Melbourne-relative 500 m baseline",
+            )
+            print(
+                "  Property canopy:",
+                f"{actual['property_canopy_percentage']:.2f}%"
+                if actual["property_canopy_percentage"] is not None
+                else "Unavailable",
                 f"scope={actual['canopy_scope']}",
                 f"source={actual['canopy_source_type']}",
                 f"observed={actual['canopy_observed_on']}",

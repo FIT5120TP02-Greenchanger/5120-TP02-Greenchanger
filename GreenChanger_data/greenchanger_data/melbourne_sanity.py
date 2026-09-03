@@ -157,32 +157,48 @@ def evaluate_property_scenario(
     elif (as_of - heat_date).days > 365:
         warnings.append(f"Landsat heat observation is {(as_of - heat_date).days} days old")
 
-    canopy = _float(row.get("neighbourhood_canopy_percentage"))
-    if canopy is None:
+    neighbourhood_canopy = _float(row.get("neighbourhood_canopy_percentage"))
+    property_canopy = _float(row.get("property_canopy_percentage"))
+    if neighbourhood_canopy is None:
         failures.append("500 m neighbourhood canopy baseline is missing")
-    elif not (0.0 <= canopy <= 100.0):
-        failures.append(f"canopy percentage {canopy:.2f}% is outside 0-100")
+    elif not (0.0 <= neighbourhood_canopy <= 100.0):
+        failures.append(
+            f"neighbourhood canopy percentage {neighbourhood_canopy:.2f}% is outside 0-100"
+        )
     else:
         checks.append("neighbourhood canopy percentage is valid")
-        if canopy <= 1.0 or canopy >= 90.0:
+        if neighbourhood_canopy <= 1.0 or neighbourhood_canopy >= 90.0:
             warnings.append(
-                f"extreme proxy canopy value ({canopy:.2f}%); compare with imagery "
-                "before using it for a property decision"
+                f"extreme 500 m neighbourhood canopy value ({neighbourhood_canopy:.2f}%); "
+                "compare with imagery before using it for a local decision"
             )
-    if row.get("canopy_analysis_scope") != "neighbourhood_500m":
-        failures.append("canopy output is not labelled neighbourhood_500m")
-    if row.get("canopy_source_is_proxy") is not True:
-        failures.append("current canopy baseline is not explicitly marked as a proxy")
-    if row.get("property_canopy_percentage") is not None:
-        failures.append("property canopy must remain suppressed for the proxy source")
+    if row.get("canopy_analysis_scope") != "property_raster_clip":
+        failures.append("application-ready property canopy is not labelled property_raster_clip")
+    if row.get("canopy_source_type") != "analytical_geotiff_property_clip":
+        failures.append("property canopy is not sourced from the analytical GeoTIFF")
+    if row.get("canopy_source_is_proxy") is not False:
+        failures.append("analytical property canopy is incorrectly marked as a proxy")
+    if property_canopy is None:
+        failures.append("application-ready property canopy percentage is unavailable")
+    elif not (0.0 <= property_canopy <= 100.0):
+        failures.append(f"property canopy percentage {property_canopy:.2f}% is outside 0-100")
+    else:
+        checks.append("analytical property canopy percentage is valid")
+        if property_canopy <= 1.0 or property_canopy >= 90.0:
+            warnings.append(
+                f"extreme property canopy value ({property_canopy:.2f}%); compare "
+                "with current aerial imagery before using it for a property decision"
+            )
     canopy_classification = row.get("canopy_classification")
-    if canopy is None:
+    if neighbourhood_canopy is None:
         if canopy_classification != "Unavailable":
             failures.append("missing canopy is not classified as Unavailable")
     elif canopy_classification not in {"Low", "Medium", "High"}:
         failures.append(f"invalid canopy classification {canopy_classification!r}")
     else:
-        checks.append("canopy has a supported Melbourne-relative classification")
+        checks.append(
+            "neighbourhood canopy has a supported Melbourne-relative classification"
+        )
 
     classification_version = row.get("classification_scheme_version")
     classification_scope = row.get("classification_scope")
@@ -257,7 +273,8 @@ def evaluate_property_scenario(
         "heat_observed_on": _serialise(heat_date),
         "temperature_measurement_type": row.get("temperature_measurement_type"),
         "heat_classification": heat_classification,
-        "neighbourhood_canopy_percentage": canopy,
+        "neighbourhood_canopy_percentage": neighbourhood_canopy,
+        "property_canopy_percentage": property_canopy,
         "canopy_classification": canopy_classification,
         "classification_scheme_version": classification_version,
         "classification_scope": classification_scope,
@@ -298,7 +315,7 @@ def build_report(
         for status in ("PASS", "WARN", "FAIL")
     }
     return {
-        "scenario_set": "greater-melbourne-property-baseline-v1",
+        "scenario_set": "melbourne-property-baseline-v2",
         "as_of": _serialise(as_of),
         "validation_scope": (
             "Real-address geographic and join sanity checks; not ground-truth field validation"

@@ -34,13 +34,13 @@ def valid_row():
         "heat_classification": "High",
         "neighbourhood_canopy_percentage": 30,
         "canopy_classification": "Medium",
-        "classification_scheme_version": "melbourne-terciles-v1",
+        "classification_scheme_version": "melbourne-terciles-v2",
         "classification_scope": "relative_to_greater_melbourne_application_ready_baseline",
-        "property_canopy_percentage": None,
-        "canopy_analysis_scope": "neighbourhood_500m",
+        "property_canopy_percentage": 25,
+        "canopy_analysis_scope": "property_raster_clip",
         "canopy_observed_on": datetime.date(2020, 11, 2),
-        "canopy_source_type": "api_tile_proxy",
-        "canopy_source_is_proxy": True,
+        "canopy_source_type": "analytical_geotiff_property_clip",
+        "canopy_source_is_proxy": False,
         "mapped_property_tree_count": 2,
         "property_tree_data_status": "mapped_tree_points_available",
         "weather_station_name": "Test station",
@@ -66,9 +66,9 @@ class MelbourneSanityTests(unittest.TestCase):
         self.assertEqual(result["status"], "PASS")
         self.assertFalse(result["failures"])
 
-    def test_extreme_proxy_zero_trees_and_distant_weather_warn(self):
+    def test_extreme_property_canopy_zero_trees_and_distant_weather_warn(self):
         row = valid_row()
-        row["neighbourhood_canopy_percentage"] = 95
+        row["property_canopy_percentage"] = 95
         row["mapped_property_tree_count"] = 0
         row["weather_station_distance_km"] = 40
         row["current_air_temperature_c"] = None
@@ -81,6 +81,22 @@ class MelbourneSanityTests(unittest.TestCase):
         )
         self.assertEqual(result["status"], "WARN")
         self.assertEqual(len(result["warnings"]), 3)
+
+    def test_property_and_neighbourhood_canopy_are_validated_separately(self):
+        row = valid_row()
+        row["neighbourhood_canopy_percentage"] = 30
+        row["property_canopy_percentage"] = None
+        result = evaluate_property_scenario(
+            SCENARIO,
+            [row],
+            inside_greater_melbourne=True,
+            as_of=datetime.date(2026, 8, 27),
+        )
+        self.assertEqual(result["status"], "FAIL")
+        self.assertIn(
+            "application-ready property canopy percentage is unavailable",
+            result["failures"],
+        )
 
     def test_regional_weather_context_warns(self):
         row = valid_row()
