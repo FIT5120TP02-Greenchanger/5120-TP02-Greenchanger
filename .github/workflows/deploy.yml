@@ -1,6 +1,20 @@
 
 
-# flow: git pull  →  docker build  →  docker rm  →  docker run
+# flow: git pull  →  docker build/run (backend)  →  npm build → swap /srv/greenchanger/web (frontend)
+#
+# The frontend is built ON the box rather than on the runner because SSM can only
+# run commands, not transfer files -- shipping a dist/ from the runner would mean
+# an S3 bucket and a presigned URL just to move 700 KB. A 2 GB swapfile makes the
+# 908 MB instance comfortable: the build peaks at ~80 MB of swap and takes ~8s.
+#
+# Publishing the built frontend lives in .github/scripts/publish-frontend.sh rather
+# than inline here, so that CI can run the real sequence against a temp directory --
+# see test-publish-frontend.sh. It is the one part of this workflow CI can exercise.
+#
+# api-prev is kept until the frontend has published, so a frontend failure still
+# leaves a working container to fall back to. The backend is not rolled back on a
+# frontend failure -- it passed its own healthcheck and reverting it would undo a
+# good deployment.
 
 name: Deploy
 
@@ -13,7 +27,8 @@ on:
 
     # only trigger if the following files are changed
     paths:
-      - "backend/**" 
+      - "backend/**"
+      - "frontend/**"
       - ".github/workflows/deploy.yml"
   workflow_dispatch:
 
@@ -61,7 +76,14 @@ jobs:
               "docker stop api-prev 2>/dev/null || true",
               "docker run -d --name api --restart unless-stopped -p 8000:8000 $TAG",
               "sleep 5",
-              "if curl -fsS localhost:8000/api/health >/dev/null; then docker rm -f api-prev 2>/dev/null || true; docker image prune -f; echo deployed $TAG; else echo healthcheck failed, rolling back; docker rm -f api; docker rename api-prev api; docker start api; exit 1; fi"
+              "if curl -fsS localhost:8000/api/health >/dev/null; then echo backend deployed $TAG; else echo healthcheck failed, rolling back; docker rm -f api; docker rename api-prev api; docker start api; exit 1; fi",
+              "cd /home/ubuntu/app/frontend",
+              "cp /home/ubuntu/frontend.env .env.production",
+              "sudo -u ubuntu npm ci --no-audit --no-fund",
+              "sudo -u ubuntu npm run build",
+              "bash /home/ubuntu/app/.github/scripts/publish-frontend.sh dist /srv/greenchanger www-data:www-data",
+              "docker rm -f api-prev 2>/dev/null || true",
+              "docker image prune -f"
             ]' \
             --query Command.CommandId --output text)
           echo "command_id=$COMMAND_ID" >> "$GITHUB_OUTPUT"
