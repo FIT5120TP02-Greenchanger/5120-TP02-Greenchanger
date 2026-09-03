@@ -96,3 +96,116 @@
         opacity: 0;
     }
 }
+
+/* Brand pill (2026-09-03): static label, the Figma "Brand" element, bottom-left.
+   bottom: 44px keeps it above the Mapbox logo, which sits in the bottom 10-33px. */
+.brand-pill {
+    position: absolute;
+    left: 28px;
+    bottom: 44px;
+    z-index: 100;
+    display: inline-flex;
+    align-items: center;
+    gap: 9px;
+    padding: 9px 16px 9px 11px;
+    border-radius: 999px;
+    background: #FFFFFF;
+    box-shadow: 0 2px 6px rgba(15, 23, 28, 0.10);
+    color: #14181B;
+    font-family: "Instrument Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    font-size: 14px;
+    font-weight: 600;
+    line-height: 20px;
+    pointer-events: none;
+}
+.brand-pill-mark {
+    width: 20px;
+    height: 20px;
+    border-radius: 6px;
+    background: #2F7D5A;
+}
+
+/* Home button (2026-09-03, review #73): 44px house-icon control beside the search pill.
+   .address-container is absolute at left: 10px, width: 30% and about 55px tall, so
+   left = 30% + 10px + 12px gap and top centres the 44px button on it.
+   Same recipe as the Figma "Help" control. */
+.home-button {
+    position: absolute;
+    top: 16px;
+    left: calc(30% + 22px);
+    z-index: 100;
+    width: 44px;
+    height: 44px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    border: 1px solid #EBEEF0;
+    border-radius: 10px;
+    background: #FFFFFF;
+    box-shadow: 0 3px 10px rgba(15, 23, 28, 0.12);
+    color: #5E666C;
+    cursor: pointer;
+    pointer-events: auto;
+    transition: color 0.15s ease, box-shadow 0.15s ease;
+}
+.home-button:hover {
+    color: #2F7D5A;
+    box-shadow: 0 4px 14px rgba(15, 23, 28, 0.18);
+}
+.home-button:focus-visible {
+    outline: 2px solid #2F7D5A;
+    outline-offset: 2px;
+}
+
+/* ---- Arrive flow (2026-09-03) ---- */
+
+/* Pin + "Your home" label, stacked and centred on the address */
+.home-marker {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+.home-label {
+    margin-bottom: 4px;
+    padding: 4px 10px;
+    border-radius: 8px;
+    background: #FFFFFF;
+    box-shadow: 0 2px 6px rgba(15, 23, 28, 0.15);
+    font-family: "Instrument Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    font-size: 12px;
+    font-weight: 600;
+    color: #14181B;
+    white-space: nowrap;
+}
+
+/* Hint toast under the search pill */
+.map-hint {
+    position: absolute;
+    top: 75px;
+    left: 10px;
+    z-index: 100;
+    max-width: 360px;
+    padding: 10px 14px;
+    border-radius: 8px;
+    background: #17392E;
+    color: #FFFFFF;
+    font-family: "Instrument Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    font-size: 13px;
+    line-height: 1.4;
+    box-shadow: 0 4px 12px rgba(15, 23, 28, 0.2);
+}
+
+/* Scenario mode (2026-09-03): same badge PlantTreePage had, sitting above the brand pill */
+.pilot-badge {
+    position: absolute;
+    left: 28px;
+    bottom: 96px;
+    z-index: 100;
+    width: 300px;
+    padding: 8px 12px;
+    border-radius: 6px;
+    background: #17392E;
+    color: #FFFFFF;
+    font-size: 0.75rem;
+}

@@ -1,7 +1,9 @@
 import { fmtArea } from "../utils/geo";
 import styles from './Panel.module.css'
 
-export default function CanopyPanel({ pct, nTrees, canopyM2, viewM2 }) {
+// export default function CanopyPanel({ pct, nTrees, canopyM2, viewM2 }) {
+// simulatedCount added (2026-09-03): the numbers above include the trees the user placed
+export default function CanopyPanel({ pct, nTrees, canopyM2, viewM2, simulatedCount }) {
 
     return (
         <div className={styles["canopy-panel"]}>
@@ -20,6 +22,11 @@ export default function CanopyPanel({ pct, nTrees, canopyM2, viewM2 }) {
                 <p className={styles["canopy-verdict"]}>
                     A live count of mapped tree points in view — not a neighbourhood classification.
                 </p>
+                {simulatedCount > 0 && (
+                    <p className={styles["canopy-verdict"]}>
+                        Includes {simulatedCount} simulated tree{simulatedCount === 1 ? "" : "s"} you placed.
+                    </p>
+                )}
             </div>
             <div className={styles["canopy-view"]}>
                 <span>WHAT IS HERE NOW</span>

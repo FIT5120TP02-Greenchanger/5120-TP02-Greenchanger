@@ -1,9 +1,10 @@
 import { useState, useMemo, useCallback } from "react";
-import { polygonAreaM2, pointInPolygon, circleMetres, fmtArea } from "../utils/geo";
+// import { polygonAreaM2, pointInPolygon, circleMetres, fmtArea } from "../utils/geo";
+import { polygonAreaM2, pointInPolygon, fmtArea } from "../utils/geo"; // circleMetres unused since the circle fallback went (2026-09-03)
 import { fetchParcelsAtPoint, resolveParcel, geocodeAddress, reverseGeocode, fetchPropertyBaseline } from "../services/vicmap";
 
 
-const RADIUS_M = 50;
+// const RADIUS_M = 50; // only used by the removed 50 m circle fallback (2026-09-03)
 
 function mapBaselineToProperties(baseline) {
 return {
@@ -22,6 +23,12 @@ return {
     // Beyond 25km, air/apparent temp should be suppressed server-side.
     weatherContext: baseline.air_temperature_context_status,
     airTemperatureC: baseline.current_air_temperature_c,
+    // Heat band + provenance (2026-09-03, review #5/#12/#13). The API already returned these;
+    // they were dropped here, so heat never had a Low/Medium/High and every caveat was hand-written.
+    heatClassification: baseline.heat_classification,
+    classificationScope: baseline.classification_scope,
+    classificationSchemeVersion: baseline.classification_scheme_version,
+    limitations: baseline.limitations,
 };
 }
 
@@ -53,11 +60,15 @@ export function useSelectedProperty(treeFeatures) {
                 setHint("Nothing here — roads and reserves have no property polygon.");
                 return;
             }
-            const circleGeom = circleMetres(lngLat.lng, lngLat.lat, RADIUS_M);
-            selectFeature(
-                { type: "Feature", properties: { kind: "circle" }, geometry: circleGeom },
-                `${RADIUS_M}m around your click`
-            );
+            // const circleGeom = circleMetres(lngLat.lng, lngLat.lat, RADIUS_M);
+            // selectFeature(
+                // { type: "Feature", properties: { kind: "circle" }, geometry: circleGeom },
+                // `${RADIUS_M}m around your click`
+            // );
+            // return;
+            // Arrive flow (2026-09-03): no 50 m circle fallback any more. A click that hits no
+            // lot keeps the current selection and only shows a hint.
+            setHint("Roads and reserves have no lot. Click a house.");
             return;
         }
 
@@ -149,6 +160,11 @@ export function useSelectedProperty(treeFeatures) {
             weatherDistanceKm: selected.properties?.weatherDistanceKm,
             weatherContext: selected.properties?.weatherContext,
             airTemperatureC: selected.properties?.airTemperatureC,
+            // heat band + provenance (2026-09-03)
+            heatClassification: selected.properties?.heatClassification,
+            classificationScope: selected.properties?.classificationScope,
+            classificationSchemeVersion: selected.properties?.classificationSchemeVersion,
+            limitations: selected.properties?.limitations,
         };
     }, [selected, selectedLabel, treeFeatures]);
 
