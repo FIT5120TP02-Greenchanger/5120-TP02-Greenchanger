@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState, useCallback } from 'react';
+// import { useEffect, useRef, useState, useCallback } from 'react';
+import { useEffect, useRef, useState, useCallback, useMemo } from 'react'; // useMemo added (in-map planting, 2026-09-03)
 
 import Map, { Marker, Source, Layer } from 'react-map-gl/mapbox';
 import 'mapbox-gl/dist/mapbox-gl.css';
@@ -7,11 +8,15 @@ import styles from './MapView.module.css';
 import { useParcels } from '../hooks/parcels';
 import { useTreeCanopy } from '../hooks/canopy';
 import { useSelectedProperty } from "../hooks/property";
-import { circleMetres, centroidOfGeometry } from '../utils/geo';
+// import { circleMetres, centroidOfGeometry } from '../utils/geo';
+import { circleMetres, centroidOfGeometry, pointInPolygon } from '../utils/geo'; // pointInPolygon: outside-lot hint (2026-09-03)
 
 import SidePanel from '../components/SidePanel';
 import PropertyPanel from "../components/PropertyPanel";
 import AddressAutocomplete from "../components/AddressAutocomplete";
+// In-map planting (2026-09-03): the planting UI moved from PlantTreePage into SidePanel;
+// MapView only needs the size table for the preview circle.
+import { TREE_SIZES } from "../hooks/simulation";
 import { START_ZOOM, MIN_PARCEL_ZOOM } from "../config/mapConfig";
 
 const canopyLayer = {
@@ -66,7 +71,9 @@ function sameAddress(a, b) {
 
 // export default function MapView({ selectedLocation, setSelectedLocation, simulatedTrees, onPlantTree }) {
 // onNavigate added (2026-09-03) so the home button below can go back to the landing page
-export default function MapView({ selectedLocation, setSelectedLocation, simulatedTrees, onPlantTree, onNavigate }) {
+// export default function MapView({ selectedLocation, setSelectedLocation, simulatedTrees, onPlantTree, onNavigate }) {
+// setSimulatedTrees replaces onPlantTree (2026-09-03): planting happens here, App only stores the trees
+export default function MapView({ selectedLocation, setSelectedLocation, simulatedTrees, setSimulatedTrees, onNavigate }) {
     const mapRef = useRef(null);
     const hoverId = useRef(null);
     const debounceRef = useRef(null);
@@ -92,6 +99,11 @@ export default function MapView({ selectedLocation, setSelectedLocation, simulat
     // to simulate; before that the searched address is just pinned.
     const [simulating, setSimulating] = useState(false);
     const [home, setHome] = useState(null); // { feature, address, lng, lat } of the searched address
+    // In-map planting (2026-09-03)
+    const [placing, setPlacing] = useState(false);
+    const [pendingPos, setPendingPos] = useState(null); // where the user clicked
+    const [hoverPos, setHoverPos] = useState(null);     // cursor before the first click
+    const [treeSize, setTreeSize] = useState("Medium");
     
 
 
@@ -199,12 +211,21 @@ export default function MapView({ selectedLocation, setSelectedLocation, simulat
         const map = mapRef.current?.getMap();
         if (!map) return;
 
+        // In-map planting: a click puts the tree there. Outside the selected lot is allowed, just hinted.
+        if (placing) {
+            const { lng, lat } = e.lngLat;
+            setPendingPos({ lng, lat });
+            const lotGeom = propertySelected.selected?.geometry;
+            if (lotGeom && !pointInPolygon(lng, lat, lotGeom)) propertySelected.setHint("You are planting on another property.");
+            return;
+        }
+
         const features = map.queryRenderedFeatures(e.point, { layers: ["parcel-hit"] });
         if (features.length) {
             setPropertyAnchor({ lng: e.lngLat.lng, lat: e.lngLat.lat });
         }
         await propertySelected.selectAtPoint(features, parcels.parcelFeatures, zoom < MIN_PARCEL_ZOOM, e.lngLat);
-    }, [propertySelected, parcels.parcelFeatures, zoom]);
+    }, [placing, propertySelected, parcels.parcelFeatures, zoom]);
 
     // Restore the searched lot as the selection (card anchored on it)
     const backToHome = useCallback(() => {
@@ -225,12 +246,65 @@ export default function MapView({ selectedLocation, setSelectedLocation, simulat
         backToHome();
     }, [backToHome]);
 
+    // ---- In-map planting (2026-09-03) ----
+    // Replaces the separate PlantTreePage so the camera, the selection and the scenario survive.
+    // The trees themselves live in App (simulatedTrees / setSimulatedTrees).
+    const resetCursor = () => { const c = mapRef.current?.getMap()?.getCanvas(); if (c) c.style.cursor = ""; };
+    const startPlacing = useCallback(() => {
+        setPendingPos(null);
+        setHoverPos(null);
+        setPlacing(true);
+    }, []);
+    const cancelPlacing = useCallback(() => {
+        setPlacing(false);
+        setPendingPos(null);
+        setHoverPos(null);
+        resetCursor();
+    }, []);
+    const confirmPlacing = useCallback(() => {
+        if (!pendingPos) return;
+        const tree = { lng: pendingPos.lng, lat: pendingPos.lat, radiusM: TREE_SIZES[treeSize].radiusM, size: treeSize };
+        setSimulatedTrees((prev) => [...(prev || []), tree]);
+        setPlacing(false);
+        setPendingPos(null);
+        setHoverPos(null);
+        setSimulating(false); // close the lot card, the scenario panel takes over
+        resetCursor();
+    }, [pendingPos, treeSize, setSimulatedTrees]);
+    const removeTreeAt = useCallback((index) => {
+        setSimulatedTrees((prev) => {
+            const next = (prev || []).filter((_, i) => i !== index);
+            return next.length ? next : null;
+        });
+    }, [setSimulatedTrees]);
+    const resetScenario = useCallback(() => setSimulatedTrees(null), [setSimulatedTrees]);
+
+    // Dashed preview circle = canopy at maturity for the chosen size, at the cursor or the click
+    const previewGeoJson = useMemo(() => {
+        const pos = pendingPos || hoverPos;
+        return {
+            type: "FeatureCollection",
+            features: placing && pos
+                ? [{ type: "Feature", properties: {}, geometry: circleMetres(pos.lng, pos.lat, TREE_SIZES[treeSize].radiusM) }]
+                : [],
+        };
+    }, [placing, pendingPos, hoverPos, treeSize]);
+
+    // Same indicative numbers PlantTreePage used (viewport-based, see review #18)
+    const projected = useMemo(() => {
+        if (!simulatedTrees?.length) return null;
+        if (!trees.viewM2) return { pct: trees.pct, deltaPts: 0 };
+        const addedM2 = simulatedTrees.reduce((sum, t) => sum + Math.PI * t.radiusM ** 2, 0);
+        const pct = ((trees.canopyM2 + addedM2) / trees.viewM2) * 100;
+        return { pct, deltaPts: pct - trees.pct };
+    }, [simulatedTrees, trees.canopyM2, trees.viewM2, trees.pct]);
+
     useEffect(() => {
-        if (!simulating) return;
-        const onKey = (e) => { if (e.key === "Escape") stopSimulating(); };
+        if (!simulating && !placing) return;
+        const onKey = (e) => { if (e.key === "Escape") (placing ? cancelPlacing() : stopSimulating()); };
         window.addEventListener("keydown", onKey);
         return () => window.removeEventListener("keydown", onKey);
-    }, [simulating, stopSimulating]);
+    }, [simulating, placing, stopSimulating, cancelPlacing]);
 
     // Hints (lookup, road click, errors) are shown as a toast that hides after 4 s
     const { hint, setHint } = propertySelected;
@@ -247,22 +321,50 @@ export default function MapView({ selectedLocation, setSelectedLocation, simulat
     }, [refreshAll]);
 
 
+    // const handleMouseMove = useCallback((e) => {
+        // const map = mapRef.current?.getMap();
+        // if (!map || !e.features?.length) return;
+        // map.getCanvas().style.cursor = "pointer";
+        // if (hoverId.current !== null) {
+        // map.setFeatureState({ source: "parcels", id: hoverId.current }, { hover: false });
+        // }
+        // hoverId.current = e.features[0].id;
+        // map.setFeatureState({ source: "parcels", id: hoverId.current }, { hover: true });
+    // }, []);
+    // In-map planting (2026-09-03): while placing, the cursor is a crosshair and the preview
+    // circle follows it until the first click. Parcel hover is unchanged otherwise.
     const handleMouseMove = useCallback((e) => {
         const map = mapRef.current?.getMap();
-        if (!map || !e.features?.length) return;
+        if (!map) return;
+        if (placing) {
+            map.getCanvas().style.cursor = "crosshair";
+            if (!pendingPos) setHoverPos({ lng: e.lngLat.lng, lat: e.lngLat.lat });
+            return;
+        }
+        if (!e.features?.length) return;
         map.getCanvas().style.cursor = "pointer";
         if (hoverId.current !== null) {
         map.setFeatureState({ source: "parcels", id: hoverId.current }, { hover: false });
         }
         hoverId.current = e.features[0].id;
         map.setFeatureState({ source: "parcels", id: hoverId.current }, { hover: true });
-    }, []);
+    }, [placing, pendingPos]);
 
 
+    // const handleMouseLeave = useCallback(() => {
+        // const map = mapRef.current?.getMap();
+        // if (!map) return;
+        // map.getCanvas().style.cursor = "";
+        // if (hoverId.current !== null) {
+        // map.setFeatureState({ source: "parcels", id: hoverId.current }, { hover: false });
+        // }
+        // hoverId.current = null;
+    // }, []);
     const handleMouseLeave = useCallback(() => {
         const map = mapRef.current?.getMap();
         if (!map) return;
         map.getCanvas().style.cursor = "";
+        setHoverPos(null); // in-map planting: no preview once the cursor leaves the map
         if (hoverId.current !== null) {
         map.setFeatureState({ source: "parcels", id: hoverId.current }, { hover: false });
         }
@@ -381,9 +483,17 @@ export default function MapView({ selectedLocation, setSelectedLocation, simulat
                         }}
                     >
                         <Layer id="simulated-trees-fill" type="fill" source="simulated-trees" paint={{ 'fill-color': '#2F7D5A', 'fill-opacity': 0.35 }} />
-                        <Layer id="simulated-trees-line" type="line" source="simulated-trees" paint={{ 'line-color': '#2F7D5A', 'line-width': 2, 'line-dasharray': [2, 2] }} />
+                        {/* Placed trees are solid so they differ from the dashed preview (2026-09-03) */}
+                        {/* <Layer id="simulated-trees-line" type="line" source="simulated-trees" paint={{ 'line-color': '#2F7D5A', 'line-width': 2, 'line-dasharray': [2, 2] }} /> */}
+                        <Layer id="simulated-trees-line" type="line" source="simulated-trees" paint={{ 'line-color': '#2F7D5A', 'line-width': 2 }} />
                     </Source>
                 )}
+
+                {/* In-map planting: dashed preview circle while placing (2026-09-03) */}
+                <Source id="tree-preview" type="geojson" data={previewGeoJson}>
+                    <Layer id="tree-preview-fill" type="fill" source="tree-preview" paint={{ 'fill-color': '#2F7D5A', 'fill-opacity': 0.2 }} />
+                    <Layer id="tree-preview-line" type="line" source="tree-preview" paint={{ 'line-color': '#2F7D5A', 'line-width': 2, 'line-dasharray': [2, 2] }} />
+                </Source>
 
                 {/* Original block kept for reference (arrive flow, 2026-09-03):
                 {propertyAnchor && (
@@ -406,8 +516,8 @@ export default function MapView({ selectedLocation, setSelectedLocation, simulat
                     </Marker>
                 )}
                 */}
-                {/* Arrive flow: the lot card only shows in simulate mode */}
-                {simulating && propertyAnchor && propertySelected.stats && (
+                {/* Arrive flow: the lot card only shows in simulate mode (and hides while placing a tree) */}
+                {simulating && !placing && propertyAnchor && propertySelected.stats && (
                     <Marker
                         longitude={propertyAnchor.lng}
                         latitude={propertyAnchor.lat}
@@ -419,12 +529,7 @@ export default function MapView({ selectedLocation, setSelectedLocation, simulat
                                 stats={propertySelected.stats}
                                 hint={propertySelected.hint}
                                 onClose={stopSimulating}
-                                onPlantTree={() => onPlantTree({
-                                    lng: propertyAnchor?.lng,
-                                    lat: propertyAnchor?.lat,
-                                    label: propertySelected.stats.address,
-                                    feature: propertySelected.selected, // the lot, so the planting page can draw it
-                                })} />
+                                onPlantTree={startPlacing} />
                         </div>
                     </Marker>
                 )}
@@ -462,6 +567,24 @@ export default function MapView({ selectedLocation, setSelectedLocation, simulat
                 isHomeSelected={!home || sameAddress(propertySelected.stats?.address, home.address)}
                 onSimulate={startSimulating}
                 onBackHome={backToHome}
+                placing={placing}
+                placement={{
+                    size: treeSize,
+                    onSizeChange: setTreeSize,
+                    onConfirm: confirmPlacing,
+                    onCancel: cancelPlacing,
+                    hasPosition: !!simulatedTrees?.length,
+                    canPlant: !!pendingPos,
+                }}
+                scenario={simulatedTrees?.length ? {
+                    baseline: { pct: trees.pct },
+                    projected,
+                    trees: simulatedTrees,
+                    onAdd: startPlacing,
+                    onReset: resetScenario,
+                    onRemoveTree: removeTreeAt,
+                    onFinish: stopSimulating,
+                } : null}
             />
 
             {/* Arrive flow: hint toast (lookup, road/reserve click, errors) under the search box */}

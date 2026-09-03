@@ -527,3 +527,31 @@
     opacity: 0.5;
     cursor: not-allowed;
 }
+
+/* In-map planting (2026-09-03): the placement and scenario panels now sit inside the side
+   panel instead of filling a page of their own. */
+.side-panel .placement-panel {
+    height: auto;
+    margin-top: 14px;
+    padding: 14px 0 0;
+    border: none;
+    border-top: 1px solid #EBEEF0;
+    border-radius: 0;
+}
+.side-panel .scenario-panel {
+    margin-top: 14px;
+    padding: 14px 0 0;
+    border-top: 1px solid #EBEEF0;
+}
+.side-panel .scenario-panel > h3 {
+    font-size: 1.125rem;
+    margin-bottom: 10px;
+}
+.side-panel .scenario-actions {
+    gap: 10px;
+}
+.side-panel .scenario-actions button {
+    width: auto;
+    flex: 1;
+    height: 44px;
+}
