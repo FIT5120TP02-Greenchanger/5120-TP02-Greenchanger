@@ -62,10 +62,8 @@ export default function MapView({ selectedLocation, setSelectedLocation, simulat
     const hoverId = useRef(null);
     const debounceRef = useRef(null);
     const consumedInitialLocation = useRef(false);
-    const shouldFlyToSelection = useRef(false);
 
     const [zoom, setZoom] = useState(START_ZOOM);
-    const [isPropertyclicked, setIsPropertyClick] = useState(false)
     const [propertyAnchor, setPropertyAnchor] = useState(null)
     
     const trees = useTreeCanopy();
@@ -92,23 +90,18 @@ export default function MapView({ selectedLocation, setSelectedLocation, simulat
         setPropertyAnchor({ lng: longitude, lat: latitude });
     }, []);
 
+    const flyToFeature = useCallback((result) => {
+        const geom = result?.feature?.geometry;
+        if (!geom) return;
+        const centroid = centroidOfGeometry(geom);
+        if (centroid) transitCoordinates(centroid.lng, centroid.lat);
+    }, [transitCoordinates]);
 
     const handleAddressSelect = async (location) => {
         setSelectedLocation({ address: location.full_address, addressId: location.address_id });
         setAddressInput(location.full_address);
-        shouldFlyToSelection.current = true;
-        const result = await resolveFromBaseline(location.full_address);
+        flyToFeature(await resolveFromBaseline(location.full_address));
     };
-
-    useEffect(() => {
-        const geom = propertySelected.selected?.geometry;
-        if (!geom || !shouldFlyToSelection.current) return;
-        shouldFlyToSelection.current = false;
-        const centroid = centroidOfGeometry(geom);
-        if (centroid) {
-            transitCoordinates(centroid.lng, centroid.lat);
-        }
-    }, [propertySelected.selected, transitCoordinates]);
 
 
     const handleAddressChange = (location) => {
@@ -142,8 +135,6 @@ export default function MapView({ selectedLocation, setSelectedLocation, simulat
         setPropertyAnchor({ lng: e.lngLat.lng, lat: e.lngLat.lat });
 
         await propertySelected.selectAtPoint(features, parcels.parcelFeatures, zoom < MIN_PARCEL_ZOOM, e.lngLat);
-
-        setIsPropertyClick(true);
     }, [propertySelected, parcels.parcelFeatures, zoom]);
 
 
@@ -182,9 +173,12 @@ export default function MapView({ selectedLocation, setSelectedLocation, simulat
     useEffect(() => {
         if (!isMapLoaded || !selectedLocation?.address || consumedInitialLocation.current) return;
         consumedInitialLocation.current = true;
-        shouldFlyToSelection.current = true;
-        resolveFromBaseline( selectedLocation.address );
-    }, [isMapLoaded, selectedLocation, resolveFromBaseline]);
+        let cancelled = false;
+        resolveFromBaseline(selectedLocation.address).then((result) => {
+            if (!cancelled) flyToFeature(result);
+        });
+        return () => { cancelled = true; };
+}, [isMapLoaded, selectedLocation, resolveFromBaseline, flyToFeature]);
 
     return (
         <div className={styles["map-container"]}>

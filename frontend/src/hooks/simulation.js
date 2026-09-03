@@ -1,5 +1,5 @@
 import { useState, useCallback } from "react";
- 
+
 // Approximate mature canopy radius per size tier — tune against the data
 // team's real Torquato et al. crown-area figures once you swap the
 // TreeSimulator's placeholder prices for their sourced numbers.
