@@ -58,34 +58,6 @@ export default function LandingPage({onNavigate, selectedLocation, setSelectedLo
                     Find out where you sits - and see what one more tree would actually change.
                 </p>
                 <form className={styles["address-search-container"]} onSubmit={handleSubmit}>
-                        {/* <SearchBox
-                            accessToken={import.meta.env.VITE_MAPBOX_ACCESS_TOKEN}
-                            onRetrieve={handleAddressSelect}
-                            onChange={handleAddressChange}
-                            value={addressInput}
-                            placeholder="Search for an address"
-                            options={{
-                                country: 'AU',
-                                language: 'en',
-                                types: 'address',
-                                bbox: [
-                                    144.4,
-                                    -38.3,
-                                    145.5,
-                                    -37.4
-                                ]
-                            }}
-                            theme={{
-                                variables: {
-                                    fontFamily: 'inherit',
-                                    fontSize: '16px',
-                                    borderRadius: '10px',
-                                },
-                                icons: {
-                                    search: ''
-                                }
-                            }}
-                        /> */}
                         <AddressAutocomplete
                             value={addressInput}
                             onChange={handleAddressChange}

@@ -82,8 +82,7 @@ function toBaselineAddressFormat(mapboxLabel) {
 
     let s = mapboxLabel
         .replace(/,\s*Australia$/i, '')      // drop trailing country
-        .replace(/,\s*(Victoria|VIC)\b(?=\s*\d{4}\b|\s*$)/i, ' ')       // drop state name, if present
-        .replace(/\bVIC\b/gi, '')            // drop state abbreviation, if present
+        .replace(/\b(Victoria|VIC)\b/gi, '')          // drop state abbreviation, if present
         .replace(/,/g, ' ')                  // commas -> spaces
         .replace(/\s+/g, ' ')                // collapse multiple spaces
         .trim()

@@ -67,7 +67,6 @@
 
 .canopy-view {
     padding: 10px 0px;
-    border-bottom: 1px solid #EBEEF0;
     gap: 10px;
 }
 .canopy-view span{
@@ -127,7 +126,7 @@
 
 .lot-rows {
     display: grid;
-    grid-template-columns: 150px auto;
+    grid-template-columns: 70% auto;
     gap: 8px 20px;
     margin: 0;
     gap: 11px;
