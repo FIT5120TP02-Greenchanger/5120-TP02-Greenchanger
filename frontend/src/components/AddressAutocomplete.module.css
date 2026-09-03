@@ -10,14 +10,21 @@
 }
 
 .autocomplete-input {
+    flex: 1;
+    min-width: 0;              /* ← the key fix: lets it actually shrink instead of overflowing */
     width: 100%;
     padding: 10px;
+    padding-right: 44px;       /* ← reserve space for the home icon on the right, adjust to its actual width */
     border-radius: 50px;
     background: transparent;
     border: none;
     font-size: 1rem;
     font-weight: 400;
     box-sizing: border-box;
+
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
 }
 
 .autocomplete-input:focus {
