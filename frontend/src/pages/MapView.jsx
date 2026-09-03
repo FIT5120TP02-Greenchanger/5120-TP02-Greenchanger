@@ -57,6 +57,13 @@ const lotLineLayer = {
 
 
 
+// Arrive flow: the reverse-geocoded label of a clicked lot can read "... CLAYTON VICTORIA 3168"
+// while the database address is "... CLAYTON 3168", so compare without state and punctuation.
+function sameAddress(a, b) {
+    const norm = (v) => String(v || "").toUpperCase().replace(/\bVICTORIA\b|\bVIC\b|,/g, " ").replace(/\s+/g, " ").trim();
+    return norm(a) === norm(b);
+}
+
 // export default function MapView({ selectedLocation, setSelectedLocation, simulatedTrees, onPlantTree }) {
 // onNavigate added (2026-09-03) so the home button below can go back to the landing page
 export default function MapView({ selectedLocation, setSelectedLocation, simulatedTrees, onPlantTree, onNavigate }) {
@@ -451,7 +458,7 @@ export default function MapView({ selectedLocation, setSelectedLocation, simulat
                 stats={propertySelected.stats}
                 trees={trees}
                 simulating={simulating}
-                isHomeSelected={!home || propertySelected.stats?.address === home.address}
+                isHomeSelected={!home || sameAddress(propertySelected.stats?.address, home.address)}
                 onSimulate={startSimulating}
                 onBackHome={backToHome}
             />
