@@ -568,3 +568,97 @@
 .reset-trees-button:hover {
     background: #EFF6F2;
 }
+
+/* Heat section (2026-09-03, review #5/#12/#13): band pill, "?" disclosure, address line */
+.heat-address {
+    margin: 4px 0 10px;
+    font-family: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 0.625rem;
+    letter-spacing: 0.06em;
+    color: #5E666C;
+    text-transform: uppercase;
+}
+.band-lead {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 10px;
+}
+.band {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 10px 4px 8px;
+    border-radius: 999px;
+    font-size: 0.8125rem;
+    font-weight: 600;
+}
+.band::before {
+    content: "";
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: currentColor;
+}
+.band-high { color: #B8512D; background: #FBEDE7; }
+.band-medium { color: #A86F1A; background: #FBF3E2; }
+.band-low { color: #2F7D5A; background: #EAF4EE; }
+.band-na { color: #5E666C; background: #EEF1F2; }
+.band-na::before {
+    background: transparent;
+    box-shadow: inset 0 0 0 1.5px currentColor;
+}
+.band-scope {
+    font-size: 0.8125rem;
+    color: #5E666C;
+}
+.why-button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 20px;
+    height: 20px;
+    margin-left: 6px;
+    padding: 0;
+    border: 1px solid #EBEEF0;
+    border-radius: 50%;
+    background: #FFFFFF;
+    color: #5E666C;
+    font-size: 0.75rem;
+    font-weight: 600;
+    line-height: 1;
+    vertical-align: middle;
+    cursor: pointer;
+}
+.why-button:hover,
+.why-button[aria-expanded="true"] {
+    border-color: #2F7D5A;
+    color: #2F7D5A;
+}
+.why-button:focus-visible {
+    outline: 2px solid #2F7D5A;
+    outline-offset: 2px;
+}
+.why-note {
+    margin: 6px 0 10px;
+    padding: 10px 12px;
+    border-left: 3px solid #2F7D5A;
+    border-radius: 8px;
+    background: #F6F8F7;
+    font-size: 0.78rem;
+    line-height: 1.45;
+    color: #5E666C;
+}
+.why-key {
+    display: block;
+    margin-bottom: 4px;
+    font-family: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 0.625rem;
+    letter-spacing: 0.06em;
+    color: #8C949A;
+}
+.heat-scope {
+    margin: 8px 0 0;
+    font-size: 0.6875rem;
+    color: #5E666C;
+}

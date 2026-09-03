@@ -23,6 +23,12 @@ return {
     // Beyond 25km, air/apparent temp should be suppressed server-side.
     weatherContext: baseline.air_temperature_context_status,
     airTemperatureC: baseline.current_air_temperature_c,
+    // Heat band + provenance (2026-09-03, review #5/#12/#13). The API already returned these;
+    // they were dropped here, so heat never had a Low/Medium/High and every caveat was hand-written.
+    heatClassification: baseline.heat_classification,
+    classificationScope: baseline.classification_scope,
+    classificationSchemeVersion: baseline.classification_scheme_version,
+    limitations: baseline.limitations,
 };
 }
 
@@ -154,6 +160,11 @@ export function useSelectedProperty(treeFeatures) {
             weatherDistanceKm: selected.properties?.weatherDistanceKm,
             weatherContext: selected.properties?.weatherContext,
             airTemperatureC: selected.properties?.airTemperatureC,
+            // heat band + provenance (2026-09-03)
+            heatClassification: selected.properties?.heatClassification,
+            classificationScope: selected.properties?.classificationScope,
+            classificationSchemeVersion: selected.properties?.classificationSchemeVersion,
+            limitations: selected.properties?.limitations,
         };
     }, [selected, selectedLabel, treeFeatures]);
 
