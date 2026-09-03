@@ -146,7 +146,7 @@ export default function LandingPage({onNavigate, selectedLocation, setSelectedLo
     return (
         <div className={styles["landing-container"]}>
             {/* Brand is a plain wordmark in v2, no square mark */}
-            <p className={styles["landing-page-brand"]}>Greenchanger</p>
+            <p className={styles["landing-page-brand"]}>GreenChanger</p>
 
             <div className={styles["hero-card"]}>
                 <h1 className={styles["landing-title"]}>See what one more tree could change.</h1>
