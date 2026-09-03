@@ -36,15 +36,17 @@ export default function PlantTreePage({ planTarget, onDone }) {
     const simulation = useTreeSimulation();
     const trees = useTreeCanopy();
 
-    // Placement (2026-09-03): the tree starts at the centre of the selected lot and moves when the
-    // user clicks inside the lot. The preview is a real ground circle sized by the chosen tree,
-    // so it follows the map perspective instead of being a flat screen circle.
+    // Placement (2026-09-03): the user plants the tree themselves. The dashed preview circle
+    // (a real ground circle sized by the chosen tree, so it follows the map perspective) follows
+    // the cursor until the first click, then sits where the user clicked; further clicks move it.
+    // Planting outside the selected lot is allowed and only triggers a short hint.
     const lotGeometry = planTarget?.feature?.geometry || null;
     const lotCentre = useMemo(
         () => centroidOfGeometry(lotGeometry) || { lng: planTarget?.lng ?? 145.13, lat: planTarget?.lat ?? -37.918 },
         [lotGeometry, planTarget?.lng, planTarget?.lat]
     );
-    const [treePos, setTreePos] = useState(lotCentre);
+    const [treePos, setTreePos] = useState(null);   // where the user clicked
+    const [hoverPos, setHoverPos] = useState(null); // cursor position before the first click
     const [hint, setHint] = useState(null);
 
     const refreshTrees = useCallback(() => {
@@ -69,21 +71,27 @@ export default function PlantTreePage({ planTarget, onDone }) {
     //     const center = mapRef.current?.getMap()?.getCenter();
     //     if (center) simulation.placeTree(center.lng, center.lat);
     // }, [simulation]);
-    // Plant where the preview circle is (2026-09-03)
+    // Plant where the user put the preview circle (2026-09-03)
     const handleConfirm = useCallback(() => {
+        if (!treePos) return;
         simulation.placeTree(treePos.lng, treePos.lat);
     }, [simulation, treePos]);
 
-    // A click inside the lot moves the tree; outside it only hints
+    // Click = put the tree there. Outside the selected lot is allowed, just say so.
     const handleMapClick = useCallback((e) => {
         if (!simulation.active) return;
         const { lng, lat } = e.lngLat;
-        if (lotGeometry && !pointInPolygon(lng, lat, lotGeometry)) {
-            setHint("Plant inside the selected lot.");
-            return;
-        }
         setTreePos({ lng, lat });
+        if (lotGeometry && !pointInPolygon(lng, lat, lotGeometry)) {
+            setHint("You are planting on another property.");
+        }
     }, [simulation.active, lotGeometry]);
+
+    // Before the first click the circle follows the cursor so the size is visible right away
+    const handleMapMouseMove = useCallback((e) => {
+        if (simulation.active && !treePos) setHoverPos({ lng: e.lngLat.lng, lat: e.lngLat.lat });
+    }, [simulation.active, treePos]);
+    const handleMapMouseLeave = useCallback(() => setHoverPos(null), []);
 
     useEffect(() => {
         if (!hint) return;
@@ -92,12 +100,15 @@ export default function PlantTreePage({ planTarget, onDone }) {
     }, [hint]);
 
     // Dashed preview circle = canopy at maturity for the selected size, at the tree position
-    const previewGeoJson = useMemo(() => ({
-        type: 'FeatureCollection',
-        features: simulation.active
-            ? [{ type: 'Feature', properties: {}, geometry: circleMetres(treePos.lng, treePos.lat, TREE_SIZES[simulation.size].radiusM) }]
-            : [],
-    }), [simulation.active, simulation.size, treePos]);
+    const previewGeoJson = useMemo(() => {
+        const pos = treePos || hoverPos;
+        return {
+            type: 'FeatureCollection',
+            features: simulation.active && pos
+                ? [{ type: 'Feature', properties: {}, geometry: circleMetres(pos.lng, pos.lat, TREE_SIZES[simulation.size].radiusM) }]
+                : [],
+        };
+    }, [simulation.active, simulation.size, treePos, hoverPos]);
 
     const handleDiscard = useCallback(() => onDone(null), [onDone]);
 
@@ -138,6 +149,9 @@ export default function PlantTreePage({ planTarget, onDone }) {
                     onLoad={handleMapLoad}
                     onMoveEnd={handleMoveEnd}
                     onClick={handleMapClick}
+                    onMouseMove={handleMapMouseMove}
+                    onMouseLeave={handleMapMouseLeave}
+                    cursor={simulation.active ? 'crosshair' : 'grab'}
                     mapboxAccessToken={import.meta.env.VITE_MAPBOX_ACCESS_TOKEN}
                     initialViewState={{
                     // longitude: planTarget?.lng ?? 145.13,
@@ -189,7 +203,7 @@ export default function PlantTreePage({ planTarget, onDone }) {
                 */}
 
                 <div className={styles['pilot-badge']}>Simulation is indicative, not professional advice</div>
-                {/* Hint when a click lands outside the lot (2026-09-03) */}
+                {/* Hint when the tree is put outside the selected lot (2026-09-03) */}
                 {hint && <div className={styles['map-hint']} role="status">{hint}</div>}
                 </div>
 
@@ -211,6 +225,7 @@ export default function PlantTreePage({ planTarget, onDone }) {
                             onConfirm={handleConfirm}
                             onCancel={handleDiscard}
                             hasPosition={simulation.trees.length > 0}
+                            canPlant={!!treePos}
                         />
                     )}
                 </aside>

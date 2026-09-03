@@ -521,3 +521,9 @@
 .property-panel > p:first-of-type {
     padding-right: 28px;
 }
+
+/* Plant button waits for a map click (2026-09-03) */
+.place-button:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
