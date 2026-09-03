@@ -57,7 +57,9 @@ const lotLineLayer = {
 
 
 
-export default function MapView({ selectedLocation, setSelectedLocation, simulatedTrees, onPlantTree }) {
+// export default function MapView({ selectedLocation, setSelectedLocation, simulatedTrees, onPlantTree }) {
+// onNavigate added (2026-09-03) so the home button below can go back to the landing page
+export default function MapView({ selectedLocation, setSelectedLocation, simulatedTrees, onPlantTree, onNavigate }) {
     const mapRef = useRef(null);
     const hoverId = useRef(null);
     const debounceRef = useRef(null);
@@ -341,6 +343,18 @@ export default function MapView({ selectedLocation, setSelectedLocation, simulat
                 )}
             </Map>
             <SidePanel stats = {propertySelected.stats} trees={trees}/>
+
+            {/* Home button (2026-09-03): brand pill bottom-left, styled after the Figma "Brand" element.
+                Goes back to the landing page; the address stays in the search box there. */}
+            <button
+                type="button"
+                className={styles["home-button"]}
+                onClick={() => onNavigate?.("landing")}
+                aria-label="Back to the home page"
+            >
+                <span className={styles["home-button-mark"]} aria-hidden="true" />
+                GreenChanger
+            </button>
             
         </div>
         

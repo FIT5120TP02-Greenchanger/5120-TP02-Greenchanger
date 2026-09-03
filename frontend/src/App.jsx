@@ -32,6 +32,8 @@ function App() {
         setSelectedLocation={setSelectedLocation}
         simulatedTrees={simulatedTrees}
         onPlantTree={goToPlant}
+        // Home button on the map page needs a way back to the landing page
+        onNavigate={setPage}
       />
     );
 }
