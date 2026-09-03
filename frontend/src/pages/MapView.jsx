@@ -211,6 +211,11 @@ export default function MapView({ selectedLocation, setSelectedLocation, simulat
         const map = mapRef.current?.getMap();
         if (!map) return;
 
+        // Clicks on the lot card or the home pin bubble to mapbox before React handles them,
+        // so they must not select whatever lot sits under the card.
+        const target = e.originalEvent?.target;
+        if (target instanceof Element && target.closest(".mapboxgl-marker")) return;
+
         // In-map planting: a click puts the tree there. Outside the selected lot is allowed, just hinted.
         if (placing) {
             const { lng, lat } = e.lngLat;
@@ -429,6 +434,7 @@ export default function MapView({ selectedLocation, setSelectedLocation, simulat
                 onMoveEnd={handleMoveEnd}
                 onMouseMove={handleMouseMove}
                 onMouseLeave={handleMouseLeave}
+                onMouseOut={handleMouseLeave} // in-map planting: onMouseLeave is per-feature, this fires when the cursor leaves the canvas
                 mapboxAccessToken={import.meta.env.VITE_MAPBOX_ACCESS_TOKEN}
                 initialViewState={{
                     latitude: -37.8136,
@@ -583,7 +589,7 @@ export default function MapView({ selectedLocation, setSelectedLocation, simulat
                     onAdd: startPlacing,
                     onReset: resetScenario,
                     onRemoveTree: removeTreeAt,
-                    onFinish: stopSimulating,
+                    // no onFinish: there is no page to leave any more, Reset / Remove are the exits
                 } : null}
             />
 

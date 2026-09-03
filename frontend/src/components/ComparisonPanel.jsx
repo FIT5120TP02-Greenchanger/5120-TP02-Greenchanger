@@ -51,7 +51,9 @@ export default function ComparisonPanel({ baseline, projected, trees, onAdd, onR
                 <button className={styles['reset-button']} onClick={onReset}>Reset</button>
                 <button className={styles['new-scenario-button']} onClick={onAdd}>+ Add tree</button>
             </div>
-            <button className={styles['place-button']} onClick={onFinish}>Done</button>
+            {/* <button className={styles['place-button']} onClick={onFinish}>Done</button> */}
+            {/* Done only when the host has somewhere to go (2026-09-03): inside MapView there is no page to leave */}
+            {onFinish && <button className={styles['place-button']} onClick={onFinish}>Done</button>}
         </div>
     );
 }
