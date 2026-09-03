@@ -280,10 +280,8 @@ export default function MapView({ selectedLocation, setSelectedLocation, simulat
         setPendingPos(null);
         setHoverPos(null);
         resetCursor();
-        if (!simulatedTrees?.length) {
-            setScenarioOpen(false);
-            setSimulating(false);
-        }
+        setSimulating(false); // the lot card has no meaning inside a scenario; keeps Escape from flying home later
+        if (!simulatedTrees?.length) setScenarioOpen(false);
     }, [simulatedTrees]);
     const confirmPlacing = useCallback(() => {
         if (!pendingPos) return;
@@ -343,11 +341,12 @@ export default function MapView({ selectedLocation, setSelectedLocation, simulat
     }, [simulatedTrees, trees.canopyM2, trees.viewM2, trees.pct]);
 
     useEffect(() => {
-        if (!simulating && !placing) return;
+        // Escape: cancel placement, or close the lot card. Nothing to do on the comparison view.
+        if (!placing && (!simulating || scenarioOpen)) return;
         const onKey = (e) => { if (e.key === "Escape") (placing ? cancelPlacing() : stopSimulating()); };
         window.addEventListener("keydown", onKey);
         return () => window.removeEventListener("keydown", onKey);
-    }, [simulating, placing, stopSimulating, cancelPlacing]);
+    }, [simulating, placing, scenarioOpen, stopSimulating, cancelPlacing]);
 
     // Hints (lookup, road click, errors) are shown as a toast that hides after 4 s
     const { hint, setHint } = propertySelected;
