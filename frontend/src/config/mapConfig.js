@@ -24,5 +24,5 @@ export const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_ACCESS_TOKEN;
 
 // GreenShift data-team backend. Ask them for the deployed URL.
 // export const API_BASE_URL = import.meta.env.VITE_GREENSHIFT_API_URL;
-// export const API_BASE_URL = "https://greenchanger.me";
-export const API_BASE_URL = "";
+export const API_BASE_URL = "https://greenchanger.me";
+// export const API_BASE_URL = "";
