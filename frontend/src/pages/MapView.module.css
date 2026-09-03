@@ -125,14 +125,14 @@
     background: #2F7D5A;
 }
 
-/* Home button (2026-09-03, review #73): 44px house-icon control at the top of the map, just
-   left of the side panel. The side panel (Panel.module.css .side-panel) is absolute at
-   right: 26px, top: 26px and 396px wide (350 + 2x22 padding + 2x1 border), so
-   right = 26px + 396px + 28px gap. Same recipe as the Figma "Help" control. */
+/* Home button (2026-09-03, review #73): 44px house-icon control beside the search pill.
+   .address-container is absolute at left: 10px, width: 30% and about 55px tall, so
+   left = 30% + 10px + 12px gap and top centres the 44px button on it.
+   Same recipe as the Figma "Help" control. */
 .home-button {
     position: absolute;
-    top: 26px;
-    right: calc(26px + 396px + 28px);
+    top: 16px;
+    left: calc(30% + 22px);
     z-index: 100;
     width: 44px;
     height: 44px;
@@ -156,4 +156,42 @@
 .home-button:focus-visible {
     outline: 2px solid #2F7D5A;
     outline-offset: 2px;
+}
+
+/* ---- Arrive flow (2026-09-03) ---- */
+
+/* Pin + "Your home" label, stacked and centred on the address */
+.home-marker {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+.home-label {
+    margin-bottom: 4px;
+    padding: 4px 10px;
+    border-radius: 8px;
+    background: #FFFFFF;
+    box-shadow: 0 2px 6px rgba(15, 23, 28, 0.15);
+    font-family: "Instrument Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    font-size: 12px;
+    font-weight: 600;
+    color: #14181B;
+    white-space: nowrap;
+}
+
+/* Hint toast under the search pill */
+.map-hint {
+    position: absolute;
+    top: 75px;
+    left: 10px;
+    z-index: 100;
+    max-width: 360px;
+    padding: 10px 14px;
+    border-radius: 8px;
+    background: #17392E;
+    color: #FFFFFF;
+    font-family: "Instrument Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    font-size: 13px;
+    line-height: 1.4;
+    box-shadow: 0 4px 12px rgba(15, 23, 28, 0.2);
 }

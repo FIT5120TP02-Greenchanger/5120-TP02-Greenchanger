@@ -1,6 +1,8 @@
 import styles from './Panel.module.css'
 
-export default function PropertyPanel({ stats, hint, onPlantTree }) {
+// export default function PropertyPanel({ stats, hint, onPlantTree }) {
+// onClose added (2026-09-03): the x button returns to the pinned-home view
+export default function PropertyPanel({ stats, hint, onPlantTree, onClose }) {
     if (!stats) {
         return <p className={styles["lot-hint"]}>{hint || "Click any property to select it."}</p>;
     }
@@ -14,6 +16,9 @@ export default function PropertyPanel({ stats, hint, onPlantTree }) {
         onMouseOver={(e) => e.stopPropagation()}
         onMouseMove={(e) => e.stopPropagation()}
         >
+            {onClose && (
+                <button type="button" className={styles["lot-close"]} onClick={onClose} aria-label="Close">×</button>
+            )}
             <p>{stats.address.split(',')[0]}</p>
             <dl className={styles["lot-rows"]}>
                 <dt>Lot area</dt>

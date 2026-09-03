@@ -1,9 +1,10 @@
 import { useState, useMemo, useCallback } from "react";
-import { polygonAreaM2, pointInPolygon, circleMetres, fmtArea } from "../utils/geo";
+// import { polygonAreaM2, pointInPolygon, circleMetres, fmtArea } from "../utils/geo";
+import { polygonAreaM2, pointInPolygon, fmtArea } from "../utils/geo"; // circleMetres unused since the circle fallback went (2026-09-03)
 import { fetchParcelsAtPoint, resolveParcel, geocodeAddress, reverseGeocode, fetchPropertyBaseline } from "../services/vicmap";
 
 
-const RADIUS_M = 50;
+// const RADIUS_M = 50; // only used by the removed 50 m circle fallback (2026-09-03)
 
 function mapBaselineToProperties(baseline) {
 return {
@@ -53,11 +54,15 @@ export function useSelectedProperty(treeFeatures) {
                 setHint("Nothing here — roads and reserves have no property polygon.");
                 return;
             }
-            const circleGeom = circleMetres(lngLat.lng, lngLat.lat, RADIUS_M);
-            selectFeature(
-                { type: "Feature", properties: { kind: "circle" }, geometry: circleGeom },
-                `${RADIUS_M}m around your click`
-            );
+            // const circleGeom = circleMetres(lngLat.lng, lngLat.lat, RADIUS_M);
+            // selectFeature(
+                // { type: "Feature", properties: { kind: "circle" }, geometry: circleGeom },
+                // `${RADIUS_M}m around your click`
+            // );
+            // return;
+            // Arrive flow (2026-09-03): no 50 m circle fallback any more. A click that hits no
+            // lot keeps the current selection and only shows a hint.
+            setHint("Roads and reserves have no lot. Click a house.");
             return;
         }
 

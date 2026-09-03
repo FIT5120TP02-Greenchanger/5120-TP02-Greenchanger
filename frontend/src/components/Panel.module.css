@@ -447,3 +447,77 @@
     color: #8C949A;
     line-height: 1.4;
 }
+
+/* ---- Arrive flow (2026-09-03) ---- */
+
+/* "Test a change" section at the bottom of the side panel, see SidePanel.jsx */
+.test-change {
+    margin-top: 14px;
+    padding-top: 14px;
+    border-top: 1px solid #EBEEF0;
+}
+.test-change-label {
+    font-size: 0.6875rem;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    color: #5E666C;
+}
+.test-change p {
+    margin: 8px 0 12px;
+    font-size: 0.8125rem;
+    line-height: 1.4;
+    color: #5E666C;
+}
+.simulate-button {
+    width: 100%;
+    padding: 12px;
+    border: none;
+    border-radius: 10px;
+    background: #2F7D5A;
+    color: #FFFFFF;
+    font-size: 0.9375rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background-color 0.15s ease;
+}
+.simulate-button:hover {
+    background: #26654A;
+}
+.simulate-button:focus-visible {
+    outline: 2px solid #2F7D5A;
+    outline-offset: 2px;
+}
+.link-button {
+    padding: 0;
+    border: none;
+    background: none;
+    color: #2F7D5A;
+    font-size: 0.8125rem;
+    font-weight: 600;
+    text-decoration: underline;
+    cursor: pointer;
+}
+
+/* Close (x) on the lot card. `.property-panel button` styles every button as the green
+   CTA, so this needs the higher specificity to opt out. */
+.property-panel .lot-close {
+    position: absolute;
+    top: 6px;
+    right: 6px;
+    width: 28px;
+    height: 28px;
+    margin: 0;
+    padding: 0;
+    border: none;
+    border-radius: 50%;
+    background: transparent;
+    color: #5E666C;
+    font-size: 20px;
+    line-height: 1;
+}
+.property-panel .lot-close:hover {
+    background: #F2F4F5;
+}
+.property-panel > p:first-of-type {
+    padding-right: 28px;
+}

@@ -81,6 +81,10 @@ export default function MapView({ selectedLocation, setSelectedLocation, simulat
             ? { longitude: selectedLocation.coordinates[0], latitude: selectedLocation.coordinates[1] }
             : null);
     const [isMapLoaded, setIsMapLoaded] = useState(false);
+    // Arrive flow (2026-09-03): the lot card and "Plant a tree" only show once the user chooses
+    // to simulate; before that the searched address is just pinned.
+    const [simulating, setSimulating] = useState(false);
+    const [home, setHome] = useState(null); // { feature, address, lng, lat } of the searched address
     
 
 
@@ -94,18 +98,30 @@ export default function MapView({ selectedLocation, setSelectedLocation, simulat
         setPropertyAnchor({ lng: longitude, lat: latitude });
     }, []);
 
-    const flyToFeature = useCallback((result) => {
+    // const flyToFeature = useCallback((result) => {
+        // const geom = result?.feature?.geometry;
+        // if (!geom) return;
+        // const centroid = centroidOfGeometry(geom);
+        // if (centroid) transitCoordinates(centroid.lng, centroid.lat);
+    // }, [transitCoordinates]);
+    // Arrive flow (2026-09-03): the searched lot is remembered as "home" so the pin and the
+    // "back to my home" action can restore it, and arriving always starts in the pinned view.
+    const flyToFeature = useCallback((result, address) => {
         const geom = result?.feature?.geometry;
         if (!geom) return;
         const centroid = centroidOfGeometry(geom);
-        if (centroid) transitCoordinates(centroid.lng, centroid.lat);
+        if (!centroid) return;
+        setHome({ feature: result.feature, address, lng: centroid.lng, lat: centroid.lat });
+        setSimulating(false);
+        transitCoordinates(centroid.lng, centroid.lat);
     }, [transitCoordinates]);
 
 
     const handleAddressSelect = async (location) => {
         setSelectedLocation({ address: location.full_address, addressId: location.address_id });
         setAddressInput(location.full_address);
-        flyToFeature(await resolveFromBaseline(location.full_address));
+        // flyToFeature(await resolveFromBaseline(location.full_address));
+        flyToFeature(await resolveFromBaseline(location.full_address), location.full_address); // arrive flow: pass the address
         //shouldFlyToSelection.current = true;
         // const result = await resolveFromBaseline(location.full_address);
     };
@@ -127,7 +143,8 @@ export default function MapView({ selectedLocation, setSelectedLocation, simulat
         consumedInitialLocation.current = true;
         let cancelled = false;
         resolveFromBaseline(selectedLocation.address).then((result) => {
-            if (!cancelled) flyToFeature(result);
+            // if (!cancelled) flyToFeature(result);
+            if (!cancelled) flyToFeature(result, selectedLocation.address); // arrive flow: pass the address
         });
         return () => { cancelled = true; };
     }, [isMapLoaded, selectedLocation, resolveFromBaseline, flyToFeature]);
@@ -156,17 +173,64 @@ export default function MapView({ selectedLocation, setSelectedLocation, simulat
         refreshAll();
     }
 
+    // const handleClick = useCallback(async (e) => {
+        // const map = mapRef.current?.getMap();
+        // if (!map) return;
+
+        // const features = map.queryRenderedFeatures(e.point, { layers: ["parcel-hit"] });
+        // setPropertyAnchor({ lng: e.lngLat.lng, lat: e.lngLat.lat });
+
+        // await propertySelected.selectAtPoint(features, parcels.parcelFeatures, zoom < MIN_PARCEL_ZOOM, e.lngLat);
+
+        // // setIsPropertyClick(true);
+    // }, [propertySelected, parcels.parcelFeatures, zoom]);
+    // Arrive flow: clicking a lot selects it and opens the card (simulate mode). A click that
+    // hits no lot (road, reserve) keeps the current selection; selectAtPoint only sets a hint.
     const handleClick = useCallback(async (e) => {
         const map = mapRef.current?.getMap();
         if (!map) return;
 
         const features = map.queryRenderedFeatures(e.point, { layers: ["parcel-hit"] });
-        setPropertyAnchor({ lng: e.lngLat.lng, lat: e.lngLat.lat });
-
+        if (features.length) {
+            setPropertyAnchor({ lng: e.lngLat.lng, lat: e.lngLat.lat });
+            setSimulating(true);
+        }
         await propertySelected.selectAtPoint(features, parcels.parcelFeatures, zoom < MIN_PARCEL_ZOOM, e.lngLat);
-
-        // setIsPropertyClick(true);
     }, [propertySelected, parcels.parcelFeatures, zoom]);
+
+    // Restore the searched lot as the selection (card anchored on it)
+    const backToHome = useCallback(() => {
+        if (!home) return;
+        propertySelected.selectFeature(home.feature, home.address);
+        setPropertyAnchor({ lng: home.lng, lat: home.lat });
+    }, [propertySelected, home]);
+
+    // "Simulate a change" in the side panel: open the card on the current selection (home by default)
+    const startSimulating = useCallback(() => {
+        if (!propertySelected.selected) backToHome();
+        setSimulating(true);
+    }, [propertySelected.selected, backToHome]);
+
+    // Close the card (x or Escape): back to the pinned-home view
+    const stopSimulating = useCallback(() => {
+        setSimulating(false);
+        backToHome();
+    }, [backToHome]);
+
+    useEffect(() => {
+        if (!simulating) return;
+        const onKey = (e) => { if (e.key === "Escape") stopSimulating(); };
+        window.addEventListener("keydown", onKey);
+        return () => window.removeEventListener("keydown", onKey);
+    }, [simulating, stopSimulating]);
+
+    // Hints (lookup, road click, errors) are shown as a toast that hides after 4 s
+    const { hint, setHint } = propertySelected;
+    useEffect(() => {
+        if (!hint) return;
+        const t = setTimeout(() => setHint(null), 4000);
+        return () => clearTimeout(t);
+    }, [hint, setHint]);
 
 
     const handleMoveEnd = useCallback(() => {
@@ -313,6 +377,7 @@ export default function MapView({ selectedLocation, setSelectedLocation, simulat
                     </Source>
                 )}
 
+                {/* Original block kept for reference (arrive flow, 2026-09-03):
                 {propertyAnchor && (
                     <Marker
                         longitude={propertyAnchor.lng}
@@ -332,7 +397,30 @@ export default function MapView({ selectedLocation, setSelectedLocation, simulat
                         </div>
                     </Marker>
                 )}
+                */}
+                {/* Arrive flow: the lot card only shows in simulate mode */}
+                {simulating && propertyAnchor && propertySelected.stats && (
+                    <Marker
+                        longitude={propertyAnchor.lng}
+                        latitude={propertyAnchor.lat}
+                        anchor="bottom"
+                        offset={[0, -50]}
+                    >
+                        <div className={styles["property-popup"]}>
+                            <PropertyPanel
+                                stats={propertySelected.stats}
+                                hint={propertySelected.hint}
+                                onClose={stopSimulating}
+                                onPlantTree={() => onPlantTree({
+                                    lng: propertyAnchor?.lng,
+                                    lat: propertyAnchor?.lat,
+                                    label: propertySelected.stats.address
+                                })} />
+                        </div>
+                    </Marker>
+                )}
 
+                {/* Original block kept for reference (arrive flow, 2026-09-03):
                 {markerCoordinates && (
                     <Marker latitude={markerCoordinates.latitude} longitude={markerCoordinates.longitude} anchor="bottom">
                         <div className={styles['beacon-marker']}>
@@ -341,8 +429,36 @@ export default function MapView({ selectedLocation, setSelectedLocation, simulat
                         </div>
                     </Marker>
                 )}
+                */}
+                {/* Arrive flow: the pin marks the searched address and carries a "Your home" label */}
+                {markerCoordinates && (
+                    <Marker latitude={markerCoordinates.latitude} longitude={markerCoordinates.longitude} anchor="bottom">
+                        <div className={styles['home-marker']}>
+                            <div className={styles['home-label']}>Your home</div>
+                            <div className={styles['beacon-marker']}>
+                                <div className={styles['beacon-pulse']} />
+                                <div className={styles['beacon-pin']} />
+                            </div>
+                        </div>
+                    </Marker>
+                )}
             </Map>
+            {/* Original block kept for reference (arrive flow, 2026-09-03):
             <SidePanel stats = {propertySelected.stats} trees={trees}/>
+            */}
+            <SidePanel
+                stats={propertySelected.stats}
+                trees={trees}
+                simulating={simulating}
+                isHomeSelected={!home || propertySelected.stats?.address === home.address}
+                onSimulate={startSimulating}
+                onBackHome={backToHome}
+            />
+
+            {/* Arrive flow: hint toast (lookup, road/reserve click, errors) under the search box */}
+            {propertySelected.hint && (
+                <div className={styles["map-hint"]} role="status">{propertySelected.hint}</div>
+            )}
 
             {/* Brand pill (2026-09-03): static label bottom-left, styled after the Figma "Brand" element */}
             <div className={styles["brand-pill"]}>
