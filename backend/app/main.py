@@ -3,6 +3,7 @@ initialize fastapi app and define health check endpoint
 
 running: localhost:8000/api/health
 """
+import itertools
 import os
 from contextlib import asynccontextmanager
 from typing import Any
@@ -64,6 +65,57 @@ def _like_prefix(text: str) -> str:
     return text.strip().replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
 
 
+# Vicmap spells street types out ("SEASCAPE STREET", "CENTRE ROAD") while people type the
+# usual abbreviations, so "1 centre rd" never matched. Each abbreviated token is tried both
+# as typed and expanded: "ST" is also SAINT ("ST KILDA ROAD"), so the as-typed form must stay.
+STREET_TYPE_ABBREVIATIONS = {
+    "AV": "AVENUE",
+    "AVE": "AVENUE",
+    "BLVD": "BOULEVARD",
+    "BVD": "BOULEVARD",
+    "CL": "CLOSE",
+    "CR": "CRESCENT",
+    "CRES": "CRESCENT",
+    "CT": "COURT",
+    "DR": "DRIVE",
+    "ESP": "ESPLANADE",
+    "GR": "GROVE",
+    "HWY": "HIGHWAY",
+    "LN": "LANE",
+    "PDE": "PARADE",
+    "PL": "PLACE",
+    "RD": "ROAD",
+    "ST": "STREET",
+    "TCE": "TERRACE",
+    "WY": "WAY",
+}
+MAX_PREFIX_CANDIDATES = 8
+
+
+def _prefix_candidates(text: str) -> list[str]:
+    """Upper-cased prefixes to try: the text as typed first, then its street-type expansions.
+
+    Every abbreviated token can stay or expand independently, so "1 st kilda rd" yields
+    "1 ST KILDA ROAD" as well as "1 STREET KILDA ROAD". Capped so a pathological query
+    cannot fan out into dozens of LIKE patterns; the as-typed form is always first.
+    """
+    tokens = text.strip().upper().split()
+    options = [
+        (token, STREET_TYPE_ABBREVIATIONS[token])
+        if token in STREET_TYPE_ABBREVIATIONS
+        else (token,)
+        for token in tokens
+    ]
+    candidates: list[str] = []
+    for combo in itertools.product(*options):
+        candidate = " ".join(combo)
+        if candidate not in candidates:
+            candidates.append(candidate)
+        if len(candidates) == MAX_PREFIX_CANDIDATES:
+            break
+    return candidates
+
+
 # Health check endpoint
 @app.get("/api/health")
 def health() -> dict[str, str]:
@@ -77,21 +129,31 @@ def search_addresses(
     db: Connection = Depends(get_db),
 ) -> list[dict]:
     """Lightweight address autocomplete. No environmental joins -- keep this cheap."""
-    prefix = _like_prefix(q)
+    candidates = _prefix_candidates(q)
+    # One prefix LIKE per candidate, OR-ed: each is still a fixed-prefix pattern the
+    # text_pattern_ops index serves (BitmapOr), so this stays as cheap as the single-pattern query.
+    params: dict[str, Any] = {"limit": limit}
+    like_clauses = []
+    exact_clauses = []
+    for index, candidate in enumerate(candidates):
+        params[f"like{index}"] = _like_prefix(candidate)
+        params[f"exact{index}"] = candidate
+        like_clauses.append(f"UPPER(full_address) LIKE %(like{index})s || '%%'")
+        exact_clauses.append(f"UPPER(full_address) = %(exact{index})s")
     with db.cursor() as cur:
         cur.execute(
-            """
+            f"""
             SELECT address_id, full_address, locality_name, postcode,
                    parcel_area_m2, lot_size_category
             FROM latest_greater_melbourne_address_property
-            WHERE UPPER(full_address) LIKE UPPER(%(prefix)s) || '%%'
+            WHERE {" OR ".join(like_clauses)}
             ORDER BY
-                CASE WHEN UPPER(full_address) = UPPER(%(prefix)s) THEN 0 ELSE 1 END,
+                CASE WHEN {" OR ".join(exact_clauses)} THEN 0 ELSE 1 END,
                 CASE WHEN is_primary = 'Y' THEN 0 ELSE 1 END,
                 full_address
             LIMIT %(limit)s
             """,
-            {"prefix": prefix, "limit": limit},
+            params,
         )
         return [jsonable_row(row) for row in cur.fetchall()]
 
