@@ -106,6 +106,18 @@ jobs:
           docker logs gs-ci
           docker rm -f gs-ci
           exit 1
+  # Exercise the one part of the deploy that is testable off the host: the sequence
+  # that swaps a built frontend into the directory nginx serves. Everything else in
+  # deploy.yml (SSM delivery, OIDC, the host itself) only runs on a push to main.
+  deploy-script:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Test the frontend publish script
+        run: bash .github/scripts/test-publish-frontend.sh
+
   # Run frontend linting and build
   frontend:
     runs-on: ubuntu-latest
