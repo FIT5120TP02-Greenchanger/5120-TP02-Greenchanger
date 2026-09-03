@@ -7,6 +7,7 @@ import hashlib
 import json
 from pathlib import Path
 import sys
+import threading
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
@@ -20,8 +21,28 @@ from greenchanger_data.sources import sha256_file  # noqa: E402
 from greenchanger_script import db  # noqa: E402
 
 
-METHOD = "property_canopy_raster_clip_v1"
-SCRIPT_VERSION = "1.1"
+METHOD = "property_canopy_raster_clip_v2"
+SCRIPT_VERSION = "2.0"
+_WORKER_STATE = threading.local()
+
+
+def calculate_parcel_task(task):
+    """Calculate one parcel using a raster handle private to this worker."""
+
+    raster_path, asset_role, parcel_geometry, parcel_area_m2, tree_value = task
+    import rasterio
+
+    raster = getattr(_WORKER_STATE, "raster", None)
+    if raster is None or raster.name != raster_path:
+        if raster is not None:
+            raster.close()
+        raster = rasterio.open(raster_path)
+        validate_property_canopy_source(raster, asset_role=asset_role)
+        _WORKER_STATE.raster = raster
+    return calculate_property_canopy(
+        raster, parcel_geometry,
+        parcel_area_m2=parcel_area_m2, tree_value=tree_value,
+    )
 
 
 def analytical_source(connection) -> tuple[dict, dict]:
@@ -203,7 +224,7 @@ def record_quality(connection, output_id: str, assessed: int, passed: int) -> fl
 def build(
     connection, *, raster_override: Path | None, tree_value: float,
     batch_size: int, max_parcels: int | None = None,
-    commit_batches: bool = False,
+    commit_batches: bool = False, workers: int = 1,
 ) -> dict:
     import rasterio
 
@@ -214,10 +235,22 @@ def build(
         raise FileNotFoundError(
             "The registered analytical GeoTIFF is not available locally; pass --canopy-file"
         )
-    if asset["asset_checksum"] and sha256_file(raster_path) != asset["asset_checksum"]:
-        raise ValueError(
-            "The local analytical GeoTIFF checksum does not match its registered asset"
-        )
+    raster_checksum = sha256_file(raster_path)
+    if asset["asset_checksum"] and raster_checksum != asset["asset_checksum"]:
+        optimisation_manifest = raster_path.with_suffix(".manifest.json")
+        if not optimisation_manifest.exists():
+            raise ValueError(
+                "The local analytical GeoTIFF checksum does not match its registered asset"
+            )
+        optimisation = json.loads(optimisation_manifest.read_text(encoding="utf-8"))
+        if (
+            optimisation.get("method") != "lossless_tiled_geotiff_v1"
+            or optimisation.get("source_vrt_sha256") != asset["asset_checksum"]
+            or optimisation.get("virtual_mosaic", {}).get("sha256") != raster_checksum
+        ):
+            raise ValueError(
+                "Optimised canopy VRT does not prove lossless derivation from the registered asset"
+            )
     if source_version["source_observed_to"] is None:
         raise ValueError("Analytical canopy version has no recorded observation date")
 
@@ -246,66 +279,77 @@ def build(
             }
 
         written_this_run = 0
-        while True:
-            remaining = batch_size
-            if max_parcels is not None:
-                remaining = min(remaining, max_parcels - written_this_run)
-                if remaining <= 0:
+        executor = None
+        if workers > 1:
+            from concurrent.futures import ThreadPoolExecutor
+            executor = ThreadPoolExecutor(max_workers=workers)
+        try:
+            while True:
+                remaining = batch_size
+                if max_parcels is not None:
+                    remaining = min(remaining, max_parcels - written_this_run)
+                    if remaining <= 0:
+                        break
+                with connection.cursor() as read_cursor:
+                    read_cursor.execute(
+                        """
+                        SELECT p.parcel_id,
+                               ST_Area(p.parcel_geometry) AS parcel_area_m2,
+                               ST_AsGeoJSON(ST_Transform(p.parcel_geometry, %s), 9) AS geometry_geojson
+                        FROM parcel AS p
+                        WHERE p.dataset_version_id = %s
+                          AND NOT EXISTS (
+                              SELECT 1 FROM property_canopy_summary AS done
+                              WHERE done.dataset_version_id = %s
+                                AND done.parcel_id = p.parcel_id
+                          )
+                        ORDER BY p.parcel_id
+                        LIMIT %s
+                        """,
+                        (source_epsg, properties["dataset_version_id"], output_id, remaining),
+                    )
+                    parcels = read_cursor.fetchall()
+                if not parcels:
                     break
-            with connection.cursor() as read_cursor:
-                read_cursor.execute(
-                    """
-                    SELECT p.parcel_id,
-                           COALESCE(p.parcel_area_m2, ST_Area(p.parcel_geometry)) AS parcel_area_m2,
-                           ST_AsGeoJSON(ST_Transform(p.parcel_geometry, %s), 9) AS geometry_geojson
-                    FROM parcel AS p
-                    WHERE p.dataset_version_id = %s
-                      AND NOT EXISTS (
-                          SELECT 1 FROM property_canopy_summary AS done
-                          WHERE done.dataset_version_id = %s
-                            AND done.parcel_id = p.parcel_id
-                      )
-                    ORDER BY p.parcel_id
-                    LIMIT %s
-                    """,
-                    (source_epsg, properties["dataset_version_id"], output_id, remaining),
-                )
-                parcels = read_cursor.fetchall()
-            if not parcels:
-                break
-            values = []
-            for parcel in parcels:
-                result = calculate_property_canopy(
-                    raster,
+                tasks = [(
+                    str(raster_path), asset["asset_role"],
                     json.loads(parcel["geometry_geojson"]),
-                    parcel_area_m2=float(parcel["parcel_area_m2"]),
-                    tree_value=tree_value,
+                    float(parcel["parcel_area_m2"]), tree_value,
+                ) for parcel in parcels]
+                results = (
+                    executor.map(calculate_parcel_task, tasks)
+                    if executor else map(calculate_parcel_task, tasks)
                 )
-                values.append((
-                    output_id, source_version["dataset_version_id"], parcel["parcel_id"],
-                    source_version["source_observed_to"],
-                    result.canopy_area_m2, result.parcel_area_m2,
-                    result.raster_covered_area_m2, result.canopy_percentage,
-                    result.coverage_percentage, pixel_size_m, METHOD,
-                    result.quality_status, result.failure_reason,
-                ))
-            with connection.cursor() as write_cursor:
-                write_cursor.executemany(
-                    """
-                    INSERT INTO property_canopy_summary (
-                        dataset_version_id, source_canopy_version_id, parcel_id,
-                        observed_on, canopy_area_m2, parcel_area_m2,
-                        raster_covered_area_m2, canopy_percentage,
-                        coverage_percentage, source_pixel_size_m,
-                        calculation_method, quality_status, failure_reason
-                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-                    ON CONFLICT (dataset_version_id, parcel_id) DO NOTHING
-                    """,
-                    values,
-                )
-            written_this_run += len(values)
-            if commit_batches:
-                connection.commit()
+                values = []
+                for parcel, result in zip(parcels, results):
+                    values.append((
+                        output_id, source_version["dataset_version_id"], parcel["parcel_id"],
+                        source_version["source_observed_to"],
+                        result.canopy_area_m2, result.parcel_area_m2,
+                        result.raster_covered_area_m2, result.canopy_percentage,
+                        result.coverage_percentage, pixel_size_m, METHOD,
+                        result.quality_status, result.failure_reason,
+                    ))
+                with connection.cursor() as write_cursor:
+                    write_cursor.executemany(
+                        """
+                        INSERT INTO property_canopy_summary (
+                            dataset_version_id, source_canopy_version_id, parcel_id,
+                            observed_on, canopy_area_m2, parcel_area_m2,
+                            raster_covered_area_m2, canopy_percentage,
+                            coverage_percentage, source_pixel_size_m,
+                            calculation_method, quality_status, failure_reason
+                        ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                        ON CONFLICT (dataset_version_id, parcel_id) DO NOTHING
+                        """,
+                        values,
+                    )
+                written_this_run += len(values)
+                if commit_batches:
+                    connection.commit()
+        finally:
+            if executor:
+                executor.shutdown()
 
     with connection.cursor() as cursor:
         cursor.execute(
@@ -376,10 +420,16 @@ def main() -> None:
         "--max-parcels", type=int,
         help="Process at most this many new parcels, checkpoint, then exit.",
     )
+    parser.add_argument(
+        "--workers", type=int, default=1,
+        help="Independent raster readers used for parcel calculations.",
+    )
     parser.add_argument("--confirm-shared", action="store_true")
     args = parser.parse_args()
     if args.batch_size < 1:
         parser.error("--batch-size must be at least 1")
+    if args.workers < 1:
+        parser.error("--workers must be at least 1")
     if not db.is_local() and not args.confirm_shared:
         sys.exit("Refusing to write to shared Aurora without --confirm-shared")
     connection = db.connect()
@@ -388,6 +438,7 @@ def main() -> None:
             connection, raster_override=args.canopy_file,
             tree_value=args.tree_value, batch_size=args.batch_size,
             max_parcels=args.max_parcels, commit_batches=True,
+            workers=args.workers,
         )
         connection.commit()
         print(json.dumps(result, indent=2))

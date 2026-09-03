@@ -66,6 +66,65 @@ class PropertyCanopyTests(unittest.TestCase):
                 source, asset_role="canopy_analytical_geotiff"
             )
 
+    def test_large_window_is_read_in_memory_bounded_chunks(self):
+        source = self.raster(np.ones((6, 6), dtype="uint8"))
+
+        class TrackingRaster:
+            def __init__(self, dataset):
+                self.dataset = dataset
+                self.window_sizes = []
+
+            def __getattr__(self, name):
+                return getattr(self.dataset, name)
+
+            def read(self, *args, **kwargs):
+                window = kwargs["window"]
+                self.window_sizes.append(int(window.width * window.height))
+                return self.dataset.read(*args, **kwargs)
+
+        tracked = TrackingRaster(source)
+        result = calculate_property_canopy(
+            tracked,
+            mapping(box(0, 0, 6, 6)),
+            parcel_area_m2=36,
+            tree_value=1,
+            maximum_window_pixels=4,
+        )
+
+        self.assertEqual(result.canopy_percentage, 100.0)
+        self.assertGreater(len(tracked.window_sizes), 1)
+        self.assertLessEqual(max(tracked.window_sizes), 4)
+
+    def test_extreme_non_residential_window_is_unavailable_without_reading(self):
+        source = self.raster(np.ones((6, 6), dtype="uint8"))
+
+        class TrackingRaster:
+            def __init__(self, dataset):
+                self.dataset = dataset
+                self.read_count = 0
+
+            def __getattr__(self, name):
+                return getattr(self.dataset, name)
+
+            def read(self, *args, **kwargs):
+                self.read_count += 1
+                return self.dataset.read(*args, **kwargs)
+
+        tracked = TrackingRaster(source)
+        result = calculate_property_canopy(
+            tracked,
+            mapping(box(0, 0, 6, 6)),
+            parcel_area_m2=36,
+            tree_value=1,
+            maximum_scan_pixels=4,
+        )
+
+        self.assertEqual(result.quality_status, "failed")
+        self.assertEqual(
+            result.failure_reason, "parcel_window_exceeds_processing_limit"
+        )
+        self.assertEqual(tracked.read_count, 0)
+
 
 if __name__ == "__main__":
     unittest.main()
