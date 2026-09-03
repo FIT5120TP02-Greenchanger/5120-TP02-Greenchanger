@@ -662,3 +662,7 @@
     font-size: 0.6875rem;
     color: #5E666C;
 }
+/* The heat labels carry a "?" button, so give them a flexible column instead of the 120px one */
+.heat-section .lot-rows {
+    grid-template-columns: 1fr auto;
+}

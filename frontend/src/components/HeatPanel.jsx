@@ -70,7 +70,7 @@ export default function HeatPanel({ stats }) {
                 {stats.landSurfaceTempDate && (
                     <p className={styles["heat-caveat"]}>Measured {stats.landSurfaceTempDate} · Landsat land surface</p>
                 )}
-                {open === "air" && airNote && (
+                {open === "air" && airUnavailable && airNote && (
                     <p className={styles["why-note"]}>
                         <span className={styles["why-key"]}>limitations.air_temperature</span>
                         {airNote}

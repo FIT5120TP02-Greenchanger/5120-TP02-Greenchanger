@@ -37,7 +37,8 @@ export default function SidePanel({
     return (
         <aside className={styles['side-panel']}>
             <CanopyPanel pct={trees.pct} nTrees={trees.nTrees} canopyM2={trees.canopyM2} viewM2={trees.viewM2} simulatedCount={simulatedCount} />
-            <HeatPanel stats={stats} />
+            {/* key: a new address remounts the panel so an open "?" note does not carry over */}
+            <HeatPanel key={stats?.address || "none"} stats={stats} />
 
             <div className={styles['test-change']}>
                 <span className={styles['test-change-label']}>TEST A CHANGE</span>
