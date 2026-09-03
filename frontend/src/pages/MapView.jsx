@@ -422,7 +422,8 @@ export default function MapView({ selectedLocation, setSelectedLocation, simulat
                                 onPlantTree={() => onPlantTree({
                                     lng: propertyAnchor?.lng,
                                     lat: propertyAnchor?.lat,
-                                    label: propertySelected.stats.address
+                                    label: propertySelected.stats.address,
+                                    feature: propertySelected.selected, // the lot, so the planting page can draw it
                                 })} />
                         </div>
                     </Marker>

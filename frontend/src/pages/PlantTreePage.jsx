@@ -1,14 +1,33 @@
-import { useRef, useCallback, useEffect, useMemo } from 'react';
+// import { useRef, useCallback, useEffect, useMemo } from 'react';
+import { useRef, useCallback, useEffect, useMemo, useState } from 'react'; // useState added (2026-09-03): tree position + hint
 import Map, { Source, Layer } from 'react-map-gl/mapbox';
 import 'mapbox-gl/dist/mapbox-gl.css';
 import styles from './PlantTreePage.module.css';
-import panelStyles from '../components/Panel.module.css';
+// import panelStyles from '../components/Panel.module.css'; // only used by the screen-centre crosshair, replaced 2026-09-03
 import { useTreeSimulation } from '../hooks/simulation';
 import TreePlacementPanel from '../components/TreePlacementPanel';
 import ComparisonPanel from '../components/ComparisonPanel'
-import { circleMetres } from '../utils/geo';
+// import { circleMetres } from '../utils/geo';
+import { circleMetres, centroidOfGeometry, pointInPolygon } from '../utils/geo'; // lot centre + inside-lot check (2026-09-03)
+import { TREE_SIZES } from '../hooks/simulation'; // canopy radius per size for the preview circle (2026-09-03)
 import { useTreeCanopy } from '../hooks/canopy';
 import { START_PITCH, START_BEARING } from '../config/mapConfig';
+
+// Planting map (2026-09-03): same paint as MapView so the existing canopy and the selected lot
+// look like the map the user came from.
+const canopyLayer = {
+    id: "canopy",
+    type: "fill-extrusion",
+    paint: {
+        "fill-extrusion-color": "#7FA96C",
+        "fill-extrusion-height": ["*", ["get", "r"], 1.6],
+        "fill-extrusion-base": ["*", ["get", "r"], 0.9],
+        "fill-extrusion-opacity": 0.85,
+    },
+};
+const lotFillLayer = { id: "lot-fill", type: "fill", paint: { "fill-color": "#2F7D5A", "fill-opacity": 0.2 } };
+const lotLineLayer = { id: "lot-line", type: "line", paint: { "line-color": "#2F7D5A", "line-width": 3 } };
+const EMPTY = { type: 'FeatureCollection', features: [] };
 
 export default function PlantTreePage({ planTarget, onDone }) {
     const mapRef = useRef(null);
@@ -16,6 +35,17 @@ export default function PlantTreePage({ planTarget, onDone }) {
 
     const simulation = useTreeSimulation();
     const trees = useTreeCanopy();
+
+    // Placement (2026-09-03): the tree starts at the centre of the selected lot and moves when the
+    // user clicks inside the lot. The preview is a real ground circle sized by the chosen tree,
+    // so it follows the map perspective instead of being a flat screen circle.
+    const lotGeometry = planTarget?.feature?.geometry || null;
+    const lotCentre = useMemo(
+        () => centroidOfGeometry(lotGeometry) || { lng: planTarget?.lng ?? 145.13, lat: planTarget?.lat ?? -37.918 },
+        [lotGeometry, planTarget?.lng, planTarget?.lat]
+    );
+    const [treePos, setTreePos] = useState(lotCentre);
+    const [hint, setHint] = useState(null);
 
     const refreshTrees = useCallback(() => {
         const map = mapRef.current?.getMap();
@@ -35,10 +65,39 @@ export default function PlantTreePage({ planTarget, onDone }) {
         debounceRef.current = setTimeout(refreshTrees, 250);
     }, [refreshTrees]);
 
+    // const handleConfirm = useCallback(() => {
+    //     const center = mapRef.current?.getMap()?.getCenter();
+    //     if (center) simulation.placeTree(center.lng, center.lat);
+    // }, [simulation]);
+    // Plant where the preview circle is (2026-09-03)
     const handleConfirm = useCallback(() => {
-        const center = mapRef.current?.getMap()?.getCenter();
-        if (center) simulation.placeTree(center.lng, center.lat);
-    }, [simulation]);
+        simulation.placeTree(treePos.lng, treePos.lat);
+    }, [simulation, treePos]);
+
+    // A click inside the lot moves the tree; outside it only hints
+    const handleMapClick = useCallback((e) => {
+        if (!simulation.active) return;
+        const { lng, lat } = e.lngLat;
+        if (lotGeometry && !pointInPolygon(lng, lat, lotGeometry)) {
+            setHint("Plant inside the selected lot.");
+            return;
+        }
+        setTreePos({ lng, lat });
+    }, [simulation.active, lotGeometry]);
+
+    useEffect(() => {
+        if (!hint) return;
+        const t = setTimeout(() => setHint(null), 3000);
+        return () => clearTimeout(t);
+    }, [hint]);
+
+    // Dashed preview circle = canopy at maturity for the selected size, at the tree position
+    const previewGeoJson = useMemo(() => ({
+        type: 'FeatureCollection',
+        features: simulation.active
+            ? [{ type: 'Feature', properties: {}, geometry: circleMetres(treePos.lng, treePos.lat, TREE_SIZES[simulation.size].radiusM) }]
+            : [],
+    }), [simulation.active, simulation.size, treePos]);
 
     const handleDiscard = useCallback(() => onDone(null), [onDone]);
 
@@ -78,10 +137,13 @@ export default function PlantTreePage({ planTarget, onDone }) {
                     ref={mapRef}
                     onLoad={handleMapLoad}
                     onMoveEnd={handleMoveEnd}
+                    onClick={handleMapClick}
                     mapboxAccessToken={import.meta.env.VITE_MAPBOX_ACCESS_TOKEN}
                     initialViewState={{
-                    longitude: planTarget?.lng ?? 145.13,
-                    latitude: planTarget?.lat ?? -37.918,
+                    // longitude: planTarget?.lng ?? 145.13,
+                    // latitude: planTarget?.lat ?? -37.918,
+                    longitude: lotCentre.lng, // centre on the lot (2026-09-03)
+                    latitude: lotCentre.lat,
                     zoom: 18.2,
                     pitch: START_PITCH,
                     bearing: START_BEARING,
@@ -90,6 +152,20 @@ export default function PlantTreePage({ planTarget, onDone }) {
                     style={{ width: '100%', height: '100%' }}
                     mapStyle="mapbox://styles/mapbox/standard"
                 >
+                    {/* Existing canopy + the selected lot (2026-09-03), so the simulated tree has context */}
+                    <Source id="trees" type="geojson" data={{ type: 'FeatureCollection', features: trees.treeFeatures }}>
+                        <Layer {...canopyLayer} source="trees" />
+                    </Source>
+                    <Source id="lot" type="geojson" data={lotGeometry ? { type: 'Feature', properties: {}, geometry: lotGeometry } : EMPTY}>
+                        <Layer {...lotFillLayer} source="lot" />
+                        <Layer {...lotLineLayer} source="lot" />
+                    </Source>
+                    {/* Preview circle while placing; the placed tree is drawn by the block below */}
+                    <Source id="tree-preview" type="geojson" data={previewGeoJson}>
+                        <Layer id="tree-preview-fill" type="fill" source="tree-preview" paint={{ 'fill-color': '#2F7D5A', 'fill-opacity': 0.2 }} />
+                        <Layer id="tree-preview-line" type="line" source="tree-preview" paint={{ 'line-color': '#2F7D5A', 'line-width': 2, 'line-dasharray': [2, 2] }} />
+                    </Source>
+
                     {simulation.trees.length && (
                     <Source
                         id="simulated-trees"
@@ -104,13 +180,17 @@ export default function PlantTreePage({ planTarget, onDone }) {
                     )}
                 </Map>
 
+                {/* Original kept for reference (2026-09-03):
                 {simulation.active && (
                     <div className={styles['crosshair-overlay']}>
                     <div className={panelStyles['crosshair']} />
                     </div>
                 )}
+                */}
 
                 <div className={styles['pilot-badge']}>Simulation is indicative, not professional advice</div>
+                {/* Hint when a click lands outside the lot (2026-09-03) */}
+                {hint && <div className={styles['map-hint']} role="status">{hint}</div>}
                 </div>
 
                 <aside className={styles['plant-sidebar']}>
