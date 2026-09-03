@@ -247,20 +247,18 @@ an analytical parcel result. The `trees` job uses
 the official Tree Urban Feature Service to add mapped tree counts and dimensions
 without claiming that they are a current field survey.
 
-Migration 017 stores one source-version-specific environmental classification
-scheme and separate heat/canopy thresholds. The builder calculates the 33.33rd
-and 66.67th percentiles with `percentile_cont` from the current
-application-ready Melbourne baseline cells. A value at the lower
-threshold remains `Low`; a value at the upper threshold remains `Medium`;
-larger values are `High`. Missing values or missing active thresholds always
-return `Unavailable`, never `Low`. `get_property_baseline` exposes both labels,
-the scheme version and the Melbourne-relative scope.
+Migration 017 stores source-version-specific environmental thresholds.
+Migration 029 changes effective temperature classification to fixed
+GreenChanger display bands: Low ≤27°C, Medium >27°C and ≤30°C, and High >30°C.
+Canopy continues to use the 33.33rd and 66.67th percentiles from current
+application-ready Melbourne cells. Missing or non-finite temperature values and
+missing canopy measurements return `Unavailable`, never `Low`.
 
 The current `melbourne-terciles-v1` status is:
 
 | Metric | Lower/upper cutoffs | Low / Medium / High cells |
 | --- | --- | --- |
-| Landsat land-surface temperature | 9.508°C / 13.147°C | 11,741 / 11,742 / 11,735 |
+| Temperature display band | 27°C / 30°C | Counts depend on source values |
 | 500 m canopy proxy | 28.8% / 73.533333% | 12,384 / 12,380 / 12,382 |
 
 Run `build_environmental_classifications.py --status` for a read-only database

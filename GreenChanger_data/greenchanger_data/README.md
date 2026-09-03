@@ -14,7 +14,7 @@ functions and perform database writes.
 | `bom.py` | Validate the Melbourne station registry, independently download official BOM feeds, preserve per-station failures, verify feed identity, flatten and normalise observations. |
 | `canopy.py` | Inspect and aggregate a binary tree-extent raster into Melbourne grid summaries. |
 | `canopy_baseline.py` | Define versioned baseline and source-provenance rules, including analytical-versus-proxy classification. |
-| `classification.py` | Apply versioned Melbourne-relative heat/canopy terciles plus evidence-backed daily-mean air-temperature and canopy benchmark helpers, with explicit missing-data handling. |
+| `classification.py` | Apply fixed 27°C/30°C temperature display bands, versioned Melbourne-relative canopy thresholds and separate historical/evidence helpers, with explicit missing-data handling. |
 | `landsat.py` | Search Landsat Collection 2, sign/download assets, mask unusable pixels and calculate land-surface temperature. |
 | `heat_baseline.py` | Define and reference-test the latest-date/same-day-overlap baseline mosaic rule. |
 | `intervention_model.py` | Load source-backed action parameters, calculate non-guaranteed impact ranges and evaluate published-evidence cases. |
@@ -69,26 +69,27 @@ neighbourhood canopy baseline.
 
 ## Environmental classification logic
 
-`classification.py` supports versioned Melbourne tercile schemes. The deployed
-proxy baseline remains `melbourne-terciles-v1`; after the analytical tile-wise
+`classification.py` supports fixed temperature display bands and versioned
+Melbourne canopy tercile schemes. The deployed canopy proxy baseline remains
+`melbourne-terciles-v1`; after the analytical tile-wise
 baseline passes its quality gate, it must be published separately as
-`melbourne-terciles-v2`. The calculation
-uses the 33.33rd and 66.67th percentiles of the application-ready Greater
-Melbourne cells, calculated separately for Landsat land-surface temperature and
-the 500 m neighbourhood canopy baseline. The current v1 results are:
+`melbourne-terciles-v2`. Canopy uses the 33.33rd and 66.67th percentiles of the
+application-ready Melbourne cells. Temperature uses fixed product display
+bands:
 
 | Metric | Low | Medium | High | Distribution |
 | --- | --- | --- | --- | --- |
-| Heat | ≤9.508°C | >9.508°C and ≤13.147°C | >13.147°C | 11,741 / 11,742 / 11,735 |
+| Temperature display band | ≤27°C | >27°C and ≤30°C | >30°C | Counts depend on the source values |
 | Canopy | ≤28.8% | >28.8% and ≤73.533333% | >73.533333% | 12,384 / 12,380 / 12,382 |
 
-Inclusive threshold handling is intentional: the lower cutoff belongs to
-`Low`, and the upper cutoff belongs to `Medium`. Null measurements, absent
-cells and missing active thresholds return `Unavailable`; they are never
-treated as environmental `Low`. A replacement baseline requires a new scheme
-version and review of its distribution rather than mutation of v1.
+Inclusive boundary handling is intentional: 27°C belongs to `Low`, and 30°C
+belongs to `Medium`. Null or non-finite temperature measurements return
+`Unavailable`. Absent canopy cells and missing active canopy thresholds also
+return `Unavailable`; they are never treated as environmental `Low`. A
+replacement canopy baseline requires a new scheme version and review rather
+than mutation of v1.
 
-The separate absolute helpers do not replace these terciles.
+The separate historical/evidence helpers do not redefine the product bands.
 `classify_melbourne_daily_mean_air_temperature()` uses a forecast maximum and
 the following overnight minimum and returns a structured historical-context
 object, not `Low/Medium/High` or a current warning. The 27.2°C research value

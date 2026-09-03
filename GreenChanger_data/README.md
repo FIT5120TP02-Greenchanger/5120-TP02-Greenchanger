@@ -261,30 +261,33 @@ conversion; their 500 m source resolution is unchanged.
 
 ### Active environmental classifications
 
-Migration 017 and `build_environmental_classifications.py` created the active
-`melbourne-terciles-v1` scheme from the current application-ready cells. These
-are relative Melbourne indicators, not health, planning or comfort standards.
+Migration 029 applies fixed GreenChanger display bands to temperature values.
+Canopy remains classified using the active versioned Melbourne-relative
+threshold scheme. Temperature bands are product-defined labels, not BOM
+heatwave, health-risk or comfort classifications, and every response must retain
+whether the source value is Landsat land-surface temperature or BOM air
+temperature.
 
 | Metric | Low | Medium | High | Cells assessed |
 | --- | --- | --- | --- | ---: |
-| Landsat land-surface temperature | ≤9.508°C | >9.508°C and ≤13.147°C | >13.147°C | 35,218 |
+| Temperature display band | ≤27°C | >27°C and ≤30°C | >30°C | Source-dependent |
 | 500 m neighbourhood canopy proxy | ≤28.8% | >28.8% and ≤73.533333% | >73.533333% | 37,146 |
 
-The distributions are 11,741/11,742/11,735 heat cells and
-12,384/12,380/12,382 canopy cells for Low/Medium/High respectively. Exact
-boundary values remain in the lower class. A missing source value or missing
-active threshold returns `Unavailable`, never `Low`. Inspect the active scheme:
+The canopy distribution is 12,384/12,380/12,382 cells for Low/Medium/High.
+Temperature classes are no longer expected to contain equal counts because
+they use fixed boundaries. Exact 27°C and 30°C values remain in the lower class.
+A missing or non-finite value returns `Unavailable`, never `Low`. Inspect the
+active metadata:
 
 ```bash
 python greenchanger_script/build_environmental_classifications.py --status
 ```
 
-The scheme is tied to the exact heat and canopy baseline dataset versions used
-to calculate it. If either baseline changes, create and review a new version
-label (for example `melbourne-terciles-v2`) instead of overwriting v1. The
-labels describe a property's relative position within the current Melbourne
-baseline; they do not mean safe/unsafe temperature or adequate/inadequate
-canopy.
+The canopy scheme is tied to the exact baseline dataset version used to
+calculate it. A replacement canopy baseline requires a new reviewed version
+instead of overwriting history. Temperature uses fixed display bands, but its
+source, measurement type, date and limitations remain mandatory. Neither set
+of labels means safe/unsafe temperature or statutory canopy adequacy.
 
 ### Evidence-backed absolute benchmark helpers
 

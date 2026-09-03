@@ -1,4 +1,4 @@
-"""Calculate and activate Melbourne heat and canopy terciles."""
+"""Activate Melbourne canopy thresholds and fixed temperature display bands."""
 
 from __future__ import annotations
 
@@ -54,7 +54,7 @@ def current_status(connection, scheme_id=None) -> dict:
     return {
         "classification_scheme_id": str(thresholds[0]["classification_scheme_id"]),
         "version_label": thresholds[0]["version_label"],
-        "method": "tercile_percentile_cont",
+        "method": "fixed_temperature_bands_with_canopy_terciles",
         "missing_value_label": "Unavailable",
         "thresholds": [dict(row) for row in thresholds],
         "classification_distribution": [dict(row) for row in distribution],

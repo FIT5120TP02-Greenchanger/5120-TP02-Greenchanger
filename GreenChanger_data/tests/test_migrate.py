@@ -9,7 +9,7 @@ class MigrationFileTests(unittest.TestCase):
     def test_migrations_are_numbered_and_ordered(self):
         self.assertEqual(
             [version for version, _ in migration_files()],
-            list(range(1, 29)),
+            list(range(1, 30)),
         )
 
     def test_include_is_expanded(self):
@@ -93,6 +93,17 @@ class MigrationFileTests(unittest.TestCase):
         self.assertIn("WHEN p_value IS NULL THEN 'Unavailable'", sql)
         self.assertIn("heat_classification", sql)
         self.assertIn("canopy_classification", sql)
+
+    def test_fixed_temperature_display_bands_are_added_without_rewriting_history(self):
+        migration = next(
+            path for version, path in migration_files() if version == 29
+        )
+        sql = expanded_sql(migration)
+        self.assertIn("classify_temperature_band", sql)
+        self.assertIn("p_temperature_c <= 27.0", sql)
+        self.assertIn("p_temperature_c <= 30.0", sql)
+        self.assertIn("p_metric_code = 'heat'", sql)
+        self.assertIn("not BOM heatwave, health-risk or comfort classifications", sql)
 
     def test_environment_context_uses_bounded_indexed_radius_queries(self):
         migration = next(

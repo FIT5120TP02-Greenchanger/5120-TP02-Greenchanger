@@ -57,6 +57,7 @@ greenchanger_sql/
 | `migrations/015_intervention_model_validation.sql` | Defines four-action parameters, the range-only model and auditable validation runs/results. |
 | `migrations/016_multi_station_weather_context.sql` | Adds recent nearest-station BOM context, distance-status rules and suppression of stale or overly distant temperatures. |
 | `migrations/017_environmental_classifications.sql` | Adds versioned Melbourne tercile thresholds, missing-safe classification and property-lookup labels. |
+| `migrations/029_fixed_temperature_display_bands.sql` | Changes heat labels to fixed GreenChanger bands (≤27°C, >27–30°C, >30°C), preserves canopy thresholds and keeps missing/non-finite values unavailable. |
 | `migrations/018_environment_context_radius.sql` | Adds a bounded, application-facing radius query for current mapped-tree points and clipped 500 m heat cells. |
 | `migrations/019_environment_context_by_address.sql` | Resolves one unambiguous Melbourne address and delegates to the bounded coordinate-radius query. |
 | `migrations/020_evidence_backed_absolute_classifications.sql` | Stores threshold evidence with exact source locators and adds measurement-specific daily-mean air-temperature and canopy benchmark functions. |
@@ -148,10 +149,11 @@ tree tables are large, schedule the shared migration during a low-write period.
 Migration 017 adds `environmental_classification_scheme` and
 `environmental_classification_threshold`. The active
 `current_environmental_classification_threshold` view exposes source-version
-IDs, tercile cutoffs, sample counts, scope and explanations. The SQL classifier
-uses inclusive lower boundaries and returns `Unavailable` whenever the source
-value or an active threshold is missing. The property lookup returns heat and
-canopy labels together with the exact scheme version.
+IDs, effective cutoffs, sample counts, scope and explanations. Migration 029
+overrides the effective heat cutoffs with fixed 27°C/30°C display bands while
+preserving versioned canopy thresholds. The SQL classifier returns
+`Unavailable` for missing or non-finite values. Property lookup keeps the
+measurement source and type alongside its labels.
 
 Migration 020 records each absolute reference's URL and exact page/section
 locator. Migration 021 corrects its temperature contract in a forward-only
@@ -169,13 +171,14 @@ The active `melbourne-terciles-v1` thresholds and cell distributions are:
 
 | Metric | Low | Medium | High | Low / Medium / High count |
 | --- | --- | --- | --- | --- |
-| Landsat land-surface temperature | ≤9.508°C | >9.508°C and ≤13.147°C | >13.147°C | 11,741 / 11,742 / 11,735 |
+| Temperature display band | ≤27°C | >27°C and ≤30°C | >30°C | Counts depend on the source values |
 | 500 m neighbourhood canopy proxy | ≤28.8% | >28.8% and ≤73.533333% | >73.533333% | 12,384 / 12,380 / 12,382 |
 
-These are Melbourne-relative dataset classifications, not regulatory or health
-standards. Threshold rows are tied to specific source dataset-version IDs.
-Rebuilt baselines must produce a new reviewed scheme version rather than
-changing historical values.
+The temperature bands are application-defined and are not regulatory, health,
+comfort or BOM heatwave standards. Canopy remains Melbourne-relative and its
+threshold rows are tied to specific source dataset-version IDs. Rebuilt canopy
+baselines must produce a new reviewed scheme version rather than changing
+historical values.
 
 ### Environmental and analytical data
 

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from decimal import Decimal
 import os
 import time
 import unittest
@@ -77,6 +78,29 @@ class PostgisEnvironmentContextIntegrationTests(unittest.TestCase):
                     )
                 )
             cls.connection.close()
+
+    def test_fixed_temperature_display_band_boundaries(self):
+        with self.connection.cursor() as cursor:
+            cursor.execute(
+                """
+                SELECT value, classify_temperature_band(value)
+                FROM (VALUES
+                    (NULL::NUMERIC), (13.6::NUMERIC), (27::NUMERIC),
+                    (27.01::NUMERIC), (30::NUMERIC), (30.01::NUMERIC)
+                ) AS sample(value)
+                """
+            )
+            self.assertEqual(
+                cursor.fetchall(),
+                [
+                    (None, "Unavailable"),
+                    (Decimal("13.6"), "Low"),
+                    (Decimal("27"), "Low"),
+                    (Decimal("27.01"), "Medium"),
+                    (Decimal("30"), "Medium"),
+                    (Decimal("30.01"), "High"),
+                ],
+            )
 
     @classmethod
     def _seed_spatial_contract(cls):

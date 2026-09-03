@@ -14,7 +14,7 @@ handling remain separate team components.
 | `get_environment_context(longitude, latitude, radius_m, layers, result_limit)` | Returns nearby mapped-tree points and clipped Landsat heat cells. | EPSG:4326 input is transformed to EPSG:7855; Melbourne boundary required; radius `(0, 2000]` m; layers are `trees` and/or `heat`; limit `1–2000` applies independently per layer. |
 | `get_environment_context_by_address(address, radius_m, layers, result_limit)` | Normalises supported street abbreviations, resolves one Vicmap address and delegates to the coordinate function. | `RD` is expanded to `ROAD`; missing, unmatched and ambiguous searches are rejected. An exact full-address match is preferred. |
 | `get_property_baseline(address, result_limit)` | Joins application-ready address, parcel, Landsat, canopy, tree and recent BOM context. | Returns source/version details and limitations; BOM air temperature remains separate from Landsat land-surface temperature. |
-| `classify_environmental_value(metric, value, version)` | Applies an active, versioned Melbourne-relative tercile scheme to comparable baseline cells. | `Low/Medium/High` are relative rank groups, not health or safety categories. Missing data returns `Unavailable`. |
+| `classify_environmental_value(metric, value, version)` | Applies fixed 27°C/30°C GreenChanger display bands to heat and the active versioned Melbourne-relative scheme to canopy. | Temperature labels are application-defined, not BOM heatwave, health-risk or comfort categories. Missing/non-finite data returns `Unavailable`. |
 | `classify_melbourne_daily_mean_air_temperature(maximum, following_minimum)` | Returns structured context for the retired Victorian Central District 30°C daily-mean threshold. | Returns JSON metadata with `status: historical_context`; it is never a current BOM warning. The 27.2°C research percentile is metadata only because it requires at least two consecutive days. |
 | `classify_canopy_benchmark(canopy_percentage)` | Compares a validated analytical canopy percentage with the official 15.3% metropolitan baseline and 30% urban target. | Progress context only; prohibited for the rendered canopy proxy and not property-level compliance. |
 
@@ -22,8 +22,9 @@ handling remain separate team components.
 
 Three distinct measures must never be mixed:
 
-1. Landsat land-surface temperature is classified only by versioned Melbourne
-   terciles calculated from comparable application-ready cells.
+1. Landsat land-surface temperature uses fixed GreenChanger display bands:
+   Low ≤27°C, Medium >27°C and ≤30°C, and High >30°C. These are product labels,
+   not health, comfort or BOM heatwave categories.
 2. BOM observations are air temperature from a named station, timestamped and
    distance-labelled. They are not property temperature or Landsat LST.
 3. The retired Victorian 30°C daily-mean method is historical context. It does
