@@ -1,7 +1,7 @@
 {
-  "registry_version": "greater-melbourne-bom-stations-v1",
+  "registry_version": "greater-melbourne-bom-stations-v2",
   "publisher": "Bureau of Meteorology",
-  "product_code": "IDV60901",
+  "product_codes": ["IDV60901", "IDV60801"],
   "maximum_observation_age_hours": 3,
   "good_local_context_max_km": 10,
   "regional_context_max_km": 25,
@@ -40,7 +40,9 @@
       "station_code": "95867",
       "station_name": "Scoresby",
       "coverage_role": "eastern_melbourne",
-      "source_url": "https://www.bom.gov.au/fwo/IDV60901/IDV60901.95867.json"
+      "source_url": "https://www.bom.gov.au/fwo/IDV60801/IDV60801.95867.json",
+      "availability_status": "planned_outage_site_relocation",
+      "status_source_url": "https://www.bom.gov.au/products/IDV60801/IDV60801.95867.shtml"
     },
     {
       "station_code": "94864",

@@ -426,7 +426,7 @@ All source versions retain extraction time, observation period, checksum, source
 ### Heat and weather
 
 - Landsat values are land-surface temperature, not the air temperature experienced by a resident.
-- BOM values are observations from the nearest of ten configured official Melbourne stations, not property-level measurements.
+- BOM values are observations from the nearest of ten configured official Melbourne stations, not property-level measurements. Scoresby is currently in a BOM-planned outage due to site relocation; its official feed remains configured and failed refreshes are retained as a limitation while other stations continue independently.
 - Only observations no older than three hours are eligible. Stations within 10 km are labelled `good_local_context`; 10–25 km is `regional_context_warning`; beyond 25 km the air and apparent temperatures are suppressed; no eligible observation is `unavailable_no_observation_within_3_hours`.
 - Station name, observation time and distance remain visible whenever a recent station exists. BOM air temperature is never substituted for Landsat land-surface temperature.
 - The heat mosaic uses the newest usable cell and same-day overlap averaging; cells can come from different acquisition dates.
