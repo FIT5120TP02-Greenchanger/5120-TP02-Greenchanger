@@ -23,24 +23,27 @@ export default function SidePanel({ stats, trees, simulating, isHomeSelected, on
 
             <div className={styles['test-change']}>
                 <span className={styles['test-change-label']}>TEST A CHANGE</span>
+                {isHomeSelected ? (
+                    <p>
+                        {simulating
+                            ? "Your lot is selected. Use the card on the map to plant a tree."
+                            : "Your lot is pinned. Pick it, or any other lot on the street."}
+                    </p>
+                ) : (
+                    <>
+                        <p>{simulating ? "Another lot is selected." : "Another lot is picked."}</p>
+                        <p>
+                            <button type="button" className={styles['link-button']} onClick={onBackHome}>
+                                Back to my home
+                            </button>
+                        </p>
+                    </>
+                )}
+                {/* The only way into simulate mode */}
                 {!simulating && (
-                    <>
-                        <p>Your lot is pinned. Pick it, or any other lot on the street.</p>
-                        <button type="button" className={styles['simulate-button']} onClick={onSimulate}>
-                            + Simulate a change
-                        </button>
-                    </>
-                )}
-                {simulating && isHomeSelected && (
-                    <p>Your lot is selected. Use the card on the map to plant a tree.</p>
-                )}
-                {simulating && !isHomeSelected && (
-                    <>
-                        <p>Another lot is selected.</p>
-                        <button type="button" className={styles['link-button']} onClick={onBackHome}>
-                            Back to my home
-                        </button>
-                    </>
+                    <button type="button" className={styles['simulate-button']} onClick={onSimulate}>
+                        + Simulate a change
+                    </button>
                 )}
             </div>
         </aside>

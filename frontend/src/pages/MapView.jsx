@@ -184,8 +184,10 @@ export default function MapView({ selectedLocation, setSelectedLocation, simulat
 
         // // setIsPropertyClick(true);
     // }, [propertySelected, parcels.parcelFeatures, zoom]);
-    // Arrive flow: clicking a lot selects it and opens the card (simulate mode). A click that
-    // hits no lot (road, reserve) keeps the current selection; selectAtPoint only sets a hint.
+    // Arrive flow: clicking a lot only changes the selection (outline + side panel). The card
+    // opens solely through "Simulate a change"; if it is already open it follows the selection.
+    // A click that hits no lot (road, reserve) keeps the current selection; selectAtPoint only
+    // sets a hint.
     const handleClick = useCallback(async (e) => {
         const map = mapRef.current?.getMap();
         if (!map) return;
@@ -193,7 +195,6 @@ export default function MapView({ selectedLocation, setSelectedLocation, simulat
         const features = map.queryRenderedFeatures(e.point, { layers: ["parcel-hit"] });
         if (features.length) {
             setPropertyAnchor({ lng: e.lngLat.lng, lat: e.lngLat.lat });
-            setSimulating(true);
         }
         await propertySelected.selectAtPoint(features, parcels.parcelFeatures, zoom < MIN_PARCEL_ZOOM, e.lngLat);
     }, [propertySelected, parcels.parcelFeatures, zoom]);
