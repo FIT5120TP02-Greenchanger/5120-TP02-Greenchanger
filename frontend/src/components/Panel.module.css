@@ -127,7 +127,7 @@
 
 .lot-rows {
     display: grid;
-    grid-template-columns: 120px auto;
+    grid-template-columns: 70% auto;
     gap: 8px 20px;
     margin: 0;
     gap: 11px;
