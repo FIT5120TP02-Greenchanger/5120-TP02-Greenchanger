@@ -32,12 +32,12 @@ export default function PropertyPanel({ stats, hint, onPlantTree, onClose }) {
                         <dd>{stats.neighbourhoodCanopyPct.toFixed(1)}%</dd>
                     </>
                 )}
-                {stats.canopyClassification && (
+                {/* {stats.canopyClassification && (
                     <>
                         <dt>Classification</dt>
                         <dd>{stats.canopyClassification}</dd>
                     </>
-                )}
+                )} */}
             </dl>
             
             <button className={styles["plant-button"]} onClick={onPlantTree}>Plant a tree here</button>
