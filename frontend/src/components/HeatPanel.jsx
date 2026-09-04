@@ -45,7 +45,7 @@ export default function HeatPanel({ stats }) {
                 <div className={styles["band-lead"]}>
                     <span className={`${styles["band"]} ${styles[BAND_CLASS[band] || "band-na"]}`}>{band}</span>
                     {scope && <span className={styles["band-scope"]}>{scope}</span>}
-                    {heatNote && why("heat", "Why this heat value")}
+                    {/* {heatNote && why("heat", "Why this heat value")} */}
                 </div>
                 {open === "heat" && heatNote && (
                     <p className={styles["why-note"]}>
