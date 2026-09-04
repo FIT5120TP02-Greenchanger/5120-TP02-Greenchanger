@@ -14,7 +14,7 @@ functions and perform database writes.
 | `bom.py` | Validate the Melbourne station registry, independently download official BOM feeds, preserve per-station failures, verify feed identity, flatten and normalise observations. |
 | `canopy.py` | Inspect and aggregate a binary tree-extent raster into Melbourne grid summaries. |
 | `canopy_baseline.py` | Define versioned baseline and source-provenance rules, including analytical-versus-proxy classification. |
-| `classification.py` | Apply fixed 27°C/30°C temperature display bands, versioned Melbourne-relative canopy thresholds and separate historical/evidence helpers, with explicit missing-data handling. |
+| `classification.py` | Apply fixed 27°C/30°C temperature display bands, evidence-backed 15.3%/30% canopy progress bands and separate historical helpers, with explicit missing-data handling. |
 | `landsat.py` | Search Landsat Collection 2, sign/download assets, mask unusable pixels and calculate land-surface temperature. |
 | `heat_baseline.py` | Define and reference-test the latest-date/same-day-overlap baseline mosaic rule. |
 | `intervention_model.py` | Load source-backed action parameters, calculate non-guaranteed impact ranges and evaluate published-evidence cases. |
@@ -69,25 +69,23 @@ neighbourhood canopy baseline.
 
 ## Environmental classification logic
 
-`classification.py` supports fixed temperature display bands and versioned
-Melbourne canopy tercile schemes. The deployed canopy proxy baseline remains
-`melbourne-terciles-v1`; after the analytical tile-wise
-baseline passes its quality gate, it must be published separately as
-`melbourne-terciles-v2`. Canopy uses the 33.33rd and 66.67th percentiles of the
-application-ready Melbourne cells. Temperature uses fixed product display
-bands:
+`classification.py` supports fixed temperature display bands and fixed,
+evidence-backed canopy progress bands. Canopy uses the official 15.3%
+metropolitan Melbourne 2018 baseline and the 30% Plan for Victoria urban-area
+target. Temperature uses fixed product display bands:
 
 | Metric | Low | Medium | High | Distribution |
 | --- | --- | --- | --- | --- |
 | Temperature display band | ≤27°C | >27°C and ≤30°C | >30°C | Counts depend on the source values |
-| Canopy | ≤28.8% | >28.8% and ≤73.533333% | >73.533333% | 12,384 / 12,380 / 12,382 |
+| Canopy progress | <15.3% | ≥15.3% and <30% | ≥30% | Counts depend on the source values |
 
-Inclusive boundary handling is intentional: 27°C belongs to `Low`, and 30°C
-belongs to `Medium`. Null or non-finite temperature measurements return
+Boundary handling is intentional: 27°C temperature belongs to `Low`, 30°C
+temperature belongs to `Medium`, 15.3% canopy belongs to `Medium`, and 30%
+canopy belongs to `High`. Null or non-finite measurements return
 `Unavailable`. Absent canopy cells and missing active canopy thresholds also
 return `Unavailable`; they are never treated as environmental `Low`. A
 replacement canopy baseline requires a new scheme version and review rather
-than mutation of v1.
+than mutation of an active version.
 
 The separate historical/evidence helpers do not redefine the product bands.
 `classify_melbourne_daily_mean_air_temperature()` uses a forecast maximum and
@@ -95,9 +93,8 @@ the following overnight minimum and returns a structured historical-context
 object, not `Low/Medium/High` or a current warning. The 27.2°C research value
 requires two consecutive days and is metadata only. It never categorises a
 single current BOM observation or Landsat surface temperature.
-`classify_canopy_benchmark()` uses
-the official 15.3% metropolitan baseline and 30% urban-area target but is
-prohibited for the current rendered canopy proxy. Exact sources and document locations are recorded in
+`classify_canopy_benchmark()` implements the same 15.3% and 30% bands. These
+are progress context, not proof of property-level compliance. Exact sources and document locations are recorded in
 `config/environmental_classification_evidence.json` and migrations 020–021.
 
 ## Property baseline integration

@@ -90,6 +90,31 @@ class PostgisEnvironmentContextIntegrationTests(unittest.TestCase):
                 ) AS sample(value)
                 """
             )
+
+    def test_fixed_canopy_bands_use_evidence_boundaries(self):
+        with self.connection.cursor() as cursor:
+            cursor.execute(
+                """
+                SELECT value, classify_environmental_value('canopy', value)
+                FROM (VALUES
+                    (NULL::NUMERIC), (0::NUMERIC), (15.29::NUMERIC),
+                    (15.3::NUMERIC), (29.99::NUMERIC), (30::NUMERIC),
+                    (100::NUMERIC)
+                ) AS sample(value)
+                """
+            )
+            self.assertEqual(
+                cursor.fetchall(),
+                [
+                    (None, "Unavailable"),
+                    (Decimal("0"), "Low"),
+                    (Decimal("15.29"), "Low"),
+                    (Decimal("15.3"), "Medium"),
+                    (Decimal("29.99"), "Medium"),
+                    (Decimal("30"), "High"),
+                    (Decimal("100"), "High"),
+                ],
+            )
             self.assertEqual(
                 cursor.fetchall(),
                 [
@@ -356,6 +381,50 @@ class PostgisEnvironmentContextIntegrationTests(unittest.TestCase):
             ("10 test rd melbourne 3000",),
         )
         self.assertEqual(rows, [("10 TEST ROAD MELBOURNE 3000", 1, 1)])
+
+    def test_grouped_address_coordinates_come_from_one_source_row(self):
+        duplicate_source_id = "ADDRESS-B-COORDINATE-REGRESSION"
+        with self.connection.cursor() as cursor:
+            cursor.execute(
+                """
+                INSERT INTO address (
+                    dataset_version_id, source_address_id, source_property_id,
+                    full_address, locality_name, postcode, is_primary,
+                    address_location
+                )
+                SELECT dataset_version_id, %s, source_property_id,
+                       full_address, locality_name, postcode, 'N',
+                       ST_Transform(
+                           ST_SetSRID(ST_MakePoint(145.02, -37.92), 4326), 7855
+                       )
+                FROM address
+                WHERE source_address_id = 'ADDRESS-B'
+                """,
+                (duplicate_source_id,),
+            )
+        try:
+            row = self._rows(
+                """SELECT longitude, latitude, cardinality(address_ids)
+                   FROM search_melbourne_addresses(%s, 10)""",
+                ("10 test rd melbourne 3000",),
+            )[0]
+            coordinate = (float(row[0]), float(row[1]))
+            came_from_original = (
+                abs(coordinate[0] - 144.965) < 0.000001
+                and abs(coordinate[1] - (-37.81)) < 0.000001
+            )
+            came_from_duplicate = (
+                abs(coordinate[0] - 145.02) < 0.000001
+                and abs(coordinate[1] - (-37.92)) < 0.000001
+            )
+            self.assertTrue(came_from_original or came_from_duplicate)
+            self.assertEqual(row[2], 2)
+        finally:
+            with self.connection.cursor() as cursor:
+                cursor.execute(
+                    "DELETE FROM address WHERE source_address_id = %s",
+                    (duplicate_source_id,),
+                )
 
     def test_historical_temperature_function_returns_metadata(self):
         result = self._rows(

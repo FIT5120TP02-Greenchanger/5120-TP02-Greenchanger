@@ -59,6 +59,8 @@ greenchanger_sql/
 | `migrations/017_environmental_classifications.sql` | Adds versioned Melbourne tercile thresholds, missing-safe classification and property-lookup labels. |
 | `migrations/029_fixed_temperature_display_bands.sql` | Changes heat labels to fixed GreenChanger bands (≤27°C, >27–30°C, >30°C), preserves canopy thresholds and keeps missing/non-finite values unavailable. |
 | `migrations/030_address_match_deduplication.sql` | Groups repeated address–parcel joins by normalised full address, preserves parcel options and prevents false “ambiguous/no match” results for abbreviations such as `RD`. |
+| `migrations/031_address_representative_coordinate.sql` | Selects longitude and latitude together from one deterministic representative address row, preventing hybrid coordinates assembled from separate aggregates. |
+| `migrations/032_fixed_canopy_benchmark_bands.sql` | Replaces canopy terciles with fixed evidence-backed progress bands using the official 15.3% metropolitan baseline and 30% Plan for Victoria urban target. |
 | `migrations/018_environment_context_radius.sql` | Adds a bounded, application-facing radius query for current mapped-tree points and clipped 500 m heat cells. |
 | `migrations/019_environment_context_by_address.sql` | Resolves one unambiguous Melbourne address and delegates to the bounded coordinate-radius query. |
 | `migrations/020_evidence_backed_absolute_classifications.sql` | Stores threshold evidence with exact source locators and adds measurement-specific daily-mean air-temperature and canopy benchmark functions. |
@@ -151,8 +153,9 @@ Migration 017 adds `environmental_classification_scheme` and
 `environmental_classification_threshold`. The active
 `current_environmental_classification_threshold` view exposes source-version
 IDs, effective cutoffs, sample counts, scope and explanations. Migration 029
-overrides the effective heat cutoffs with fixed 27°C/30°C display bands while
-preserving versioned canopy thresholds. The SQL classifier returns
+overrides the effective heat cutoffs with fixed 27°C/30°C display bands.
+Migration 032 replaces canopy terciles with the official 15.3% metropolitan
+baseline and 30% Plan for Victoria urban target. The SQL classifier returns
 `Unavailable` for missing or non-finite values. Property lookup keeps the
 measurement source and type alongside its labels.
 
@@ -168,16 +171,17 @@ official 15.3% metropolitan baseline and current 30% Plan for Victoria
 urban-area target. It is prohibited for the rendered canopy proxy and does not
 establish property-level planning compliance.
 
-The active `melbourne-terciles-v1` thresholds and cell distributions are:
+The fixed classification contract is:
 
 | Metric | Low | Medium | High | Low / Medium / High count |
 | --- | --- | --- | --- | --- |
 | Temperature display band | ≤27°C | >27°C and ≤30°C | >30°C | Counts depend on the source values |
-| 500 m neighbourhood canopy proxy | ≤28.8% | >28.8% and ≤73.533333% | >73.533333% | 12,384 / 12,380 / 12,382 |
+| 500 m neighbourhood canopy progress | <15.3% | ≥15.3% and <30% | ≥30% | Counts depend on source values |
 
 The temperature bands are application-defined and are not regulatory, health,
-comfort or BOM heatwave standards. Canopy remains Melbourne-relative and its
-threshold rows are tied to specific source dataset-version IDs. Rebuilt canopy
+comfort or BOM heatwave standards. Canopy labels describe progress against the
+published baseline and target; they are not property compliance findings. Its
+threshold rows remain tied to specific source dataset-version IDs. Rebuilt canopy
 baselines must produce a new reviewed scheme version rather than changing
 historical values.
 

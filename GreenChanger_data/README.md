@@ -95,7 +95,7 @@ python greenchanger_script/clip_to_melbourne.py --confirm-shared
 python greenchanger_script/build_heat_baseline.py --confirm-shared
 python greenchanger_script/build_canopy_baseline.py --confirm-shared
 python greenchanger_script/build_environmental_classifications.py \
-  --version-label melbourne-terciles-v2 \
+  --version-label melbourne-fixed-canopy-v1 \
   --require-analytical-canopy --confirm-shared
 
 # Parcel processing is resumable and remains internal until its quality gate passes.
@@ -270,9 +270,8 @@ conversion; their 500 m source resolution is unchanged.
 
 ### Active environmental classifications
 
-Migration 029 applies fixed GreenChanger display bands to temperature values.
-Canopy remains classified using the active versioned Melbourne-relative
-threshold scheme. Temperature bands are product-defined labels, not BOM
+Migrations 029 and 032 apply fixed GreenChanger bands to temperature and
+canopy values. Temperature bands are product-defined labels, not BOM
 heatwave, health-risk or comfort classifications, and every response must retain
 whether the source value is Landsat land-surface temperature or BOM air
 temperature.
@@ -280,11 +279,11 @@ temperature.
 | Metric | Low | Medium | High | Cells assessed |
 | --- | --- | --- | --- | ---: |
 | Temperature display band | ≤27°C | >27°C and ≤30°C | >30°C | Source-dependent |
-| 500 m neighbourhood canopy proxy | ≤28.8% | >28.8% and ≤73.533333% | >73.533333% | 37,146 |
+| 500 m neighbourhood canopy progress | <15.3% | ≥15.3% and <30% | ≥30% | Source-dependent |
 
-The canopy distribution is 12,384/12,380/12,382 cells for Low/Medium/High.
-Temperature classes are no longer expected to contain equal counts because
-they use fixed boundaries. Exact 27°C and 30°C values remain in the lower class.
+Neither metric is expected to contain equal class counts because both use fixed
+boundaries. Exact 15.3% canopy is Medium and exact 30% canopy is High. Exact
+27°C temperature is Low and exact 30°C temperature is Medium.
 A missing or non-finite value returns `Unavailable`, never `Low`. Inspect the
 active metadata:
 
@@ -292,8 +291,8 @@ active metadata:
 python greenchanger_script/build_environmental_classifications.py --status
 ```
 
-The canopy scheme is tied to the exact baseline dataset version used to
-calculate it. A replacement canopy baseline requires a new reviewed version
+The canopy scheme is tied to the exact baseline dataset version assessed with
+the fixed references. A replacement canopy baseline requires a new reviewed version
 instead of overwriting history. Temperature uses fixed display bands, but its
 source, measurement type, date and limitations remain mandatory. Neither set
 of labels means safe/unsafe temperature or statutory canopy adequacy.
@@ -423,7 +422,7 @@ All source versions retain extraction time, observation period, checksum, source
 
 - The official analytical source has now been obtained as four DataShare map-sheet packages and prepared as a 57-tile, 0.20 m EPSG:7899 VRT catalogue covering the Melbourne boundary. Its checksummed manifest is stored with the Git-ignored raw data.
 - `aggregate_vicmap_tree_extent.py` replaces the failed whole-mosaic approach with atomic tile checkpoints and a compact 500 m valid-area-weighted extract. Rerunning it skips completed tiles.
-- Until the analytical aggregate, Melbourne clip, quality gate and `melbourne-terciles-v2` publication complete in Aurora, the existing 19.1 m rendered proxy remains the current application-ready neighbourhood baseline.
+- Publish `melbourne-fixed-canopy-v1` after migration 032 so the application reports the official 15.3% baseline and 30% urban target instead of retired terciles.
 - Property canopy is calculated separately by clipping the unchanged 0.20 m VRT to each parcel. Raster coverage below 95% returns `Unavailable`, never 0%.
 - Property batches are resumable and remain internal until all parcels are assessed and the dataset-level 95% quality gate passes.
 

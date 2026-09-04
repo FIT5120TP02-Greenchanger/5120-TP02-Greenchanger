@@ -13,7 +13,7 @@ handling remain separate team components.
 | --- | --- | --- |
 | `get_environment_context(longitude, latitude, radius_m, layers, result_limit)` | Returns nearby mapped-tree points and clipped Landsat heat cells. | EPSG:4326 input is transformed to EPSG:7855; Melbourne boundary required; radius `(0, 2000]` m; layers are `trees` and/or `heat`; limit `1–2000` applies independently per layer. |
 | `get_environment_context_by_address(address, radius_m, layers, result_limit)` | Normalises supported street abbreviations, resolves one Vicmap address and delegates to the coordinate function. | `RD` is expanded to `ROAD`; missing, unmatched and ambiguous searches are rejected. An exact full-address match is preferred. |
-| `search_melbourne_addresses(address, result_limit)` | Returns one row per normalised full address and groups duplicate address–parcel joins. | Distinct parcel IDs are retained so a consumer can offer parcel selection instead of reporting “no match”. |
+| `search_melbourne_addresses(address, result_limit)` | Returns one row per normalised full address and groups duplicate address–parcel joins. | Distinct parcel IDs are retained for selection. Longitude and latitude are taken together from one deterministic representative row, never from separate aggregates. |
 | `get_property_baseline(address, result_limit)` | Joins application-ready address, parcel, Landsat, canopy, tree and recent BOM context. | Returns source/version details and limitations; BOM air temperature remains separate from Landsat land-surface temperature. |
 | `classify_environmental_value(metric, value, version)` | Applies fixed 27°C/30°C GreenChanger display bands to heat and the active versioned Melbourne-relative scheme to canopy. | Temperature labels are application-defined, not BOM heatwave, health-risk or comfort categories. Missing/non-finite data returns `Unavailable`. |
 | `classify_melbourne_daily_mean_air_temperature(maximum, following_minimum)` | Returns structured context for the retired Victorian Central District 30°C daily-mean threshold. | Returns JSON metadata with `status: historical_context`; it is never a current BOM warning. The 27.2°C research percentile is metadata only because it requires at least two consecutive days. |
@@ -72,10 +72,11 @@ new contract.
   integration/publication status, Melbourne scope and derivation method.
 - `schema_version` stores migration filename and SHA-256 checksum.
 - `environmental_classification_scheme` and
-  `environmental_classification_threshold` bind terciles to exact heat/canopy
-  dataset-version IDs. The current documented label is
-  `melbourne-terciles-v1`; the analytical replacement is published as
-  `melbourne-terciles-v2` rather than overwriting v1.
+  `environmental_classification_threshold` bind fixed display bands to exact
+  heat/canopy dataset-version IDs. Migration 032 retires canopy terciles in
+  favour of the published 15.3% metropolitan baseline and 30% urban target;
+  publish this contract as `melbourne-fixed-canopy-v1` rather than overwriting
+  historical schemes.
 - `environmental_classification_reference` stores threshold evidence, source
   locator, limitation, role, duration requirement and historical status.
 - `config/environmental_classification_evidence.json` is versioned as

@@ -9,7 +9,7 @@ class MigrationFileTests(unittest.TestCase):
     def test_migrations_are_numbered_and_ordered(self):
         self.assertEqual(
             [version for version, _ in migration_files()],
-            list(range(1, 31)),
+            list(range(1, 33)),
         )
 
     def test_include_is_expanded(self):
@@ -115,6 +115,31 @@ class MigrationFileTests(unittest.TestCase):
         self.assertIn("COUNT(DISTINCT distinct_pairs.parcel_id)", sql)
         self.assertIn("ARRAY_AGG(DISTINCT distinct_pairs.parcel_id)", sql)
         self.assertIn("v_exact_address_count = 0 AND v_address_count > 1", sql)
+
+    def test_grouped_address_uses_one_representative_coordinate_pair(self):
+        migration = next(
+            path for version, path in migration_files() if version == 31
+        )
+        sql = expanded_sql(migration)
+        self.assertIn("PARTITION BY distinct_pairs.normalized_address", sql)
+        self.assertIn("representative_rank = 1", sql)
+        self.assertIn("representative.longitude", sql)
+        self.assertIn("representative.latitude", sql)
+        self.assertNotIn("MIN(distinct_pairs.longitude)", sql)
+        self.assertNotIn("MIN(distinct_pairs.latitude)", sql)
+
+    def test_fixed_canopy_bands_use_published_baseline_and_target(self):
+        migration = next(
+            path for version, path in migration_files() if version == 32
+        )
+        sql = expanded_sql(migration)
+        self.assertIn("'fixed_evidence_bands'", sql)
+        self.assertIn("THEN 15.3", sql)
+        self.assertIn("THEN 30.0", sql)
+        self.assertIn("classify_canopy_benchmark(p_value)", sql)
+        self.assertIn("official metropolitan Melbourne 2018", sql)
+        self.assertIn("Plan for Victoria urban-area target", sql)
+        self.assertNotIn("PERCENTILE_CONT", sql)
 
     def test_environment_context_uses_bounded_indexed_radius_queries(self):
         migration = next(
