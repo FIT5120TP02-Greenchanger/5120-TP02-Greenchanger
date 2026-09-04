@@ -90,6 +90,17 @@ class PostgisEnvironmentContextIntegrationTests(unittest.TestCase):
                 ) AS sample(value)
                 """
             )
+            self.assertEqual(
+                cursor.fetchall(),
+                [
+                    (None, "Unavailable"),
+                    (Decimal("13.6"), "Low"),
+                    (Decimal("27"), "Low"),
+                    (Decimal("27.01"), "Medium"),
+                    (Decimal("30"), "Medium"),
+                    (Decimal("30.01"), "High"),
+                ],
+            )
 
     def test_fixed_canopy_bands_use_evidence_boundaries(self):
         with self.connection.cursor() as cursor:
@@ -113,17 +124,6 @@ class PostgisEnvironmentContextIntegrationTests(unittest.TestCase):
                     (Decimal("29.99"), "Medium"),
                     (Decimal("30"), "High"),
                     (Decimal("100"), "High"),
-                ],
-            )
-            self.assertEqual(
-                cursor.fetchall(),
-                [
-                    (None, "Unavailable"),
-                    (Decimal("13.6"), "Low"),
-                    (Decimal("27"), "Low"),
-                    (Decimal("27.01"), "Medium"),
-                    (Decimal("30"), "Medium"),
-                    (Decimal("30.01"), "High"),
                 ],
             )
 
