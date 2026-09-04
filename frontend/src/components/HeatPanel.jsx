@@ -45,7 +45,7 @@ export default function HeatPanel({ stats }) {
                 <div className={styles["band-lead"]}>
                     <span className={`${styles["band"]} ${styles[BAND_CLASS[band] || "band-na"]}`}>{band}</span>
                     {scope && <span className={styles["band-scope"]}>{scope}</span>}
-                    {heatNote && why("heat", "Why this heat value")}
+
                 </div>
                 {open === "heat" && heatNote && (
                     <p className={styles["why-note"]}>
@@ -59,7 +59,7 @@ export default function HeatPanel({ stats }) {
                     <dd>{stats.landSurfaceTempC != null ? `${stats.landSurfaceTempC.toFixed(1)}°C` : "—"}</dd>
                     <dt>
                         Air temperature
-                        {airUnavailable && airNote && why("air", "Why air temperature is unavailable")}
+
                     </dt>
                     <dd>
                         {airUnavailable
@@ -70,12 +70,7 @@ export default function HeatPanel({ stats }) {
                 {stats.landSurfaceTempDate && (
                     <p className={styles["heat-caveat"]}>Measured {stats.landSurfaceTempDate} · Landsat land surface</p>
                 )}
-                {open === "air" && airUnavailable && airNote && (
-                    <p className={styles["why-note"]}>
-                        <span className={styles["why-key"]}>limitations.air_temperature</span>
-                        {airNote}
-                    </p>
-                )}
+
 
                 {stats.weatherContext === WEATHER_REGIONAL && (
                     <p className={styles["heat-caveat"]}>
