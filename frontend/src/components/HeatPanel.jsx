@@ -42,11 +42,11 @@ export default function HeatPanel({ stats }) {
                 {/* the address these numbers belong to: the searched address unless another lot was picked */}
                 <p className={styles["heat-address"]}>Current address · {stats.address}</p>
 
-                {/* <div className={styles["band-lead"]}>
+                <div className={styles["band-lead"]}>
                     <span className={`${styles["band"]} ${styles[BAND_CLASS[band] || "band-na"]}`}>{band}</span>
                     {scope && <span className={styles["band-scope"]}>{scope}</span>}
-                    {heatNote && why("heat", "Why this heat value")}
-                </div> */}
+                    {/* {heatNote && why("heat", "Why this heat value")} */}
+                </div>
                 {open === "heat" && heatNote && (
                     <p className={styles["why-note"]}>
                         <span className={styles["why-key"]}>limitations.heat</span>
