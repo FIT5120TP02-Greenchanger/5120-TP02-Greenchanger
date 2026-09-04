@@ -17,6 +17,7 @@ return {
     weatherStationName: baseline.weather_station_name,
     weatherObservedAt: baseline.weather_observed_at,
     weatherDistanceKm: baseline.weather_station_distance_km,
+    propertyCanopyPct: baseline.property_canopy_percentage,
     // Expected values per README: "good_local_context" (<10km),
     // "regional_context_warning" (10-25km), or
     // "unavailable_no_observation_within_3_hours" (no eligible reading).
@@ -85,6 +86,7 @@ export function useSelectedProperty(treeFeatures) {
         const label = await reverseGeocode(lngLat.lng, lngLat.lat);
         if (!label) return;
         const baseline = await fetchPropertyBaseline(label);
+        console.log(baseline);
         if (baseline) {
             const enriched = { ...best, properties: { ...best.properties, ...mapBaselineToProperties(baseline) } };
             selectFeature(enriched, label);
@@ -154,6 +156,7 @@ export function useSelectedProperty(treeFeatures) {
             landSurfaceTempC: selected.properties?.landSurfaceTempC,
             landSurfaceTempDate: selected.properties?.landSurfaceTempDate,
             neighbourhoodCanopyPct: selected.properties?.neighbourhoodCanopyPct,
+            propertyCanopyPct: selected.properties?.propertyCanopyPct,
             canopyClassification: selected.properties?.canopyClassification,
             weatherStationName: selected.properties?.weatherStationName,
             weatherObservedAt: selected.properties?.weatherObservedAt,
