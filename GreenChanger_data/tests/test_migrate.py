@@ -9,7 +9,7 @@ class MigrationFileTests(unittest.TestCase):
     def test_migrations_are_numbered_and_ordered(self):
         self.assertEqual(
             [version for version, _ in migration_files()],
-            list(range(1, 29)),
+            list(range(1, 34)),
         )
 
     def test_include_is_expanded(self):
@@ -93,6 +93,64 @@ class MigrationFileTests(unittest.TestCase):
         self.assertIn("WHEN p_value IS NULL THEN 'Unavailable'", sql)
         self.assertIn("heat_classification", sql)
         self.assertIn("canopy_classification", sql)
+
+    def test_fixed_temperature_display_bands_are_added_without_rewriting_history(self):
+        migration = next(
+            path for version, path in migration_files() if version == 29
+        )
+        sql = expanded_sql(migration)
+        self.assertIn("classify_temperature_band", sql)
+        self.assertIn("p_temperature_c <= 27.0", sql)
+        self.assertIn("p_temperature_c <= 30.0", sql)
+        self.assertIn("p_metric_code = 'heat'", sql)
+        self.assertIn("not BOM heatwave, health-risk or comfort classifications", sql)
+
+    def test_address_matches_are_grouped_without_losing_parcel_options(self):
+        migration = next(
+            path for version, path in migration_files() if version == 30
+        )
+        sql = expanded_sql(migration)
+        self.assertIn("CREATE OR REPLACE FUNCTION search_melbourne_addresses", sql)
+        self.assertIn("DISTINCT ON (baseline.address_id, baseline.parcel_id)", sql)
+        self.assertIn("COUNT(DISTINCT distinct_pairs.parcel_id)", sql)
+        self.assertIn("ARRAY_AGG(DISTINCT distinct_pairs.parcel_id)", sql)
+        self.assertIn("v_exact_address_count = 0 AND v_address_count > 1", sql)
+
+    def test_grouped_address_uses_one_representative_coordinate_pair(self):
+        migration = next(
+            path for version, path in migration_files() if version == 31
+        )
+        sql = expanded_sql(migration)
+        self.assertIn("PARTITION BY distinct_pairs.normalized_address", sql)
+        self.assertIn("representative_rank = 1", sql)
+        self.assertIn("representative.longitude", sql)
+        self.assertIn("representative.latitude", sql)
+        self.assertNotIn("MIN(distinct_pairs.longitude)", sql)
+        self.assertNotIn("MIN(distinct_pairs.latitude)", sql)
+
+    def test_fixed_canopy_bands_use_published_baseline_and_target(self):
+        migration = next(
+            path for version, path in migration_files() if version == 32
+        )
+        sql = expanded_sql(migration)
+        self.assertIn("'fixed_evidence_bands'", sql)
+        self.assertIn("THEN 15.3", sql)
+        self.assertIn("THEN 30.0", sql)
+        self.assertIn("classify_canopy_benchmark(p_value)", sql)
+        self.assertIn("official metropolitan Melbourne 2018", sql)
+        self.assertIn("Plan for Victoria urban-area target", sql)
+        self.assertNotIn("PERCENTILE_CONT", sql)
+
+    def test_tree_cost_migration_preserves_type_and_botanical_name(self):
+        migration = next(
+            path for version, path in migration_files() if version == 33
+        )
+        sql = expanded_sql(migration)
+        self.assertIn("ADD COLUMN IF NOT EXISTS tree_type TEXT", sql)
+        self.assertIn("ADD COLUMN IF NOT EXISTS botanical_name TEXT", sql)
+        self.assertIn("idx_cost_estimate_tree_type", sql)
+        self.assertIn("ce.tree_type", sql)
+        self.assertIn("ce.botanical_name", sql)
 
     def test_environment_context_uses_bounded_indexed_radius_queries(self):
         migration = next(

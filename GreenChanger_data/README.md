@@ -95,7 +95,7 @@ python greenchanger_script/clip_to_melbourne.py --confirm-shared
 python greenchanger_script/build_heat_baseline.py --confirm-shared
 python greenchanger_script/build_canopy_baseline.py --confirm-shared
 python greenchanger_script/build_environmental_classifications.py \
-  --version-label melbourne-terciles-v2 \
+  --version-label melbourne-fixed-canopy-v1 \
   --require-analytical-canopy --confirm-shared
 
 # Parcel processing is resumable and remains internal until its quality gate passes.
@@ -221,8 +221,17 @@ Migration 022 normalises case and repeated whitespace and expands supported
 street types before lookup; for example, `10 Smith Rd` is searched as
 `10 SMITH ROAD`. `ST` is intentionally not expanded because it may mean Saint.
 It rejects missing, unmatched and ambiguous searches instead of silently using
-the wrong property. After resolving the address coordinate, it delegates to the
-coordinate-based function:
+the wrong property. Migration 030 groups repeated joins by normalised full
+address, so multiple parcels attached to the same official address no longer
+become a false “no match”. Consumers can inspect the retained parcel options:
+
+```sql
+SELECT full_address, parcel_count, parcel_ids
+FROM search_melbourne_addresses('251A BELMORE RD', 10);
+```
+
+Genuinely different matching addresses remain ambiguous. After resolving the
+address coordinate, the wrapper delegates to the coordinate-based function:
 
 ```sql
 SELECT layer, feature_id, distance_m, observed_on, properties, geometry_geojson
@@ -261,30 +270,32 @@ conversion; their 500 m source resolution is unchanged.
 
 ### Active environmental classifications
 
-Migration 017 and `build_environmental_classifications.py` created the active
-`melbourne-terciles-v1` scheme from the current application-ready cells. These
-are relative Melbourne indicators, not health, planning or comfort standards.
+Migrations 029 and 032 apply fixed GreenChanger bands to temperature and
+canopy values. Temperature bands are product-defined labels, not BOM
+heatwave, health-risk or comfort classifications, and every response must retain
+whether the source value is Landsat land-surface temperature or BOM air
+temperature.
 
 | Metric | Low | Medium | High | Cells assessed |
 | --- | --- | --- | --- | ---: |
-| Landsat land-surface temperature | ≤9.508°C | >9.508°C and ≤13.147°C | >13.147°C | 35,218 |
-| 500 m neighbourhood canopy proxy | ≤28.8% | >28.8% and ≤73.533333% | >73.533333% | 37,146 |
+| Temperature display band | ≤27°C | >27°C and ≤30°C | >30°C | Source-dependent |
+| 500 m neighbourhood canopy progress | <15.3% | ≥15.3% and <30% | ≥30% | Source-dependent |
 
-The distributions are 11,741/11,742/11,735 heat cells and
-12,384/12,380/12,382 canopy cells for Low/Medium/High respectively. Exact
-boundary values remain in the lower class. A missing source value or missing
-active threshold returns `Unavailable`, never `Low`. Inspect the active scheme:
+Neither metric is expected to contain equal class counts because both use fixed
+boundaries. Exact 15.3% canopy is Medium and exact 30% canopy is High. Exact
+27°C temperature is Low and exact 30°C temperature is Medium.
+A missing or non-finite value returns `Unavailable`, never `Low`. Inspect the
+active metadata:
 
 ```bash
 python greenchanger_script/build_environmental_classifications.py --status
 ```
 
-The scheme is tied to the exact heat and canopy baseline dataset versions used
-to calculate it. If either baseline changes, create and review a new version
-label (for example `melbourne-terciles-v2`) instead of overwriting v1. The
-labels describe a property's relative position within the current Melbourne
-baseline; they do not mean safe/unsafe temperature or adequate/inadequate
-canopy.
+The canopy scheme is tied to the exact baseline dataset version assessed with
+the fixed references. A replacement canopy baseline requires a new reviewed version
+instead of overwriting history. Temperature uses fixed display bands, but its
+source, measurement type, date and limitations remain mandatory. Neither set
+of labels means safe/unsafe temperature or statutory canopy adequacy.
 
 ### Evidence-backed absolute benchmark helpers
 
@@ -411,7 +422,7 @@ All source versions retain extraction time, observation period, checksum, source
 
 - The official analytical source has now been obtained as four DataShare map-sheet packages and prepared as a 57-tile, 0.20 m EPSG:7899 VRT catalogue covering the Melbourne boundary. Its checksummed manifest is stored with the Git-ignored raw data.
 - `aggregate_vicmap_tree_extent.py` replaces the failed whole-mosaic approach with atomic tile checkpoints and a compact 500 m valid-area-weighted extract. Rerunning it skips completed tiles.
-- Until the analytical aggregate, Melbourne clip, quality gate and `melbourne-terciles-v2` publication complete in Aurora, the existing 19.1 m rendered proxy remains the current application-ready neighbourhood baseline.
+- Publish `melbourne-fixed-canopy-v1` after migration 032 so the application reports the official 15.3% baseline and 30% urban target instead of retired terciles.
 - Property canopy is calculated separately by clipping the unchanged 0.20 m VRT to each parcel. Raster coverage below 95% returns `Unavailable`, never 0%.
 - Property batches are resumable and remain internal until all parcels are assessed and the dataset-level 95% quality gate passes.
 
@@ -426,7 +437,7 @@ All source versions retain extraction time, observation period, checksum, source
 ### Heat and weather
 
 - Landsat values are land-surface temperature, not the air temperature experienced by a resident.
-- BOM values are observations from the nearest of ten configured official Melbourne stations, not property-level measurements.
+- BOM values are observations from the nearest of ten configured official Melbourne stations, not property-level measurements. Scoresby is currently in a BOM-planned outage due to site relocation; its official feed remains configured and failed refreshes are retained as a limitation while other stations continue independently.
 - Only observations no older than three hours are eligible. Stations within 10 km are labelled `good_local_context`; 10–25 km is `regional_context_warning`; beyond 25 km the air and apparent temperatures are suppressed; no eligible observation is `unavailable_no_observation_within_3_hours`.
 - Station name, observation time and distance remain visible whenever a recent station exists. BOM air temperature is never substituted for Landsat land-surface temperature.
 - The heat mosaic uses the newest usable cell and same-day overlap averaging; cells can come from different acquisition dates.
@@ -504,7 +515,8 @@ mean local causal validation or permission to display a precise after-temperatur
 - No suitable government dataset provides current Melbourne residential greening prices.
 - The version-controlled file `data/reference/cost_estimates.csv` uses current advertised supplier prices and clearly labelled composite scenarios.
 - Exact advertised retail prices are high confidence; transparent multi-source calculations are medium confidence; broad installed-market guidance is low confidence.
-- The current coverage includes DIY and installed backyard trees, a container tree, potted plants, an installed garden bed, DIY and installed green walls, and an installed advanced/community tree context.
+- The current coverage includes DIY and installed backyard trees by named type, a container tree, potted plants, an installed garden bed, DIY and installed green walls, and an installed advanced/community tree context.
+- Named residential tree costs currently cover Ficus Hillii Flash, Mandarin Emperor Dwarf, Lemon Lisbon Dwarf, Mediterranean Sweet Orange Dwarf, Chinese Elm and Chinese Pistache. `tree_type` and `botanical_name` are retained in the CSV, database and application-ready view.
 - Green-roof and unsupported annual-maintenance values remain absent rather than being invented.
 - Every record includes its source, assumptions, validity window, verification timestamp, inclusions and confidence level.
 - Outputs are indicative estimates, not quotations, and should be rechecked approximately every three months.
@@ -520,6 +532,11 @@ The prices below were verified on 26 August 2026 and have a review date of
 | --- | ---: | --- | --- |
 | DIY small backyard tree | $25–$85 per tree | [Plants Melbourne Nursery](https://plantsmelb.com/store/page/2/) advertised 200–300 mm Ficus stock; delivery, soil, stakes and labour are excluded. | High |
 | Professionally planted small tree | $109–$169 per tree | $25–$85 plant plus one $84 advertised landscaping hour from [Landscaping for Melbourne](https://landscapingformelbourne.com/pricing/); assumes a prepared and accessible site. | Medium |
+| Mandarin Emperor Dwarf | $59 supply only; $143 with one planting hour | [Diaco's Garden Nursery](https://diacos.com.au/product/mandarin-emperor-dwarf/) advertised the tree at $59; the installed scenario adds one published $84 Melbourne landscaping hour. | High supply / medium installed |
+| Lemon Lisbon Dwarf | $59 supply only; $143 with one planting hour | [Diaco's fruit-tree catalogue](https://diacos.com.au/fruit-trees/) advertised the tree at $59; the installed scenario adds one published $84 Melbourne landscaping hour. | High supply / medium installed |
+| Mediterranean Sweet Orange Dwarf | $59 supply only; $143 with one planting hour | [Diaco's fruit-tree catalogue](https://diacos.com.au/fruit-trees/) advertised the tree at $59; the installed scenario adds one published $84 Melbourne landscaping hour. | High supply / medium installed |
+| Chinese Elm | $41.95–$169.95 supply only; $125.95–$253.95 with one planting hour | [Diaco's ornamental-tree catalogue](https://diacos.com.au/product-category/plants/ornamental-trees/) advertised variant-dependent stock; the source describes this as a large tree for larger gardens. | High supply / medium installed |
+| Chinese Pistache | $49.95–$179.95 supply only; $133.95–$263.95 with one planting hour | [Diaco's ornamental-tree catalogue](https://diacos.com.au/product-category/plants/ornamental-trees/) advertised variant-dependent stock; the installed scenario adds one published $84 Melbourne landscaping hour. | High supply / medium installed |
 | Container tree | $67.99–$185.68 per tree | [Diaco's Lemon Eureka](https://diacos.com.au/product/lemon-eureka/) at $49–$139 plus a 400 mm pot from [Ladybird Nursery](https://ladybirdnursery.com.au/products/plastic-pot-400mm-pick-up-only) or [Bunnings](https://www.bunnings.com.au/elho-40cm-terracotta-vibia-outdoor-plant-pot_p0366936) at $18.99–$46.68; potting mix, delivery and labour are excluded. | Medium |
 | Potted plants | $49–$175 per pot | Melbourne-accessible plants with decorative pots or multi-planters from [The Indoor Plant Co](https://www.theindoorplantco.com.au/collections/all-plants); delivery and ongoing care are excluded. | High |
 | Installed garden bed | $105–$190 per m² | Published Melbourne installed garden-construction range from [Landscaping for Melbourne](https://landscapingformelbourne.com/pricing/); the final price depends on site conditions and inclusions. | Medium |
@@ -529,6 +546,11 @@ The prices below were verified on 26 August 2026 and have a review date of
 
 Blank GST, delivery, setup or annual-maintenance fields mean that the source did
 not publish a reliable value. They must not be interpreted as zero.
+
+The professional planting figures are arithmetic scenarios, not supplier quotes:
+one published retail tree price plus one $84 landscaping hour. Actual labour can
+require more than one hour, and delivery, access, excavation, soil improvement,
+staking, irrigation, permits and aftercare remain excluded unless explicitly stated.
 
 ### Property and boundary
 

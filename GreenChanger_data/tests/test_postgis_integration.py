@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from decimal import Decimal
 import os
 import time
 import unittest
@@ -78,6 +79,54 @@ class PostgisEnvironmentContextIntegrationTests(unittest.TestCase):
                 )
             cls.connection.close()
 
+    def test_fixed_temperature_display_band_boundaries(self):
+        with self.connection.cursor() as cursor:
+            cursor.execute(
+                """
+                SELECT value, classify_temperature_band(value)
+                FROM (VALUES
+                    (NULL::NUMERIC), (13.6::NUMERIC), (27::NUMERIC),
+                    (27.01::NUMERIC), (30::NUMERIC), (30.01::NUMERIC)
+                ) AS sample(value)
+                """
+            )
+            self.assertEqual(
+                cursor.fetchall(),
+                [
+                    (None, "Unavailable"),
+                    (Decimal("13.6"), "Low"),
+                    (Decimal("27"), "Low"),
+                    (Decimal("27.01"), "Medium"),
+                    (Decimal("30"), "Medium"),
+                    (Decimal("30.01"), "High"),
+                ],
+            )
+
+    def test_fixed_canopy_bands_use_evidence_boundaries(self):
+        with self.connection.cursor() as cursor:
+            cursor.execute(
+                """
+                SELECT value, classify_environmental_value('canopy', value)
+                FROM (VALUES
+                    (NULL::NUMERIC), (0::NUMERIC), (15.29::NUMERIC),
+                    (15.3::NUMERIC), (29.99::NUMERIC), (30::NUMERIC),
+                    (100::NUMERIC)
+                ) AS sample(value)
+                """
+            )
+            self.assertEqual(
+                cursor.fetchall(),
+                [
+                    (None, "Unavailable"),
+                    (Decimal("0"), "Low"),
+                    (Decimal("15.29"), "Low"),
+                    (Decimal("15.3"), "Medium"),
+                    (Decimal("29.99"), "Medium"),
+                    (Decimal("30"), "High"),
+                    (Decimal("100"), "High"),
+                ],
+            )
+
     @classmethod
     def _seed_spatial_contract(cls):
         with cls.connection.cursor() as cursor:
@@ -107,6 +156,9 @@ class PostgisEnvironmentContextIntegrationTests(unittest.TestCase):
                  "clip_to_abs_gccsa_2GMEL_2026_v1:test"),
                 ("trees", "Vicmap Vegetation - Tree Urban Point", "Victorian Government",
                  "canopy", "tree_fixture_v1"),
+                ("tree_extent", "Vicmap Vegetation - Tree Extent",
+                 "Victorian Government", "canopy",
+                 "property_canopy_raster_clip_v2:test"),
                 ("heat", "USGS Landsat Collection 2 Surface Temperature",
                  "United States Geological Survey", "heat",
                  "landsat_latest_daily_mosaic_v1"),
@@ -240,13 +292,18 @@ class PostgisEnvironmentContextIntegrationTests(unittest.TestCase):
                 SELECT source_id, %s, 'property_canopy_raster_clip_v2',
                        0.5, 100, 'passed', 'integrated', 'application_ready',
                        DATE '2020-01-01', DATE '2020-12-31'
-                FROM dataset_source
-                WHERE source_name = 'Vicmap Vegetation - Tree Extent'
+                FROM dataset_version
+                WHERE dataset_version_id = %s
                 RETURNING dataset_version_id
                 """,
-                (area_id,),
+                (area_id, versions["tree_extent"]),
             )
-            property_canopy_version = cursor.fetchone()[0]
+            property_canopy_version = cursor.fetchone()
+            if property_canopy_version is None:
+                raise AssertionError(
+                    "integration fixture could not create property canopy version"
+                )
+            property_canopy_version = property_canopy_version[0]
             cursor.execute(
                 """
                 INSERT INTO property_canopy_summary (
@@ -262,7 +319,7 @@ class PostgisEnvironmentContextIntegrationTests(unittest.TestCase):
                 WHERE dataset_version_id = %s AND source_parcel_id = 'PARCEL-A'
                 """,
                 (
-                    property_canopy_version, property_canopy_version,
+                    property_canopy_version, versions["tree_extent"],
                     versions["property"],
                 ),
             )
@@ -324,6 +381,58 @@ class PostgisEnvironmentContextIntegrationTests(unittest.TestCase):
             (" 10  test rd melbourne 3000 ",),
         )[0][0]
         self.assertEqual(normalized, "10 TEST ROAD MELBOURNE 3000")
+
+    def test_address_search_returns_one_group_with_parcel_options(self):
+        rows = self._rows(
+            """SELECT full_address, parcel_count, cardinality(parcel_ids)
+               FROM search_melbourne_addresses(%s, 10)""",
+            ("10 test rd melbourne 3000",),
+        )
+        self.assertEqual(rows, [("10 TEST ROAD MELBOURNE 3000", 1, 1)])
+
+    def test_grouped_address_coordinates_come_from_one_source_row(self):
+        duplicate_source_id = "ADDRESS-B-COORDINATE-REGRESSION"
+        with self.connection.cursor() as cursor:
+            cursor.execute(
+                """
+                INSERT INTO address (
+                    dataset_version_id, source_address_id, source_property_id,
+                    full_address, locality_name, postcode, is_primary,
+                    address_location
+                )
+                SELECT dataset_version_id, %s, source_property_id,
+                       full_address, locality_name, postcode, 'N',
+                       ST_Transform(
+                           ST_SetSRID(ST_MakePoint(145.02, -37.92), 4326), 7855
+                       )
+                FROM address
+                WHERE source_address_id = 'ADDRESS-B'
+                """,
+                (duplicate_source_id,),
+            )
+        try:
+            row = self._rows(
+                """SELECT longitude, latitude, cardinality(address_ids)
+                   FROM search_melbourne_addresses(%s, 10)""",
+                ("10 test rd melbourne 3000",),
+            )[0]
+            coordinate = (float(row[0]), float(row[1]))
+            came_from_original = (
+                abs(coordinate[0] - 144.965) < 0.000001
+                and abs(coordinate[1] - (-37.81)) < 0.000001
+            )
+            came_from_duplicate = (
+                abs(coordinate[0] - 145.02) < 0.000001
+                and abs(coordinate[1] - (-37.92)) < 0.000001
+            )
+            self.assertTrue(came_from_original or came_from_duplicate)
+            self.assertEqual(row[2], 2)
+        finally:
+            with self.connection.cursor() as cursor:
+                cursor.execute(
+                    "DELETE FROM address WHERE source_address_id = %s",
+                    (duplicate_source_id,),
+                )
 
     def test_historical_temperature_function_returns_metadata(self):
         result = self._rows(

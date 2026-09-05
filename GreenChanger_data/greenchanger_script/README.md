@@ -43,7 +43,7 @@ repository.
 | `build_heat_baseline.py` | Resolve overlapping Landsat observations into one versioned, application-ready baseline cell per location. |
 | `build_canopy_baseline.py` | Publish one quality-checked, versioned 500 m canopy baseline and verify that it spatially covers current heat-cell centroids. |
 | `build_property_canopy.py` | Clip a registered <=2 m analytical Tree Extent GeoTIFF to Melbourne parcels, enforce the 95% quality gate and publish property canopy summaries. |
-| `build_environmental_classifications.py` | Calculate and activate versioned Low/Medium/High tercile thresholds from current Melbourne heat and canopy baselines. |
+| `build_environmental_classifications.py` | Activate versioned fixed temperature bands and evidence-backed canopy progress bands for the current Melbourne source versions. |
 | `apply_database.py` | Legacy/simple schema application helper; numbered migrations are preferred. |
 
 ## Recommended run order
@@ -107,9 +107,9 @@ python greenchanger_script/build_property_canopy.py \
 # Repeat until application_ready is true. The script commits each batch and
 # bounds raster memory; extreme corridor geometries return Unavailable.
 
-# Calculate versioned Melbourne-relative Low/Medium/High thresholds
+# Activate versioned fixed evidence-backed display bands
 python greenchanger_script/build_environmental_classifications.py \
-  --version-label melbourne-terciles-v2 \
+  --version-label melbourne-fixed-canopy-v1 \
   --require-analytical-canopy --confirm-shared
 
 # Read-only threshold and class-distribution check
@@ -247,26 +247,25 @@ an analytical parcel result. The `trees` job uses
 the official Tree Urban Feature Service to add mapped tree counts and dimensions
 without claiming that they are a current field survey.
 
-Migration 017 stores one source-version-specific environmental classification
-scheme and separate heat/canopy thresholds. The builder calculates the 33.33rd
-and 66.67th percentiles with `percentile_cont` from the current
-application-ready Melbourne baseline cells. A value at the lower
-threshold remains `Low`; a value at the upper threshold remains `Medium`;
-larger values are `High`. Missing values or missing active thresholds always
-return `Unavailable`, never `Low`. `get_property_baseline` exposes both labels,
-the scheme version and the Melbourne-relative scope.
+Migration 017 stores source-version-specific environmental thresholds.
+Migration 029 changes effective temperature classification to fixed
+GreenChanger display bands: Low ≤27°C, Medium >27°C and ≤30°C, and High >30°C.
+Migration 032 changes canopy to fixed progress bands: Low <15.3%, Medium
+≥15.3% and <30%, and High ≥30%. The values are the official metropolitan
+Melbourne 2018 baseline and Plan for Victoria urban-area target. Missing or
+non-finite values return `Unavailable`, never `Low`.
 
-The current `melbourne-terciles-v1` status is:
+The fixed classification contract is:
 
 | Metric | Lower/upper cutoffs | Low / Medium / High cells |
 | --- | --- | --- |
-| Landsat land-surface temperature | 9.508°C / 13.147°C | 11,741 / 11,742 / 11,735 |
-| 500 m canopy proxy | 28.8% / 73.533333% | 12,384 / 12,380 / 12,382 |
+| Temperature display band | 27°C / 30°C | Counts depend on source values |
+| 500 m neighbourhood canopy progress | 15.3% / 30% | Counts depend on source values |
 
 Run `build_environmental_classifications.py --status` for a read-only database
 check. Run the write form only after publishing or deliberately selecting the
 input baselines. If source versions change, use a new label such as
-`melbourne-terciles-v2`; never overwrite an active historical scheme. Review
+`melbourne-fixed-canopy-v2`; never overwrite an active historical scheme. Review
 the printed thresholds, counts and source-version IDs before application use.
 
 The `trees` job uses adaptive API tiles, preserves a reusable gzip JSON Lines
@@ -339,6 +338,11 @@ ingestion job. Each record has a three-month validity window, source reference,
 inclusion flags and confidence label. Blank delivery, setup, GST or maintenance
 fields mean the source did not publish a reliable value; they must not be
 interpreted as zero.
+
+Tree rows also retain `tree_type` and `botanical_name`. The named-tree installed
+costs are transparent scenarios consisting of the advertised plant price plus one
+published $84 Melbourne landscaping hour; they are not quotes and exclude any
+unpublished delivery, difficult-access, excavation, soil, staking and aftercare costs.
 
 ## Failure guide
 

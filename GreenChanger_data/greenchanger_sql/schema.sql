@@ -441,6 +441,8 @@ CREATE TABLE IF NOT EXISTS cost_estimate (
     tree_size_category TEXT,
     planting_method TEXT,
     stock_size TEXT,
+    tree_type TEXT,
+    botanical_name TEXT,
     minimum_cost NUMERIC(12, 2) NOT NULL CHECK (minimum_cost >= 0),
     maximum_cost NUMERIC(12, 2) NOT NULL CHECK (maximum_cost >= minimum_cost),
     material_min_cost NUMERIC(12, 2) CHECK (material_min_cost IS NULL OR material_min_cost >= 0),
@@ -689,6 +691,9 @@ CREATE INDEX IF NOT EXISTS idx_vegetation_observed_on
     ON vegetation_observation(observed_on);
 CREATE INDEX IF NOT EXISTS idx_cost_estimate_validity
     ON cost_estimate(greening_option_id, valid_from, valid_to);
+CREATE INDEX IF NOT EXISTS idx_cost_estimate_tree_type
+    ON cost_estimate (UPPER(tree_type), valid_from, valid_to)
+    WHERE tree_type IS NOT NULL;
 CREATE UNIQUE INDEX IF NOT EXISTS uq_cost_estimate_source_version
     ON cost_estimate (
         greening_option_id,
@@ -922,20 +927,28 @@ SELECT
     scheme.classification_scheme_id,
     scheme.version_label,
     scheme.analysis_area_id,
-    scheme.method,
-    scheme.classification_scope,
+    CASE WHEN threshold.metric_code = 'heat'
+         THEN 'fixed_temperature_display_bands'
+         ELSE scheme.method END AS method,
+    CASE WHEN threshold.metric_code = 'heat'
+         THEN 'application_defined_temperature_display_band'
+         ELSE scheme.classification_scope END AS classification_scope,
     scheme.calculated_at,
     threshold.metric_code,
     threshold.source_dataset_version_id,
-    threshold.lower_threshold,
-    threshold.upper_threshold,
+    CASE WHEN threshold.metric_code = 'heat' THEN 27.0
+         ELSE threshold.lower_threshold END AS lower_threshold,
+    CASE WHEN threshold.metric_code = 'heat' THEN 30.0
+         ELSE threshold.upper_threshold END AS upper_threshold,
     threshold.unit,
     threshold.sample_count,
     threshold.low_label,
     threshold.medium_label,
     threshold.high_label,
     threshold.missing_label,
-    threshold.explanation
+    CASE WHEN threshold.metric_code = 'heat' THEN
+        'GreenChanger display bands: Low <=27 C, Medium >27 C and <=30 C, High >30 C. Application-defined only; not a BOM heatwave, health-risk or comfort classification.'
+    ELSE threshold.explanation END AS explanation
 FROM environmental_classification_scheme AS scheme
 JOIN environmental_classification_threshold AS threshold
   USING (classification_scheme_id)
@@ -1015,6 +1028,23 @@ BEGIN
 END;
 $function$;
 
+CREATE OR REPLACE FUNCTION classify_temperature_band(p_temperature_c NUMERIC)
+RETURNS TEXT
+LANGUAGE SQL
+IMMUTABLE
+PARALLEL SAFE
+RETURN CASE
+    WHEN p_temperature_c IS NULL
+      OR p_temperature_c::TEXT IN ('NaN', 'Infinity', '-Infinity')
+        THEN 'Unavailable'
+    WHEN p_temperature_c <= 27.0 THEN 'Low'
+    WHEN p_temperature_c <= 30.0 THEN 'Medium'
+    ELSE 'High'
+END;
+
+COMMENT ON FUNCTION classify_temperature_band(NUMERIC) IS
+    'GreenChanger product display bands: Low <=27 C, Medium >27 C and <=30 C, High >30 C. These are application-defined display bands, not BOM heatwave, health-risk or comfort classifications.';
+
 CREATE OR REPLACE FUNCTION classify_environmental_value(
     p_metric_code TEXT, p_value NUMERIC, p_version_label TEXT DEFAULT NULL
 )
@@ -1023,7 +1053,9 @@ LANGUAGE SQL
 STABLE
 PARALLEL SAFE
 RETURN CASE
-    WHEN p_value IS NULL THEN 'Unavailable'
+    WHEN p_value IS NULL OR p_value::TEXT IN ('NaN', 'Infinity', '-Infinity')
+        THEN 'Unavailable'
+    WHEN p_metric_code = 'heat' THEN classify_temperature_band(p_value)
     ELSE COALESCE((
         SELECT CASE
             WHEN p_value <= threshold.lower_threshold THEN threshold.low_label
@@ -1036,6 +1068,9 @@ RETURN CASE
         LIMIT 1
     ), 'Unavailable')
 END;
+
+COMMENT ON FUNCTION classify_environmental_value(TEXT, NUMERIC, TEXT) IS
+    'Uses fixed GreenChanger 27/30 C display bands for heat and the active versioned Melbourne threshold scheme for canopy. Missing and non-finite values return Unavailable.';
 
 CREATE OR REPLACE VIEW latest_greater_melbourne_address_property AS
 WITH latest_address_version AS (
@@ -1361,7 +1396,9 @@ SELECT
     ce.confidence_level,
     'indicative_not_quote'::TEXT AS estimate_status,
     'Indicative source-backed range only; confirm current price, availability, site conditions, delivery, installation and maintenance with the supplier.'::TEXT
-        AS display_disclaimer
+        AS display_disclaimer,
+    ce.tree_type,
+    ce.botanical_name
 FROM cost_estimate AS ce
 JOIN greening_option AS go USING (greening_option_id)
 WHERE go.active
@@ -2546,5 +2583,377 @@ $function$;
 
 COMMENT ON FUNCTION get_property_air_temperature_by_address(TEXT, INTEGER) IS
     'Returns nearest recent BOM station air-temperature context for each matched Melbourne property. Values are in degrees Celsius, observations older than three hours are unavailable, and temperatures beyond 25 km are suppressed. This is not a temperature measured at the property.';
+
+COMMIT;
+
+BEGIN;
+
+CREATE OR REPLACE VIEW current_environmental_classification_threshold AS
+SELECT
+    scheme.classification_scheme_id,
+    scheme.version_label,
+    scheme.analysis_area_id,
+    'fixed_temperature_bands_with_canopy_terciles'::TEXT AS method,
+    'fixed_temperature_display_bands_and_versioned_melbourne_canopy_thresholds'::TEXT
+        AS classification_scope,
+    scheme.calculated_at,
+    threshold.metric_code,
+    threshold.source_dataset_version_id,
+    CASE WHEN threshold.metric_code = 'heat' THEN 27.0
+         ELSE threshold.lower_threshold END AS lower_threshold,
+    CASE WHEN threshold.metric_code = 'heat' THEN 30.0
+         ELSE threshold.upper_threshold END AS upper_threshold,
+    threshold.unit,
+    threshold.sample_count,
+    threshold.low_label,
+    threshold.medium_label,
+    threshold.high_label,
+    threshold.missing_label,
+    CASE WHEN threshold.metric_code = 'heat' THEN
+        'GreenChanger display bands: Low <=27 C, Medium >27 C and <=30 C, High >30 C. Application-defined only; not a BOM heatwave, health-risk or comfort classification.'
+    ELSE threshold.explanation END AS explanation
+FROM environmental_classification_scheme AS scheme
+JOIN environmental_classification_threshold AS threshold
+  USING (classification_scheme_id)
+WHERE scheme.status = 'active';
+
+CREATE OR REPLACE FUNCTION search_melbourne_addresses(
+    p_address_search TEXT,
+    p_result_limit INTEGER DEFAULT 10
+)
+RETURNS TABLE (
+    full_address TEXT, normalized_address TEXT, address_ids UUID[],
+    parcel_ids UUID[], parcel_count BIGINT, longitude NUMERIC, latitude NUMERIC
+)
+LANGUAGE SQL
+STABLE
+PARALLEL SAFE
+AS $function$
+WITH distinct_pairs AS (
+    SELECT DISTINCT ON (baseline.address_id, baseline.parcel_id)
+        baseline.address_id, baseline.parcel_id, baseline.full_address,
+        normalize_melbourne_address_search(baseline.full_address)
+            AS normalized_address,
+        baseline.longitude, baseline.latitude
+    FROM get_property_baseline(
+        normalize_melbourne_address_search(p_address_search), 50
+    ) AS baseline
+    WHERE p_address_search IS NOT NULL AND BTRIM(p_address_search) <> ''
+    ORDER BY baseline.address_id, baseline.parcel_id
+), grouped_addresses AS (
+    SELECT MIN(full_address) AS full_address, normalized_address,
+           ARRAY_AGG(DISTINCT address_id) FILTER (WHERE address_id IS NOT NULL),
+           ARRAY_AGG(DISTINCT parcel_id) FILTER (WHERE parcel_id IS NOT NULL),
+           COUNT(DISTINCT parcel_id), MIN(longitude), MIN(latitude)
+    FROM distinct_pairs
+    GROUP BY normalized_address
+)
+SELECT * FROM grouped_addresses
+ORDER BY CASE WHEN normalized_address =
+                       normalize_melbourne_address_search(p_address_search)
+              THEN 0 ELSE 1 END,
+         full_address
+LIMIT LEAST(GREATEST(COALESCE(p_result_limit, 10), 1), 50);
+$function$;
+
+COMMENT ON FUNCTION search_melbourne_addresses(TEXT, INTEGER) IS
+    'Returns one row per normalized Melbourne address, deduplicates repeated address-parcel joins, and preserves all distinct address and parcel IDs for selection.';
+
+CREATE OR REPLACE FUNCTION get_environment_context_by_address(
+    p_address_search TEXT,
+    p_radius_m DOUBLE PRECISION DEFAULT 500.0,
+    p_layers TEXT[] DEFAULT ARRAY['trees', 'heat']::TEXT[],
+    p_result_limit INTEGER DEFAULT 1000
+)
+RETURNS TABLE (
+    layer TEXT, feature_id TEXT, dataset_version_id UUID, distance_m NUMERIC,
+    observed_on DATE, properties JSONB, geometry_geojson JSONB
+)
+LANGUAGE plpgsql
+STABLE
+PARALLEL SAFE
+AS $function$
+DECLARE
+    v_normalized_search TEXT;
+    v_matched_address TEXT;
+    v_longitude DOUBLE PRECISION;
+    v_latitude DOUBLE PRECISION;
+    v_address_count INTEGER;
+    v_exact_address_count INTEGER;
+BEGIN
+    IF p_address_search IS NULL OR BTRIM(p_address_search) = '' THEN
+        RAISE EXCEPTION 'address search is required';
+    END IF;
+    v_normalized_search := normalize_melbourne_address_search(p_address_search);
+
+    WITH matches AS MATERIALIZED (
+        SELECT address_match.*,
+               address_match.normalized_address = v_normalized_search AS is_exact
+        FROM search_melbourne_addresses(v_normalized_search, 50) AS address_match
+    ), ranked AS (
+        SELECT matches.*, COUNT(*) OVER ()::INTEGER AS address_count,
+               COUNT(*) FILTER (WHERE is_exact) OVER ()::INTEGER
+                   AS exact_address_count,
+               ROW_NUMBER() OVER (
+                   ORDER BY CASE WHEN is_exact THEN 0 ELSE 1 END, full_address
+               ) AS match_rank
+        FROM matches
+    )
+    SELECT full_address, longitude::DOUBLE PRECISION, latitude::DOUBLE PRECISION,
+           address_count, exact_address_count
+    INTO v_matched_address, v_longitude, v_latitude,
+         v_address_count, v_exact_address_count
+    FROM ranked
+    WHERE match_rank = 1;
+
+    IF NOT FOUND THEN
+        RAISE EXCEPTION 'no Melbourne address matched: %', BTRIM(p_address_search);
+    END IF;
+    IF v_exact_address_count = 0 AND v_address_count > 1 THEN
+        RAISE EXCEPTION
+            'address search is ambiguous: %. Supply the complete address and postcode',
+            BTRIM(p_address_search);
+    END IF;
+    IF v_longitude IS NULL OR v_latitude IS NULL THEN
+        RAISE EXCEPTION 'matched address has no usable coordinate: %', v_matched_address;
+    END IF;
+
+    RETURN QUERY
+    SELECT context.*
+    FROM get_environment_context(
+        v_longitude, v_latitude, p_radius_m, p_layers, p_result_limit
+    ) AS context;
+END;
+$function$;
+
+COMMENT ON FUNCTION get_environment_context_by_address(
+    TEXT, DOUBLE PRECISION, TEXT[], INTEGER
+) IS
+    'Normalises abbreviations and resolves one distinct Melbourne address. Repeated joins and multiple parcels sharing that address do not create false ambiguity; genuinely different matching addresses remain ambiguous.';
+
+COMMIT;
+
+BEGIN;
+
+CREATE OR REPLACE FUNCTION search_melbourne_addresses(
+    p_address_search TEXT,
+    p_result_limit INTEGER DEFAULT 10
+)
+RETURNS TABLE (
+    full_address TEXT, normalized_address TEXT, address_ids UUID[],
+    parcel_ids UUID[], parcel_count BIGINT, longitude NUMERIC, latitude NUMERIC
+)
+LANGUAGE SQL
+STABLE
+PARALLEL SAFE
+AS $function$
+WITH distinct_pairs AS (
+    SELECT DISTINCT ON (baseline.address_id, baseline.parcel_id)
+        baseline.address_id, baseline.parcel_id, baseline.full_address,
+        normalize_melbourne_address_search(baseline.full_address)
+            AS normalized_address,
+        baseline.longitude, baseline.latitude
+    FROM get_property_baseline(
+        normalize_melbourne_address_search(p_address_search), 50
+    ) AS baseline
+    WHERE p_address_search IS NOT NULL AND BTRIM(p_address_search) <> ''
+    ORDER BY baseline.address_id, baseline.parcel_id
+), ranked_pairs AS (
+    SELECT distinct_pairs.*,
+           ROW_NUMBER() OVER (
+               PARTITION BY distinct_pairs.normalized_address
+               ORDER BY
+                   CASE WHEN distinct_pairs.longitude IS NULL
+                              OR distinct_pairs.latitude IS NULL THEN 1 ELSE 0 END,
+                   distinct_pairs.full_address,
+                   distinct_pairs.address_id,
+                   distinct_pairs.parcel_id
+           ) AS representative_rank
+    FROM distinct_pairs
+), grouped_addresses AS (
+    SELECT normalized_address,
+           ARRAY_AGG(DISTINCT address_id)
+               FILTER (WHERE address_id IS NOT NULL) AS address_ids,
+           ARRAY_AGG(DISTINCT parcel_id)
+               FILTER (WHERE parcel_id IS NOT NULL) AS parcel_ids,
+           COUNT(DISTINCT parcel_id) AS parcel_count
+    FROM ranked_pairs
+    GROUP BY normalized_address
+), representative AS (
+    SELECT full_address, normalized_address, longitude, latitude
+    FROM ranked_pairs
+    WHERE representative_rank = 1
+)
+SELECT representative.full_address, representative.normalized_address,
+       grouped_addresses.address_ids, grouped_addresses.parcel_ids,
+       grouped_addresses.parcel_count, representative.longitude,
+       representative.latitude
+FROM representative
+JOIN grouped_addresses USING (normalized_address)
+ORDER BY CASE WHEN representative.normalized_address =
+                       normalize_melbourne_address_search(p_address_search)
+              THEN 0 ELSE 1 END,
+         representative.full_address
+LIMIT LEAST(GREATEST(COALESCE(p_result_limit, 10), 1), 50);
+$function$;
+
+COMMENT ON FUNCTION search_melbourne_addresses(TEXT, INTEGER) IS
+    'Returns one row per normalized Melbourne address and all distinct parcel options. Full address, longitude and latitude come from the same deterministic representative row; coordinates are never assembled from independent aggregates.';
+
+COMMIT;
+
+-- Fixed evidence-backed canopy classification (migration 032).
+BEGIN;
+
+-- Canopy is now classified against two published Victorian reference values,
+-- rather than against distribution-dependent Melbourne terciles. Historical
+-- schemes remain in the tables for auditability; this migration changes the
+-- effective view and the function used to create future schemes.
+ALTER TABLE environmental_classification_scheme
+    DROP CONSTRAINT IF EXISTS environmental_classification_scheme_method_check;
+
+ALTER TABLE environmental_classification_scheme
+    ADD CONSTRAINT environmental_classification_scheme_method_check
+    CHECK (method IN ('tercile_percentile_cont', 'fixed_evidence_bands'));
+
+CREATE OR REPLACE VIEW current_environmental_classification_threshold AS
+SELECT
+    scheme.classification_scheme_id,
+    scheme.version_label,
+    scheme.analysis_area_id,
+    'fixed_evidence_bands'::TEXT AS method,
+    'fixed_temperature_display_bands_and_evidence_backed_canopy_progress_bands'::TEXT
+        AS classification_scope,
+    scheme.calculated_at,
+    threshold.metric_code,
+    threshold.source_dataset_version_id,
+    CASE WHEN threshold.metric_code = 'heat' THEN 27.0
+         WHEN threshold.metric_code = 'canopy' THEN 15.3
+         ELSE threshold.lower_threshold END AS lower_threshold,
+    CASE WHEN threshold.metric_code = 'heat' THEN 30.0
+         WHEN threshold.metric_code = 'canopy' THEN 30.0
+         ELSE threshold.upper_threshold END AS upper_threshold,
+    threshold.unit,
+    threshold.sample_count,
+    threshold.low_label,
+    threshold.medium_label,
+    threshold.high_label,
+    threshold.missing_label,
+    CASE
+        WHEN threshold.metric_code = 'heat' THEN
+            'GreenChanger display bands: Low <=27 C, Medium >27 C and <=30 C, High >30 C. Application-defined only; not a BOM heatwave, health-risk or comfort classification.'
+        WHEN threshold.metric_code = 'canopy' THEN
+            'Canopy progress bands: Low <15.3%, Medium >=15.3% and <30%, High >=30%. The 15.3% value is the official metropolitan Melbourne 2018 tree-canopy baseline and 30% is the Plan for Victoria urban-area target. Progress context only; not proof of property-level compliance, and source imagery spans 2013-2020.'
+        ELSE threshold.explanation
+    END AS explanation
+FROM environmental_classification_scheme AS scheme
+JOIN environmental_classification_threshold AS threshold
+  USING (classification_scheme_id)
+WHERE scheme.status = 'active';
+
+CREATE OR REPLACE FUNCTION refresh_environmental_classifications(
+    p_version_label TEXT
+)
+RETURNS UUID
+LANGUAGE plpgsql
+AS $function$
+DECLARE
+    v_scheme_id UUID;
+    v_analysis_area_id UUID;
+    v_threshold_count INTEGER;
+BEGIN
+    IF p_version_label IS NULL OR BTRIM(p_version_label) = '' THEN
+        RAISE EXCEPTION 'classification version label is required';
+    END IF;
+    IF EXISTS (
+        SELECT 1 FROM environmental_classification_scheme
+        WHERE version_label = BTRIM(p_version_label)
+    ) THEN
+        RAISE EXCEPTION 'classification version % already exists', BTRIM(p_version_label);
+    END IF;
+
+    SELECT analysis_area_id
+    INTO STRICT v_analysis_area_id
+    FROM analysis_area
+    WHERE source_area_code = '2GMEL' AND source_year = 2026;
+
+    INSERT INTO environmental_classification_scheme (
+        version_label, analysis_area_id, method, classification_scope,
+        status, notes
+    ) VALUES (
+        BTRIM(p_version_label), v_analysis_area_id,
+        'fixed_evidence_bands',
+        'fixed_temperature_display_bands_and_evidence_backed_canopy_progress_bands',
+        'draft',
+        'Canopy: Low below the official 15.3% metropolitan Melbourne baseline; Medium from 15.3% to below the 30% Plan for Victoria urban target; High at or above 30%. Temperature retains application-defined 27/30 C display bands. Missing values are Unavailable.'
+    )
+    RETURNING classification_scheme_id INTO v_scheme_id;
+
+    INSERT INTO environmental_classification_threshold (
+        classification_scheme_id, metric_code, source_dataset_version_id,
+        lower_threshold, upper_threshold, unit, sample_count, explanation
+    )
+    SELECT
+        v_scheme_id, 'heat', dataset_version_id, 27.0, 30.0,
+        'degC_land_surface_temperature', COUNT(*),
+        'GreenChanger display bands: Low <=27 C, Medium >27 C and <=30 C, High >30 C. Application-defined only; not a BOM heatwave, health-risk or comfort classification.'
+    FROM latest_greater_melbourne_heat_baseline
+    WHERE baseline_surface_temperature_c IS NOT NULL
+    GROUP BY dataset_version_id;
+
+    INSERT INTO environmental_classification_threshold (
+        classification_scheme_id, metric_code, source_dataset_version_id,
+        lower_threshold, upper_threshold, unit, sample_count, explanation
+    )
+    SELECT
+        v_scheme_id, 'canopy', dataset_version_id, 15.3, 30.0,
+        'percent_neighbourhood_canopy', COUNT(*),
+        'Canopy progress bands: Low <15.3%, Medium >=15.3% and <30%, High >=30%. Based on the official metropolitan Melbourne 2018 tree-canopy baseline and Plan for Victoria urban-area target; not proof of property-level compliance.'
+    FROM latest_greater_melbourne_canopy_baseline
+    WHERE canopy_percentage IS NOT NULL
+    GROUP BY dataset_version_id;
+
+    SELECT COUNT(*) INTO v_threshold_count
+    FROM environmental_classification_threshold
+    WHERE classification_scheme_id = v_scheme_id;
+
+    IF v_threshold_count <> 2 THEN
+        RAISE EXCEPTION
+            'expected heat and canopy thresholds but calculated % row(s)',
+            v_threshold_count;
+    END IF;
+
+    UPDATE environmental_classification_scheme
+    SET status = 'retired'
+    WHERE analysis_area_id = v_analysis_area_id AND status = 'active';
+
+    UPDATE environmental_classification_scheme
+    SET status = 'active', calculated_at = CURRENT_TIMESTAMP
+    WHERE classification_scheme_id = v_scheme_id;
+
+    RETURN v_scheme_id;
+END;
+$function$;
+
+COMMENT ON FUNCTION refresh_environmental_classifications(TEXT) IS
+    'Creates and activates a versioned fixed-band scheme: temperature uses GreenChanger 27/30 C display bands; canopy uses the official 15.3% metropolitan baseline and 30% Plan for Victoria urban target.';
+
+CREATE OR REPLACE FUNCTION classify_environmental_value(
+    p_metric_code TEXT, p_value NUMERIC, p_version_label TEXT DEFAULT NULL
+)
+RETURNS TEXT
+LANGUAGE SQL
+STABLE
+PARALLEL SAFE
+RETURN CASE
+    WHEN p_value IS NULL OR p_value::TEXT IN ('NaN', 'Infinity', '-Infinity')
+        THEN 'Unavailable'
+    WHEN p_metric_code = 'heat' THEN classify_temperature_band(p_value)
+    WHEN p_metric_code = 'canopy' THEN classify_canopy_benchmark(p_value)
+    ELSE 'Unavailable'
+END;
+
+COMMENT ON FUNCTION classify_environmental_value(TEXT, NUMERIC, TEXT) IS
+    'Uses fixed GreenChanger 27/30 C display bands for heat and evidence-backed 15.3/30% progress bands for canopy. Missing, non-finite and unknown metrics return Unavailable.';
 
 COMMIT;
