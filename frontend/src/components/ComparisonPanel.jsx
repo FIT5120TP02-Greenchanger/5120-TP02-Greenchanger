@@ -2,7 +2,6 @@ import styles from './Panel.module.css';
 
 export default function ComparisonPanel({ baseline, projected, trees, onAdd, onReset, onRemoveTree, onFocusTree, onFinish }) {
     if(!baseline || !projected) return null;
-    console.log("Trees in ComparisonPanel:", trees);
     return (
         <div className={styles['scenario-panel']}>
             <span>SCENARIO COMPARISON</span>

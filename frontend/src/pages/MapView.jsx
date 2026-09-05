@@ -187,7 +187,6 @@ export default function MapView({ selectedLocation, setSelectedLocation, simulat
         setZoom(zoom);
         trees.refresh(bounds, centerLat, zoom);
         parcels.refresh(bounds, zoom);
-        console.log("Refreshed parcels and trees");
     }, [trees, parcels]);
 
     const handleMapLoad = () => {
