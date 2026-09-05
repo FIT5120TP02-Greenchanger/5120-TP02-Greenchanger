@@ -173,7 +173,9 @@ example dimensions are calculation fixtures rather than recommended defaults.
 garden-bed land-unit heat ranges. It never adds an action's m² output to the
 500 m neighbourhood canopy percentage. Costs are scaled using their source
 basis (`per_tree`, `per_pot` or `per_m2`) and retain source, confidence and
-validity metadata. Output checks cover ordered ranges, supported temperature
+validity metadata. Tree cost outputs additionally retain the supplier-facing
+`tree_type` and `botanical_name`, allowing mandarin, citrus and ornamental-tree
+prices to remain distinguishable after CSV ingestion. Output checks cover ordered ranges, supported temperature
 scope, potted-plant suppression, the exact-temperature prohibition and cost
 arithmetic. Passing these checks does not establish a causal cooling effect.
 

@@ -515,7 +515,8 @@ mean local causal validation or permission to display a precise after-temperatur
 - No suitable government dataset provides current Melbourne residential greening prices.
 - The version-controlled file `data/reference/cost_estimates.csv` uses current advertised supplier prices and clearly labelled composite scenarios.
 - Exact advertised retail prices are high confidence; transparent multi-source calculations are medium confidence; broad installed-market guidance is low confidence.
-- The current coverage includes DIY and installed backyard trees, a container tree, potted plants, an installed garden bed, DIY and installed green walls, and an installed advanced/community tree context.
+- The current coverage includes DIY and installed backyard trees by named type, a container tree, potted plants, an installed garden bed, DIY and installed green walls, and an installed advanced/community tree context.
+- Named residential tree costs currently cover Ficus Hillii Flash, Mandarin Emperor Dwarf, Lemon Lisbon Dwarf, Mediterranean Sweet Orange Dwarf, Chinese Elm and Chinese Pistache. `tree_type` and `botanical_name` are retained in the CSV, database and application-ready view.
 - Green-roof and unsupported annual-maintenance values remain absent rather than being invented.
 - Every record includes its source, assumptions, validity window, verification timestamp, inclusions and confidence level.
 - Outputs are indicative estimates, not quotations, and should be rechecked approximately every three months.
@@ -531,6 +532,11 @@ The prices below were verified on 26 August 2026 and have a review date of
 | --- | ---: | --- | --- |
 | DIY small backyard tree | $25–$85 per tree | [Plants Melbourne Nursery](https://plantsmelb.com/store/page/2/) advertised 200–300 mm Ficus stock; delivery, soil, stakes and labour are excluded. | High |
 | Professionally planted small tree | $109–$169 per tree | $25–$85 plant plus one $84 advertised landscaping hour from [Landscaping for Melbourne](https://landscapingformelbourne.com/pricing/); assumes a prepared and accessible site. | Medium |
+| Mandarin Emperor Dwarf | $59 supply only; $143 with one planting hour | [Diaco's Garden Nursery](https://diacos.com.au/product/mandarin-emperor-dwarf/) advertised the tree at $59; the installed scenario adds one published $84 Melbourne landscaping hour. | High supply / medium installed |
+| Lemon Lisbon Dwarf | $59 supply only; $143 with one planting hour | [Diaco's fruit-tree catalogue](https://diacos.com.au/fruit-trees/) advertised the tree at $59; the installed scenario adds one published $84 Melbourne landscaping hour. | High supply / medium installed |
+| Mediterranean Sweet Orange Dwarf | $59 supply only; $143 with one planting hour | [Diaco's fruit-tree catalogue](https://diacos.com.au/fruit-trees/) advertised the tree at $59; the installed scenario adds one published $84 Melbourne landscaping hour. | High supply / medium installed |
+| Chinese Elm | $41.95–$169.95 supply only; $125.95–$253.95 with one planting hour | [Diaco's ornamental-tree catalogue](https://diacos.com.au/product-category/plants/ornamental-trees/) advertised variant-dependent stock; the source describes this as a large tree for larger gardens. | High supply / medium installed |
+| Chinese Pistache | $49.95–$179.95 supply only; $133.95–$263.95 with one planting hour | [Diaco's ornamental-tree catalogue](https://diacos.com.au/product-category/plants/ornamental-trees/) advertised variant-dependent stock; the installed scenario adds one published $84 Melbourne landscaping hour. | High supply / medium installed |
 | Container tree | $67.99–$185.68 per tree | [Diaco's Lemon Eureka](https://diacos.com.au/product/lemon-eureka/) at $49–$139 plus a 400 mm pot from [Ladybird Nursery](https://ladybirdnursery.com.au/products/plastic-pot-400mm-pick-up-only) or [Bunnings](https://www.bunnings.com.au/elho-40cm-terracotta-vibia-outdoor-plant-pot_p0366936) at $18.99–$46.68; potting mix, delivery and labour are excluded. | Medium |
 | Potted plants | $49–$175 per pot | Melbourne-accessible plants with decorative pots or multi-planters from [The Indoor Plant Co](https://www.theindoorplantco.com.au/collections/all-plants); delivery and ongoing care are excluded. | High |
 | Installed garden bed | $105–$190 per m² | Published Melbourne installed garden-construction range from [Landscaping for Melbourne](https://landscapingformelbourne.com/pricing/); the final price depends on site conditions and inclusions. | Medium |
@@ -540,6 +546,11 @@ The prices below were verified on 26 August 2026 and have a review date of
 
 Blank GST, delivery, setup or annual-maintenance fields mean that the source did
 not publish a reliable value. They must not be interpreted as zero.
+
+The professional planting figures are arithmetic scenarios, not supplier quotes:
+one published retail tree price plus one $84 landscaping hour. Actual labour can
+require more than one hour, and delivery, access, excavation, soil improvement,
+staking, irrigation, permits and aftercare remain excluded unless explicitly stated.
 
 ### Property and boundary
 

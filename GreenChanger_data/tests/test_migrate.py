@@ -9,7 +9,7 @@ class MigrationFileTests(unittest.TestCase):
     def test_migrations_are_numbered_and_ordered(self):
         self.assertEqual(
             [version for version, _ in migration_files()],
-            list(range(1, 33)),
+            list(range(1, 34)),
         )
 
     def test_include_is_expanded(self):
@@ -140,6 +140,17 @@ class MigrationFileTests(unittest.TestCase):
         self.assertIn("official metropolitan Melbourne 2018", sql)
         self.assertIn("Plan for Victoria urban-area target", sql)
         self.assertNotIn("PERCENTILE_CONT", sql)
+
+    def test_tree_cost_migration_preserves_type_and_botanical_name(self):
+        migration = next(
+            path for version, path in migration_files() if version == 33
+        )
+        sql = expanded_sql(migration)
+        self.assertIn("ADD COLUMN IF NOT EXISTS tree_type TEXT", sql)
+        self.assertIn("ADD COLUMN IF NOT EXISTS botanical_name TEXT", sql)
+        self.assertIn("idx_cost_estimate_tree_type", sql)
+        self.assertIn("ce.tree_type", sql)
+        self.assertIn("ce.botanical_name", sql)
 
     def test_environment_context_uses_bounded_indexed_radius_queries(self):
         migration = next(

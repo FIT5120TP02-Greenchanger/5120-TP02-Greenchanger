@@ -441,6 +441,8 @@ CREATE TABLE IF NOT EXISTS cost_estimate (
     tree_size_category TEXT,
     planting_method TEXT,
     stock_size TEXT,
+    tree_type TEXT,
+    botanical_name TEXT,
     minimum_cost NUMERIC(12, 2) NOT NULL CHECK (minimum_cost >= 0),
     maximum_cost NUMERIC(12, 2) NOT NULL CHECK (maximum_cost >= minimum_cost),
     material_min_cost NUMERIC(12, 2) CHECK (material_min_cost IS NULL OR material_min_cost >= 0),
@@ -689,6 +691,9 @@ CREATE INDEX IF NOT EXISTS idx_vegetation_observed_on
     ON vegetation_observation(observed_on);
 CREATE INDEX IF NOT EXISTS idx_cost_estimate_validity
     ON cost_estimate(greening_option_id, valid_from, valid_to);
+CREATE INDEX IF NOT EXISTS idx_cost_estimate_tree_type
+    ON cost_estimate (UPPER(tree_type), valid_from, valid_to)
+    WHERE tree_type IS NOT NULL;
 CREATE UNIQUE INDEX IF NOT EXISTS uq_cost_estimate_source_version
     ON cost_estimate (
         greening_option_id,
@@ -1391,7 +1396,9 @@ SELECT
     ce.confidence_level,
     'indicative_not_quote'::TEXT AS estimate_status,
     'Indicative source-backed range only; confirm current price, availability, site conditions, delivery, installation and maintenance with the supplier.'::TEXT
-        AS display_disclaimer
+        AS display_disclaimer,
+    ce.tree_type,
+    ce.botanical_name
 FROM cost_estimate AS ce
 JOIN greening_option AS go USING (greening_option_id)
 WHERE go.active

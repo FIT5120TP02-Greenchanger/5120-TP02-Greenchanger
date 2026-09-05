@@ -156,6 +156,9 @@ class PostgisEnvironmentContextIntegrationTests(unittest.TestCase):
                  "clip_to_abs_gccsa_2GMEL_2026_v1:test"),
                 ("trees", "Vicmap Vegetation - Tree Urban Point", "Victorian Government",
                  "canopy", "tree_fixture_v1"),
+                ("tree_extent", "Vicmap Vegetation - Tree Extent",
+                 "Victorian Government", "canopy",
+                 "property_canopy_raster_clip_v2:test"),
                 ("heat", "USGS Landsat Collection 2 Surface Temperature",
                  "United States Geological Survey", "heat",
                  "landsat_latest_daily_mosaic_v1"),
@@ -289,13 +292,18 @@ class PostgisEnvironmentContextIntegrationTests(unittest.TestCase):
                 SELECT source_id, %s, 'property_canopy_raster_clip_v2',
                        0.5, 100, 'passed', 'integrated', 'application_ready',
                        DATE '2020-01-01', DATE '2020-12-31'
-                FROM dataset_source
-                WHERE source_name = 'Vicmap Vegetation - Tree Extent'
+                FROM dataset_version
+                WHERE dataset_version_id = %s
                 RETURNING dataset_version_id
                 """,
-                (area_id,),
+                (area_id, versions["tree_extent"]),
             )
-            property_canopy_version = cursor.fetchone()[0]
+            property_canopy_version = cursor.fetchone()
+            if property_canopy_version is None:
+                raise AssertionError(
+                    "integration fixture could not create property canopy version"
+                )
+            property_canopy_version = property_canopy_version[0]
             cursor.execute(
                 """
                 INSERT INTO property_canopy_summary (
@@ -311,7 +319,7 @@ class PostgisEnvironmentContextIntegrationTests(unittest.TestCase):
                 WHERE dataset_version_id = %s AND source_parcel_id = 'PARCEL-A'
                 """,
                 (
-                    property_canopy_version, property_canopy_version,
+                    property_canopy_version, versions["tree_extent"],
                     versions["property"],
                 ),
             )

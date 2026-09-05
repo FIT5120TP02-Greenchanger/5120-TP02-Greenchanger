@@ -29,7 +29,8 @@ greenchanger_sql/
 │   ├── 017_environmental_classifications.sql
 │   ├── 018_environment_context_radius.sql
 │   ├── 019_environment_context_by_address.sql
-│   └── 020_evidence_backed_absolute_classifications.sql
+│   ├── 020_evidence_backed_absolute_classifications.sql
+│   └── 033_tree_type_costs.sql
 ├── seeds/001_reference_data.sql
 └── analytics/001_views.sql
 ```
@@ -61,6 +62,7 @@ greenchanger_sql/
 | `migrations/030_address_match_deduplication.sql` | Groups repeated address–parcel joins by normalised full address, preserves parcel options and prevents false “ambiguous/no match” results for abbreviations such as `RD`. |
 | `migrations/031_address_representative_coordinate.sql` | Selects longitude and latitude together from one deterministic representative address row, preventing hybrid coordinates assembled from separate aggregates. |
 | `migrations/032_fixed_canopy_benchmark_bands.sql` | Replaces canopy terciles with fixed evidence-backed progress bands using the official 15.3% metropolitan baseline and 30% Plan for Victoria urban target. |
+| `migrations/033_tree_type_costs.sql` | Adds named tree type and botanical-name fields to cost estimates, indexes current tree-price lookup and publishes both fields through the application-ready cost view. |
 | `migrations/018_environment_context_radius.sql` | Adds a bounded, application-facing radius query for current mapped-tree points and clipped 500 m heat cells. |
 | `migrations/019_environment_context_by_address.sql` | Resolves one unambiguous Melbourne address and delegates to the bounded coordinate-radius query. |
 | `migrations/020_evidence_backed_absolute_classifications.sql` | Stores threshold evidence with exact source locators and adds measurement-specific daily-mean air-temperature and canopy benchmark functions. |
@@ -197,8 +199,8 @@ historical values.
   `latest_greater_melbourne_canopy_baseline` view exposes the current version.
 - `vegetation_observation`, `canopy_patch`, `urban_tree`: canopy and greenery.
 - `species_profile`, `greening_option`: available intervention definitions.
-- `cost_estimate`: dated, source-backed indicative cost ranges.
-- `application_ready_cost_estimate`: current cost contexts joined to greening-option labels with confidence, inclusions and the mandatory not-a-quote disclaimer.
+- `cost_estimate`: dated, source-backed indicative cost ranges, including named tree type and botanical name where applicable.
+- `application_ready_cost_estimate`: current cost contexts joined to greening-option labels with tree type, confidence, inclusions and the mandatory not-a-quote disclaimer.
 - `model_version.validation_status`: explicit model gate. Only `validated`
   models can appear in `application_ready_measure_result`.
 - `model_version.output_precision`: independent precision gate. Validation can

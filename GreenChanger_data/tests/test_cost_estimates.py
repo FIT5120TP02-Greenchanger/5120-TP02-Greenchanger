@@ -74,6 +74,31 @@ class CostEstimateTests(unittest.TestCase):
                 self.assertAlmostEqual(sum(minimum_components), float(row["minimum_cost"]))
                 self.assertAlmostEqual(sum(maximum_components), float(row["maximum_cost"]))
 
+    def test_residential_tree_costs_identify_the_tree_type(self):
+        tree_rows = [
+            row for row in self.rows
+            if row["option_code"] in {
+                "backyard_tree_diy", "backyard_tree_installed", "container_tree"
+            }
+        ]
+        self.assertTrue(tree_rows)
+        for row in tree_rows:
+            self.assertTrue(row["tree_type"].strip())
+            self.assertTrue(row["botanical_name"].strip())
+
+    def test_mandarin_has_supply_and_standard_planting_costs(self):
+        mandarin = [
+            row for row in self.rows
+            if row["tree_type"] == "Mandarin Emperor Dwarf"
+        ]
+        self.assertEqual(len(mandarin), 2)
+        by_method = {row["planting_method"]: row for row in mandarin}
+        self.assertEqual(float(by_method["diy"]["minimum_cost"]), 59.0)
+        installed = by_method["professional_standard_access"]
+        self.assertEqual(float(installed["minimum_cost"]), 143.0)
+        self.assertEqual(float(installed["material_min_cost"]), 59.0)
+        self.assertEqual(float(installed["installation_min_cost"]), 84.0)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -339,6 +339,11 @@ inclusion flags and confidence label. Blank delivery, setup, GST or maintenance
 fields mean the source did not publish a reliable value; they must not be
 interpreted as zero.
 
+Tree rows also retain `tree_type` and `botanical_name`. The named-tree installed
+costs are transparent scenarios consisting of the advertised plant price plus one
+published $84 Melbourne landscaping hour; they are not quotes and exclude any
+unpublished delivery, difficult-access, excavation, soil, staking and aftercare costs.
+
 ## Failure guide
 
 | Symptom | Cause and response |
