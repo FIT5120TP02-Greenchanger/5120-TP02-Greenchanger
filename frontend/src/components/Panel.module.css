@@ -376,6 +376,10 @@
     padding: 6px 10px;
     font-size: 0.8125rem;
 }
+.tree-list-item:hover {
+    background: #E5E8EA;
+    cursor: pointer;
+}
 .tree-list-remove {
     background: none;
     border: none;

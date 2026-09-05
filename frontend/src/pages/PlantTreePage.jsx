@@ -74,11 +74,23 @@ export default function PlantTreePage({ planTarget, onDone }) {
     // Plant where the user put the preview circle (2026-09-03)
     const handleConfirm = useCallback(() => {
         if (!treePos) return;
-        simulation.placeTree(treePos.lng, treePos.lat);
+        if(simulation.selectedId) {
+            simulation.updateTree(simulation.selectedId, { lng: treePos.lng, lat: treePos.lat, size: simulation.size, radiusM: TREE_SIZES[simulation.size].radiusM });
+        } else {
+            simulation.placeTree(treePos.lng, treePos.lat, { id: crypto.randomUUID(), label: simulation.trees.length + 1 });
+        }
     }, [simulation, treePos]);
 
     // Click = put the tree there. Outside the selected lot is allowed, just say so.
     const handleMapClick = useCallback((e) => {
+        if (map?.getLayer('simulated-tree-fill')) {
+            const map = mapRef.current?.getMap();
+            const hitbox = map?.queryRenderedFeatures(e.point, { layers: ['simulated-tree-fill'] });
+            if (hitbox?.length) {
+                simulation.selectTree(hitbox[0].properties.id);
+                return;
+            }
+        }
         if (!simulation.active) return;
         const { lng, lat } = e.lngLat;
         setTreePos({ lng, lat });
@@ -127,10 +139,22 @@ export default function PlantTreePage({ planTarget, onDone }) {
         type: 'FeatureCollection',
         features: simulation.trees.map((t) => ({
             type: 'Feature',
-            properties: {},
+            properties: { id: t.id, label: t.label },
             geometry: circleMetres(t.lng, t.lat, t.radiusM),
         })),
     }), [simulation.trees])
+
+    const handleRemoveTree = useCallback((id) => {
+        const idx = simulation.trees.findIndex((t) => t.id === id);
+        if (idx >= 0) simulation.removeTreeAt(idx);
+    }, [simulation.trees, simulation.removeTreeAt]);
+
+    const handleFocusTree = useCallback((tree) => {
+        const map = mapRef.current?.getMap();
+        if (!map) return;
+        map.flyTo({ center: [tree.lng, tree.lat], zoom: Math.max(map.getZoom(), 19), speed: 1.2 });
+        simulation.selectTree(tree.id);
+    }, [simulation]);
 
     return (
         <div className={styles['plant-page']}>
@@ -190,6 +214,9 @@ export default function PlantTreePage({ planTarget, onDone }) {
                             paint={{ 'fill-color': '#2F7D5A', 'fill-opacity': 0.35 }} />
                         <Layer id="simulated-tree-line" type="line" source="simulated-tree"
                             paint={{ 'line-color': '#2F7D5A', 'line-width': 2, 'line-dasharray': [2, 2] }} />
+                        <Layer id="simulated-tree-label" type="symbol" source="simulated-tree"
+                            layout={{ 'text-field': ['get', 'label'], 'text-size': 14 }}
+                            paint={{ 'text-color': '#ffffff' }} />
                     </Source>
                     )}
                 </Map>
@@ -215,7 +242,8 @@ export default function PlantTreePage({ planTarget, onDone }) {
                             trees={simulation.trees}
                             onAdd={simulation.startPlanting}
                             onReset={simulation.removeAllTree}
-                            onRemoveTree={simulation.removeTreeAt}
+                            onRemoveTree={handleRemoveTree}
+                            onFocusTree={handleFocusTree}
                             onFinish={handleFinish}
                         />
                     ) : (

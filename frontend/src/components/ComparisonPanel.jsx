@@ -1,7 +1,8 @@
 import styles from './Panel.module.css';
 
-export default function ComparisonPanel({ baseline, projected, trees, onAdd, onReset, onRemoveTree, onFinish }) {
+export default function ComparisonPanel({ baseline, projected, trees, onAdd, onReset, onRemoveTree, onFocusTree, onFinish }) {
     if(!baseline || !projected) return null;
+    console.log("Trees in ComparisonPanel:", trees);
     return (
         <div className={styles['scenario-panel']}>
             <span>SCENARIO COMPARISON</span>
@@ -27,13 +28,13 @@ export default function ComparisonPanel({ baseline, projected, trees, onAdd, onR
 
             {trees.length > 0 && (
                 <ul className={styles['tree-list']}>
-                    {trees.map((t, i) => (
-                        <li key={i} className={styles['tree-list-item']}>
-                            <span>{t.size} tree</span>
+                    {trees.map((t) => (
+                        <li key={t.id} className={styles['tree-list-item']} onClick={() => onFocusTree(t)}>
+                            <span>#{t.label} · {t.size} tree</span>
                             <button
                                 className={styles['tree-list-remove']}
-                                onClick={() => onRemoveTree(i)}
-                                aria-label={`Remove ${t.size} tree`}
+                                onClick={(e) => { e.stopPropagation(); onRemoveTree(t.id); }}
+                                aria-label={`Remove tree ${t.label}`}
                             >
                                 x
                             </button>

@@ -285,18 +285,22 @@ export default function MapView({ selectedLocation, setSelectedLocation, simulat
     }, [simulatedTrees]);
     const confirmPlacing = useCallback(() => {
         if (!pendingPos) return;
-        const tree = { lng: pendingPos.lng, lat: pendingPos.lat, radiusM: TREE_SIZES[treeSize].radiusM, size: treeSize };
+        const tree = { 
+            id: crypto.randomUUID(), 
+            label: (simulatedTrees?.length || 0) + 1,
+            lng: pendingPos.lng, lat: pendingPos.lat, 
+            radiusM: TREE_SIZES[treeSize].radiusM, size: treeSize };
         setSimulatedTrees((prev) => [...(prev || []), tree]);
         setPlacing(false);
         setPendingPos(null);
         setHoverPos(null);
-        setSimulating(false); // close the lot card, the scenario panel takes over
+        setSimulating(false);
         resetCursor();
-    }, [pendingPos, treeSize, setSimulatedTrees]);
+    }, [pendingPos, treeSize, setSimulatedTrees, simulatedTrees]);
     // Remove / Reset inside the comparison panel behave like the old page: with no trees left,
     // placement starts again. Reset on the normal page just clears the trees.
     const removeTreeAt = useCallback((index) => {
-        const next = (simulatedTrees || []).filter((_, i) => i !== index);
+        const next = (simulatedTrees || []).filter((t) => t.id !== index);
         setSimulatedTrees(next.length ? next : null);
         if (!next.length) startPlacing();
     }, [simulatedTrees, setSimulatedTrees, startPlacing]);
@@ -520,7 +524,7 @@ export default function MapView({ selectedLocation, setSelectedLocation, simulat
                             type: 'FeatureCollection',
                             features: simulatedTrees.map((t) => ({
                                 type: 'Feature',
-                                properties: {},
+                                properties: { id: t.id, label: t.label },
                                 geometry: circleMetres(t.lng, t.lat, t.radiusM),
                             })),
                         }}
@@ -529,6 +533,10 @@ export default function MapView({ selectedLocation, setSelectedLocation, simulat
                         {/* Placed trees are solid so they differ from the dashed preview (2026-09-03) */}
                         {/* <Layer id="simulated-trees-line" type="line" source="simulated-trees" paint={{ 'line-color': '#2F7D5A', 'line-width': 2, 'line-dasharray': [2, 2] }} /> */}
                         <Layer id="simulated-trees-line" type="line" source="simulated-trees" paint={{ 'line-color': '#2F7D5A', 'line-width': 2 }} />
+                        <Layer id="simulated-trees-label" type="symbol" source="simulated-trees"
+                        layout={{ 'text-field': ['get', 'label'], 'text-size': 14 }}
+                        paint={{ 'text-color': '#ffffff', 'text-halo-color': '#2F7D5A', 'text-halo-width': 1.5 }}
+                        slot="top" />
                     </Source>
                 )}
 
@@ -629,6 +637,9 @@ export default function MapView({ selectedLocation, setSelectedLocation, simulat
                     onAdd: startPlacing,
                     onReset: resetScenario,
                     onRemoveTree: removeTreeAt,
+                    onFocusTree: (tree) => {
+                        mapRef.current?.flyTo({ center: [tree.lng, tree.lat], zoom: Math.max(mapRef.current?.getZoom?.() ?? 18, 19), speed: 1.2 });
+                    },
                     onFinish: closeScenario, // Done: back to the normal page, trees kept
                 } : null}
             />

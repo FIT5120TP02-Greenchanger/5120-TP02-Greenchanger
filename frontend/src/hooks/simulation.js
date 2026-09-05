@@ -12,15 +12,32 @@ export function useTreeSimulation() {
     const [active, setActive] = useState(false);
     const [trees, setTrees] = useState([]);
     const [size, setSize] = useState("Medium");
+    const [selectedId, setSelectedId] = useState(null);
     
     const startPlanting = useCallback(() => setActive(true), []);
     const cancelPlanting = useCallback(() => setActive(false), []);
     
-    const placeTree = useCallback((lng, lat) => {
-        setTrees((prev) => [...prev, { lng, lat, radiusM: TREE_SIZES[size].radiusM, size }]);
+    const placeTree = useCallback((lng, lat, meta={}) => {
+        setTrees((prev) => [...prev, {
+            id: meta.id ?? crypto.randomUUID(),
+            label: meta.label ?? prev.length + 1,
+            lng, lat, size,
+            radiusM: TREE_SIZES[size].radiusM},
+        ]);
         setActive(false);
     }, [size]);
     
+    const selectTree = useCallback((id) => {
+        setSelectedId(id);
+        setActive(true); // reopens the placement panel in "edit" mode
+    }, []);
+
+    const updateTree = useCallback((id, changes) => {
+        setTrees((prev) => prev.map((t) => (t.id === id ? { ...t, ...changes } : t)));
+        setActive(false);
+        setSelectedId(null);
+    }, []);
+
     const removeAllTree = useCallback(() => {
         setTrees([]);
         setActive(true);
@@ -39,7 +56,10 @@ export function useTreeSimulation() {
         startPlanting,
         cancelPlanting,
         placeTree,
+        selectTree,
+        updateTree,
         removeAllTree,
         removeTreeAt,
+        selectedId,
     };
 }
