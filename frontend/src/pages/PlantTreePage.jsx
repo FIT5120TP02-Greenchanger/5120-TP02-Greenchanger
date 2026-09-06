@@ -48,7 +48,6 @@ export default function PlantTreePage({ planTarget, onDone }) {
     const [treePos, setTreePos] = useState(null);   // where the user clicked
     const [hoverPos, setHoverPos] = useState(null); // cursor position before the first click
     const [hint, setHint] = useState(null);
-    const [hasUpdatePos, setUpdatePos] = useState(false); // whether the user is updating an existing tree position
 
     const refreshTrees = useCallback(() => {
         const map = mapRef.current?.getMap();
@@ -84,8 +83,8 @@ export default function PlantTreePage({ planTarget, onDone }) {
 
     // Click = put the tree there. Outside the selected lot is allowed, just say so.
     const handleMapClick = useCallback((e) => {
+        const map = mapRef.current?.getMap();
         if (map?.getLayer('simulated-tree-fill')) {
-            const map = mapRef.current?.getMap();
             const hitbox = map?.queryRenderedFeatures(e.point, { layers: ['simulated-tree-fill'] });
             if (hitbox?.length) {
                 simulation.selectTree(hitbox[0].properties.id);
@@ -98,12 +97,12 @@ export default function PlantTreePage({ planTarget, onDone }) {
         if (lotGeometry && !pointInPolygon(lng, lat, lotGeometry)) {
             setHint("You are planting on another property.");
         }
-    }, [simulation.active, lotGeometry]);
+    }, [simulation, lotGeometry]);
 
     // Before the first click the circle follows the cursor so the size is visible right away
     const handleMapMouseMove = useCallback((e) => {
         if (simulation.active && !treePos) setHoverPos({ lng: e.lngLat.lng, lat: e.lngLat.lat });
-    }, [simulation.active, treePos]);
+    }, [simulation, treePos]);
     const handleMapMouseLeave = useCallback(() => setHoverPos(null), []);
 
     useEffect(() => {
@@ -121,20 +120,20 @@ export default function PlantTreePage({ planTarget, onDone }) {
                 ? [{ type: 'Feature', properties: {}, geometry: circleMetres(pos.lng, pos.lat, TREE_SIZES[simulation.size].radiusM) }]
                 : [],
         };
-    }, [simulation.active, simulation.size, treePos, hoverPos]);
+    }, [simulation, treePos, hoverPos]);
 
     const handleDiscard = useCallback(() => onDone(null), [onDone]);
 
     const handleFinish = useCallback(() => {
         onDone(simulation.trees.length ? simulation.trees : null);
-    }, [simulation.trees, onDone]);
+    }, [simulation, onDone]);
 
     const projected = useMemo(() => {
         if (!simulation.trees.length || !trees.viewM2) return null;
         const addedM2 = simulation.trees.reduce((sum, t) => sum + Math.PI * t.radiusM ** 2, 0);
         const pct = ((trees.canopyM2 + addedM2) / trees.viewM2) * 100;
         return { pct, deltaPts: pct - trees.pct };
-    }, [simulation.trees, trees.canopyM2, trees.viewM2, trees.pct]);
+    }, [simulation, trees.canopyM2, trees.viewM2, trees.pct]);
 
     const simulatedTreesGeoJson = useMemo(() => ({
         type: 'FeatureCollection',
@@ -143,12 +142,12 @@ export default function PlantTreePage({ planTarget, onDone }) {
             properties: { id: t.id, label: t.label },
             geometry: circleMetres(t.lng, t.lat, t.radiusM),
         })),
-    }), [simulation.trees])
+    }), [simulation])
 
     const handleRemoveTree = useCallback((id) => {
         const idx = simulation.trees.findIndex((t) => t.id === id);
         if (idx >= 0) simulation.removeTreeAt(idx);
-    }, [simulation.trees, simulation.removeTreeAt]);
+    }, [simulation]);
 
     const handleFocusTree = useCallback((tree) => {
         const map = mapRef.current?.getMap();
@@ -254,7 +253,7 @@ export default function PlantTreePage({ planTarget, onDone }) {
                             onConfirm={handleConfirm}
                             onCancel={handleDiscard}
                             hasPosition={simulation.trees.length > 0}
-                            hasUpdatePos={hasUpdatePos}
+                            hasUpdatePos={!!simulation.selectedId}
                             canPlant={!!treePos}
                         />
                     )}

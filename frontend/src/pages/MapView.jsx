@@ -301,7 +301,6 @@ export default function MapView({ selectedLocation, setSelectedLocation, simulat
         } else {
             const tree = { 
                 id: crypto.randomUUID(), 
-                // label: (simulatedTrees?.length || 0) + 1,
                 lng: pendingPos.lng, lat: pendingPos.lat, 
                 radiusM: TREE_SIZES[treeSize].radiusM, size: treeSize };
             setSimulatedTrees((prev) => [...(prev || []), tree]);
@@ -312,7 +311,7 @@ export default function MapView({ selectedLocation, setSelectedLocation, simulat
         setHoverPos(null);
         setSimulating(false);
         resetCursor();
-    }, [pendingPos, treeSize, setSimulatedTrees, simulatedTrees, selectedTreeId]);
+    }, [pendingPos, treeSize, setSimulatedTrees, selectedTreeId]);
 
 
     // Remove / Reset inside the comparison panel behave like the old page: with no trees left,
