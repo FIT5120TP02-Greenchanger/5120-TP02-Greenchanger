@@ -237,6 +237,16 @@
     font-size: 0.875rem;
     cursor: pointer;
 }
+.update-position-button {
+    background: #2F7D5A;
+    width: 100%;
+    color: white;
+    border: none;
+    border-radius: 8px;
+    padding: 10px;
+    font-size: 0.875rem;
+    cursor: pointer;
+}
 
 
 /* Tree Plant */

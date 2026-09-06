@@ -1,7 +1,9 @@
 import styles from './Panel.module.css';
 
-export default function ComparisonPanel({ baseline, projected, trees, onAdd, onReset, onRemoveTree, onFocusTree, onFinish }) {
+export default function ComparisonPanel({ baseline, projected, trees, selectedTreeId, onAdd, onReset, onRemoveTree, onFocusTree, onUpdateTree, onFinish }) {
     if(!baseline || !projected) return null;
+    const selectedTree = trees.find((t) => t.id === selectedTreeId);
+
     return (
         <div className={styles['scenario-panel']}>
             <span>SCENARIO COMPARISON</span>
@@ -27,13 +29,13 @@ export default function ComparisonPanel({ baseline, projected, trees, onAdd, onR
 
             {trees.length > 0 && (
                 <ul className={styles['tree-list']}>
-                    {trees.map((t) => (
-                        <li key={t.id} className={styles['tree-list-item']} onClick={() => onFocusTree(t)}>
-                            <span>#{t.label} · {t.size} tree</span>
+                    {trees.map((t, i) => (
+                        <li key={t.id} className={`${styles['tree-list-item']} ${t.id === selectedTreeId ? styles['tree-list-item--selected'] : ''}`} onClick={() => onFocusTree(t)}>
+                            <span>#{i + 1} · {t.size} tree</span>
                             <button
                                 className={styles['tree-list-remove']}
                                 onClick={(e) => { e.stopPropagation(); onRemoveTree(t.id); }}
-                                aria-label={`Remove tree ${t.label}`}
+                                aria-label={`Remove tree ${i + 1}`}
                             >
                                 x
                             </button>
@@ -41,19 +43,23 @@ export default function ComparisonPanel({ baseline, projected, trees, onAdd, onR
                     ))}
                 </ul>
             )}
+                <div className={styles['assumptions-box']}>
+                    <span>ASSUMPTIONS &amp; LIMITATIONS</span>
+                    <p>Default mature canopy; directional impact only.</p>
+                </div>
 
-            <div className={styles['assumptions-box']}>
-                <span>ASSUMPTIONS &amp; LIMITATIONS</span>
-                <p>Default mature canopy; directional impact only.</p>
-            </div>
-
-            <div className={styles['scenario-actions']}>
-                <button className={styles['reset-button']} onClick={onReset}>Reset</button>
-                <button className={styles['new-scenario-button']} onClick={onAdd}>+ Add tree</button>
-            </div>
-            {/* <button className={styles['place-button']} onClick={onFinish}>Done</button> */}
-            {/* Done only when the host has somewhere to go (2026-09-03): inside MapView there is no page to leave */}
-            {onFinish && <button className={styles['place-button']} onClick={onFinish}>Done</button>}
+                {selectedTree ? (
+                    <div className={styles['tree-scenario-actions']}>
+                        <button className={styles['update-position-button']}
+                        onClick={() => onUpdateTree(selectedTree)}>Update Position</button>
+                    </div>
+                ) : (
+                    <div className={styles['scenario-actions']}>
+                        <button className={styles['reset-button']} onClick={onReset}>Reset</button>
+                        <button className={styles['new-scenario-button']} onClick={onAdd}>+ Add tree</button>
+                    </div>
+                )}
+                {onFinish && <button className={styles['place-button']} onClick={onFinish}>Done</button>}
         </div>
     );
 }

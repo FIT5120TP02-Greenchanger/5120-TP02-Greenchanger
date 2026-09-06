@@ -48,6 +48,7 @@ export default function PlantTreePage({ planTarget, onDone }) {
     const [treePos, setTreePos] = useState(null);   // where the user clicked
     const [hoverPos, setHoverPos] = useState(null); // cursor position before the first click
     const [hint, setHint] = useState(null);
+    const [hasUpdatePos, setUpdatePos] = useState(false); // whether the user is updating an existing tree position
 
     const refreshTrees = useCallback(() => {
         const map = mapRef.current?.getMap();
@@ -253,6 +254,7 @@ export default function PlantTreePage({ planTarget, onDone }) {
                             onConfirm={handleConfirm}
                             onCancel={handleDiscard}
                             hasPosition={simulation.trees.length > 0}
+                            hasUpdatePos={hasUpdatePos}
                             canPlant={!!treePos}
                         />
                     )}
