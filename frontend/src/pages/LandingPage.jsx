@@ -149,7 +149,7 @@ export default function LandingPage({onNavigate, selectedLocation, setSelectedLo
             <p className={styles["landing-page-brand"]}>GreenChanger</p>
 
             <div className={styles["hero-card"]}>
-                <h1 className={styles["landing-title"]}>See what one more tree could change.</h1>
+                <h1 className={styles["landing-title"]}>What one more tree could change.</h1>
                 <p className={styles["landing-description"]}>
                     Search a Melbourne address to explore its current tree canopy and preview the shade a new tree could create.
                 </p>

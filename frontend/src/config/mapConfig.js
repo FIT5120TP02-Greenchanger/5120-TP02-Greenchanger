@@ -1,5 +1,5 @@
 export const CLAYTON = [145.1300, -37.9180]; // lng, lat
-export const START_ZOOM = 17.5;
+export const START_ZOOM = 18.5;
 export const START_PITCH = 58;
 export const START_BEARING = -24;
 

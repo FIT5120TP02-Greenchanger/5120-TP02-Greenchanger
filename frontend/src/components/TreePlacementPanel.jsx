@@ -3,7 +3,7 @@ import { TREE_SIZES } from '../hooks/simulation';
 
 // export default function TreePlacementPanel({ size, onSizeChange, onConfirm, onCancel, hasPosition }) {
 // canPlant added (2026-09-03): the button waits until the user has clicked a spot on the map
-export default function TreePlacementPanel({ size, onSizeChange, onConfirm, onCancel, hasPosition, canPlant }) {
+export default function TreePlacementPanel({ size, onSizeChange, onConfirm, onCancel, hasPosition, hasUpdatePos, canPlant }) {
     return (
         <div className={styles['placement-panel']}>
             <span>SIMULATE ONE TREE</span>
@@ -36,7 +36,7 @@ export default function TreePlacementPanel({ size, onSizeChange, onConfirm, onCa
 
             <button className={styles['place-button']} onClick={onConfirm} disabled={canPlant === false}>
                 {/* {hasPosition ? 'Place here?' : 'Place simulated tree'} */}
-                {hasPosition ? 'Plant another here' : 'Plant here'}
+                {hasPosition ? (hasUpdatePos ? 'Update position' : 'Plant another here') : 'Plant here'}
             </button>
             <p className={styles['placement-hint']}>You can reposition or remove it later.</p>
             <button className={styles['cancel-button']} onClick={onCancel}>Cancel</button>

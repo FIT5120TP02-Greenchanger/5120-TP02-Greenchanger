@@ -86,7 +86,6 @@ export function useSelectedProperty(treeFeatures) {
         const label = await reverseGeocode(lngLat.lng, lngLat.lat);
         if (!label) return;
         const baseline = await fetchPropertyBaseline(label);
-        console.log(baseline);
         if (baseline) {
             const enriched = { ...best, properties: { ...best.properties, ...mapBaselineToProperties(baseline) } };
             selectFeature(enriched, label);
