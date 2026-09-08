@@ -13,8 +13,9 @@ handling remain separate team components.
 | --- | --- | --- |
 | `get_environment_context(longitude, latitude, radius_m, layers, result_limit)` | Returns nearby mapped-tree points and clipped Landsat heat cells. | EPSG:4326 input is transformed to EPSG:7855; Melbourne boundary required; radius `(0, 2000]` m; layers are `trees` and/or `heat`; limit `1–2000` applies independently per layer. |
 | `get_environment_context_by_address(address, radius_m, layers, result_limit)` | Normalises supported street abbreviations, resolves one Vicmap address and delegates to the coordinate function. | `RD` is expanded to `ROAD`; missing, unmatched and ambiguous searches are rejected. An exact full-address match is preferred. |
+| `search_melbourne_addresses(address, result_limit)` | Returns one row per normalised full address and groups duplicate address–parcel joins. | Distinct parcel IDs are retained for selection. Longitude and latitude are taken together from one deterministic representative row, never from separate aggregates. |
 | `get_property_baseline(address, result_limit)` | Joins application-ready address, parcel, Landsat, canopy, tree and recent BOM context. | Returns source/version details and limitations; BOM air temperature remains separate from Landsat land-surface temperature. |
-| `classify_environmental_value(metric, value, version)` | Applies an active, versioned Melbourne-relative tercile scheme to comparable baseline cells. | `Low/Medium/High` are relative rank groups, not health or safety categories. Missing data returns `Unavailable`. |
+| `classify_environmental_value(metric, value, version)` | Applies fixed 27°C/30°C GreenChanger display bands to heat and the active versioned Melbourne-relative scheme to canopy. | Temperature labels are application-defined, not BOM heatwave, health-risk or comfort categories. Missing/non-finite data returns `Unavailable`. |
 | `classify_melbourne_daily_mean_air_temperature(maximum, following_minimum)` | Returns structured context for the retired Victorian Central District 30°C daily-mean threshold. | Returns JSON metadata with `status: historical_context`; it is never a current BOM warning. The 27.2°C research percentile is metadata only because it requires at least two consecutive days. |
 | `classify_canopy_benchmark(canopy_percentage)` | Compares a validated analytical canopy percentage with the official 15.3% metropolitan baseline and 30% urban target. | Progress context only; prohibited for the rendered canopy proxy and not property-level compliance. |
 
@@ -22,8 +23,9 @@ handling remain separate team components.
 
 Three distinct measures must never be mixed:
 
-1. Landsat land-surface temperature is classified only by versioned Melbourne
-   terciles calculated from comparable application-ready cells.
+1. Landsat land-surface temperature uses fixed GreenChanger display bands:
+   Low ≤27°C, Medium >27°C and ≤30°C, and High >30°C. These are product labels,
+   not health, comfort or BOM heatwave categories.
 2. BOM observations are air temperature from a named station, timestamped and
    distance-labelled. They are not property temperature or Landsat LST.
 3. The retired Victorian 30°C daily-mean method is historical context. It does
@@ -70,10 +72,11 @@ new contract.
   integration/publication status, Melbourne scope and derivation method.
 - `schema_version` stores migration filename and SHA-256 checksum.
 - `environmental_classification_scheme` and
-  `environmental_classification_threshold` bind terciles to exact heat/canopy
-  dataset-version IDs. The current documented label is
-  `melbourne-terciles-v1`; the analytical replacement is published as
-  `melbourne-terciles-v2` rather than overwriting v1.
+  `environmental_classification_threshold` bind fixed display bands to exact
+  heat/canopy dataset-version IDs. Migration 032 retires canopy terciles in
+  favour of the published 15.3% metropolitan baseline and 30% urban target;
+  publish this contract as `melbourne-fixed-canopy-v1` rather than overwriting
+  historical schemes.
 - `environmental_classification_reference` stores threshold evidence, source
   locator, limitation, role, duration requirement and historical status.
 - `config/environmental_classification_evidence.json` is versioned as
@@ -82,6 +85,32 @@ new contract.
 
 Do not assume a migration or data version is deployed from repository contents.
 Confirm it with `migrate.py --status` and the database queries in the README.
+
+## Separate predictive-model contract
+
+Migration 034 registers four separate model contracts: tree canopy growth,
+Melbourne-wide canopy change, vegetation/surface-cooling association and
+experimental garden cooling. It also records a reuse decision for each model
+source. All four versions remain `draft` with `output_precision='suppressed'`;
+the migration fits no estimator and exposes no resident-facing prediction.
+
+`current_predictive_model_contract` exposes each model's target, grain,
+features, validation plan, limitations and source-licence decisions. A required
+source may be used for training only when `licence_status` is
+`open_confirmed` or `public_domain`. The Burnley experiment is blocked pending
+confirmation of the licence on that exact Zenodo record. BOM is an optional
+cross-check rather than a required training control; ERA5-Land supplies the
+confirmed CC BY 4.0 historical weather control.
+
+Run the read-only Python gate with:
+
+```bash
+python greenchanger_script/assess_predictive_models.py
+```
+
+Training requires a later change that creates versioned, quality-passed aligned
+feature tables. Publication requires separate spatial and temporal held-out
+validation and a new migration promoting only the passing model version.
 
 ## Validation commands
 

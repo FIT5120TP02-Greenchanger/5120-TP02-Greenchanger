@@ -48,15 +48,25 @@ def estimate_action_costs(
         raise ValueError(f"unsupported action_type: {action_type}")
     minimum_units, maximum_units = _cost_units(action_type, inputs)
     wanted = set(COST_OPTIONS[action_type])
+    requested_tree_type = str(inputs.get("tree_type") or "").strip().casefold()
     estimates = []
     for row in cost_rows:
         if row["option_code"] not in wanted:
+            continue
+        if (
+            action_type == "tree"
+            and requested_tree_type
+            and str(row.get("tree_type") or "").strip().casefold()
+            != requested_tree_type
+        ):
             continue
         estimates.append(
             {
                 "option_code": row["option_code"],
                 "cost_context": row["cost_context"],
                 "cost_basis": row["cost_basis"],
+                "tree_type": row.get("tree_type") or None,
+                "botanical_name": row.get("botanical_name") or None,
                 "minimum_cost_aud": round(minimum_units * float(row["minimum_cost"]), 2),
                 "maximum_cost_aud": round(maximum_units * float(row["maximum_cost"]), 2),
                 "confidence_level": row["confidence_level"],
@@ -67,7 +77,8 @@ def estimate_action_costs(
             }
         )
     if not estimates:
-        raise ValueError(f"no reviewed cost estimate found for {action_type}")
+        detail = f" and tree type {inputs['tree_type']!r}" if requested_tree_type else ""
+        raise ValueError(f"no reviewed cost estimate found for {action_type}{detail}")
     return estimates
 
 

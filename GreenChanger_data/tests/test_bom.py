@@ -72,6 +72,25 @@ class BomTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "duplicate BOM station code"):
                 load_station_registry(path)
 
+    def test_scoresby_uses_its_official_state_observation_feed(self):
+        registry = load_station_registry(DEFAULT_STATION_REGISTRY)
+        self.assertEqual(
+            registry["product_codes"], ["IDV60901", "IDV60801"]
+        )
+        scoresby = next(
+            station
+            for station in registry["stations"]
+            if station["station_code"] == "95867"
+        )
+        self.assertEqual(
+            scoresby["source_url"],
+            "https://www.bom.gov.au/fwo/IDV60801/IDV60801.95867.json",
+        )
+        self.assertEqual(
+            scoresby["availability_status"],
+            "planned_outage_site_relocation",
+        )
+
     def test_multi_station_document_flattens_to_observation_rows(self):
         row = {
             "wmo": 95936,

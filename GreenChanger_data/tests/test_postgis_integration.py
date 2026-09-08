@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from decimal import Decimal
 import os
 import time
 import unittest
@@ -78,6 +79,136 @@ class PostgisEnvironmentContextIntegrationTests(unittest.TestCase):
                 )
             cls.connection.close()
 
+    def test_fixed_temperature_display_band_boundaries(self):
+        with self.connection.cursor() as cursor:
+            cursor.execute(
+                """
+                SELECT value, classify_temperature_band(value)
+                FROM (VALUES
+                    (NULL::NUMERIC), (13.6::NUMERIC), (27::NUMERIC),
+                    (27.01::NUMERIC), (30::NUMERIC), (30.01::NUMERIC)
+                ) AS sample(value)
+                """
+            )
+            self.assertEqual(
+                cursor.fetchall(),
+                [
+                    (None, "Unavailable"),
+                    (Decimal("13.6"), "Low"),
+                    (Decimal("27"), "Low"),
+                    (Decimal("27.01"), "Medium"),
+                    (Decimal("30"), "Medium"),
+                    (Decimal("30.01"), "High"),
+                ],
+            )
+
+    def test_fixed_canopy_bands_use_evidence_boundaries(self):
+        with self.connection.cursor() as cursor:
+            cursor.execute(
+                """
+                SELECT value, classify_environmental_value('canopy', value)
+                FROM (VALUES
+                    (NULL::NUMERIC), (0::NUMERIC), (15.29::NUMERIC),
+                    (15.3::NUMERIC), (29.99::NUMERIC), (30::NUMERIC),
+                    (100::NUMERIC)
+                ) AS sample(value)
+                """
+            )
+            self.assertEqual(
+                cursor.fetchall(),
+                [
+                    (None, "Unavailable"),
+                    (Decimal("0"), "Low"),
+                    (Decimal("15.29"), "Low"),
+                    (Decimal("15.3"), "Medium"),
+                    (Decimal("29.99"), "Medium"),
+                    (Decimal("30"), "High"),
+                    (Decimal("100"), "High"),
+                ],
+            )
+
+    def test_cost_business_key_separates_tree_types_and_deduplicates_null(self):
+        with self.connection.cursor() as cursor:
+            cursor.execute(
+                "SELECT greening_option_id FROM greening_option "
+                "WHERE option_code = 'backyard_tree_diy'"
+            )
+            tree_option_id = cursor.fetchone()[0]
+            cursor.execute(
+                "SELECT greening_option_id FROM greening_option "
+                "WHERE option_code = 'potted_plants'"
+            )
+            non_tree_option_id = cursor.fetchone()[0]
+
+            common_values = (
+                "integration_test", "per_item", "Integration source",
+                "integration-business-key", "2026-09-08",
+            )
+            cursor.execute(
+                """
+                INSERT INTO cost_estimate (
+                    greening_option_id, cost_context, cost_basis, tree_type,
+                    minimum_cost, maximum_cost, source_name, source_reference,
+                    valid_from, last_verified_at, confidence_level
+                ) VALUES
+                    (%s, %s, %s, 'Tree A', 10, 20, %s, %s, %s,
+                     CURRENT_TIMESTAMP, 'high'),
+                    (%s, %s, %s, 'Tree B', 30, 40, %s, %s, %s,
+                     CURRENT_TIMESTAMP, 'high')
+                """,
+                (
+                    tree_option_id, *common_values[:2], *common_values[2:],
+                    tree_option_id, *common_values[:2], *common_values[2:],
+                ),
+            )
+            cursor.execute(
+                """
+                SELECT COUNT(*), COUNT(DISTINCT tree_type)
+                FROM cost_estimate
+                WHERE source_name = 'Integration source'
+                  AND source_reference = 'integration-business-key'
+                  AND greening_option_id = %s
+                """,
+                (tree_option_id,),
+            )
+            self.assertEqual(cursor.fetchone(), (2, 2))
+
+            upsert_parameters = (
+                non_tree_option_id, *common_values[:2], *common_values[2:]
+            )
+            for maximum_cost in (20, 25):
+                cursor.execute(
+                    """
+                    INSERT INTO cost_estimate (
+                        greening_option_id, cost_context, cost_basis, tree_type,
+                        minimum_cost, maximum_cost, source_name,
+                        source_reference, valid_from, last_verified_at,
+                        confidence_level
+                    ) VALUES (%s, %s, %s, NULL, 10, %s, %s, %s, %s,
+                              CURRENT_TIMESTAMP, 'high')
+                    ON CONFLICT (
+                        greening_option_id, cost_context, cost_basis, tree_type,
+                        source_name, valid_from, source_reference
+                    ) DO UPDATE SET maximum_cost = EXCLUDED.maximum_cost
+                    """,
+                    (
+                        *upsert_parameters[:3], maximum_cost,
+                        *upsert_parameters[3:],
+                    ),
+                )
+            cursor.execute(
+                """
+                SELECT COUNT(*), MAX(maximum_cost)
+                FROM cost_estimate
+                WHERE source_name = 'Integration source'
+                  AND source_reference = 'integration-business-key'
+                  AND greening_option_id = %s
+                  AND tree_type IS NULL
+                """,
+                (non_tree_option_id,),
+            )
+            self.assertEqual(cursor.fetchone(), (1, Decimal("25")))
+
     @classmethod
     def _seed_spatial_contract(cls):
         with cls.connection.cursor() as cursor:
@@ -107,6 +238,9 @@ class PostgisEnvironmentContextIntegrationTests(unittest.TestCase):
                  "clip_to_abs_gccsa_2GMEL_2026_v1:test"),
                 ("trees", "Vicmap Vegetation - Tree Urban Point", "Victorian Government",
                  "canopy", "tree_fixture_v1"),
+                ("tree_extent", "Vicmap Vegetation - Tree Extent",
+                 "Victorian Government", "canopy",
+                 "property_canopy_raster_clip_v2:test"),
                 ("heat", "USGS Landsat Collection 2 Surface Temperature",
                  "United States Geological Survey", "heat",
                  "landsat_latest_daily_mosaic_v1"),
@@ -240,13 +374,18 @@ class PostgisEnvironmentContextIntegrationTests(unittest.TestCase):
                 SELECT source_id, %s, 'property_canopy_raster_clip_v2',
                        0.5, 100, 'passed', 'integrated', 'application_ready',
                        DATE '2020-01-01', DATE '2020-12-31'
-                FROM dataset_source
-                WHERE source_name = 'Vicmap Vegetation - Tree Extent'
+                FROM dataset_version
+                WHERE dataset_version_id = %s
                 RETURNING dataset_version_id
                 """,
-                (area_id,),
+                (area_id, versions["tree_extent"]),
             )
-            property_canopy_version = cursor.fetchone()[0]
+            property_canopy_version = cursor.fetchone()
+            if property_canopy_version is None:
+                raise AssertionError(
+                    "integration fixture could not create property canopy version"
+                )
+            property_canopy_version = property_canopy_version[0]
             cursor.execute(
                 """
                 INSERT INTO property_canopy_summary (
@@ -262,7 +401,7 @@ class PostgisEnvironmentContextIntegrationTests(unittest.TestCase):
                 WHERE dataset_version_id = %s AND source_parcel_id = 'PARCEL-A'
                 """,
                 (
-                    property_canopy_version, property_canopy_version,
+                    property_canopy_version, versions["tree_extent"],
                     versions["property"],
                 ),
             )
@@ -324,6 +463,58 @@ class PostgisEnvironmentContextIntegrationTests(unittest.TestCase):
             (" 10  test rd melbourne 3000 ",),
         )[0][0]
         self.assertEqual(normalized, "10 TEST ROAD MELBOURNE 3000")
+
+    def test_address_search_returns_one_group_with_parcel_options(self):
+        rows = self._rows(
+            """SELECT full_address, parcel_count, cardinality(parcel_ids)
+               FROM search_melbourne_addresses(%s, 10)""",
+            ("10 test rd melbourne 3000",),
+        )
+        self.assertEqual(rows, [("10 TEST ROAD MELBOURNE 3000", 1, 1)])
+
+    def test_grouped_address_coordinates_come_from_one_source_row(self):
+        duplicate_source_id = "ADDRESS-B-COORDINATE-REGRESSION"
+        with self.connection.cursor() as cursor:
+            cursor.execute(
+                """
+                INSERT INTO address (
+                    dataset_version_id, source_address_id, source_property_id,
+                    full_address, locality_name, postcode, is_primary,
+                    address_location
+                )
+                SELECT dataset_version_id, %s, source_property_id,
+                       full_address, locality_name, postcode, 'N',
+                       ST_Transform(
+                           ST_SetSRID(ST_MakePoint(145.02, -37.92), 4326), 7855
+                       )
+                FROM address
+                WHERE source_address_id = 'ADDRESS-B'
+                """,
+                (duplicate_source_id,),
+            )
+        try:
+            row = self._rows(
+                """SELECT longitude, latitude, cardinality(address_ids)
+                   FROM search_melbourne_addresses(%s, 10)""",
+                ("10 test rd melbourne 3000",),
+            )[0]
+            coordinate = (float(row[0]), float(row[1]))
+            came_from_original = (
+                abs(coordinate[0] - 144.965) < 0.000001
+                and abs(coordinate[1] - (-37.81)) < 0.000001
+            )
+            came_from_duplicate = (
+                abs(coordinate[0] - 145.02) < 0.000001
+                and abs(coordinate[1] - (-37.92)) < 0.000001
+            )
+            self.assertTrue(came_from_original or came_from_duplicate)
+            self.assertEqual(row[2], 2)
+        finally:
+            with self.connection.cursor() as cursor:
+                cursor.execute(
+                    "DELETE FROM address WHERE source_address_id = %s",
+                    (duplicate_source_id,),
+                )
 
     def test_historical_temperature_function_returns_metadata(self):
         result = self._rows(

@@ -59,6 +59,28 @@ class ResidentialScenarioTests(unittest.TestCase):
         self.assertEqual(installed["minimum_cost_aud"], 3200.0)
         self.assertEqual(installed["maximum_cost_aud"], 7000.0)
 
+    def test_tree_cost_outputs_keep_type_and_botanical_name(self):
+        tree = self.contract["actions"]["tree"]["iteration_1_example"]
+        estimates = estimate_action_costs("tree", tree, self.costs)
+        mandarin = next(
+            item for item in estimates
+            if item["tree_type"] == "Mandarin Emperor Dwarf"
+            and item["cost_context"] == "melbourne_residential_standard_access"
+        )
+        self.assertEqual(mandarin["botanical_name"], "Citrus reticulata 'Emperor' (dwarf)")
+        self.assertEqual(mandarin["minimum_cost_aud"], 143.0)
+        self.assertEqual(mandarin["maximum_cost_aud"], 143.0)
+
+    def test_tree_costs_can_be_filtered_by_selected_type(self):
+        tree = dict(self.contract["actions"]["tree"]["iteration_1_example"])
+        tree["tree_type"] = "Mandarin Emperor Dwarf"
+        estimates = estimate_action_costs("tree", tree, self.costs)
+        self.assertEqual(len(estimates), 2)
+        self.assertEqual(
+            {item["tree_type"] for item in estimates},
+            {"Mandarin Emperor Dwarf"},
+        )
+
     def test_all_four_actions_are_validated_and_keep_scope(self):
         report = evaluate_property_actions(
             property_result(), contract=self.contract, cost_rows=self.costs

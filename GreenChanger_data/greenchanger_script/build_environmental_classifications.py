@@ -1,4 +1,4 @@
-"""Calculate and activate Melbourne heat and canopy terciles."""
+"""Activate fixed evidence-backed canopy and temperature display bands."""
 
 from __future__ import annotations
 
@@ -17,7 +17,7 @@ def current_status(connection, scheme_id=None) -> dict:
     with connection.cursor() as cursor:
         cursor.execute(
             """
-            SELECT classification_scheme_id, metric_code,
+            SELECT classification_scheme_id, metric_code, method,
                    source_dataset_version_id, lower_threshold,
                    upper_threshold, unit, sample_count, version_label,
                    classification_scope, explanation
@@ -54,7 +54,7 @@ def current_status(connection, scheme_id=None) -> dict:
     return {
         "classification_scheme_id": str(thresholds[0]["classification_scheme_id"]),
         "version_label": thresholds[0]["version_label"],
-        "method": "tercile_percentile_cont",
+        "method": thresholds[0]["method"],
         "missing_value_label": "Unavailable",
         "thresholds": [dict(row) for row in thresholds],
         "classification_distribution": [dict(row) for row in distribution],
@@ -90,10 +90,14 @@ def build(
                    SET explanation = %s
                    WHERE classification_scheme_id = %s AND metric_code = 'canopy'""",
                 (
-                    "Relative to application-ready Melbourne 500 m neighbourhood "
-                    "canopy cells aggregated tile-wise from the official native "
-                    "analytical Vicmap Tree Extent raster; source imagery spans "
-                    "2013-2020 and is not a current field survey.",
+                    "Canopy progress bands: Low below the official 15.3% "
+                    "metropolitan Melbourne 2018 baseline, Medium from 15.3% "
+                    "to below the 30% Plan for Victoria urban-area target, and "
+                    "High at or above 30%. Applied to application-ready 500 m "
+                    "neighbourhood canopy aggregated tile-wise from the official "
+                    "analytical Vicmap Tree Extent raster. Source imagery spans "
+                    "2013-2020; this is progress context, not a current field "
+                    "survey or proof of property-level compliance.",
                     scheme_id,
                 ),
             )
@@ -109,8 +113,8 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--version-label",
-        default="melbourne-terciles-v1",
-        help="Unique label for this source-version-specific threshold scheme.",
+        default="melbourne-fixed-canopy-v1",
+        help="Unique label for this fixed evidence-backed classification scheme.",
     )
     parser.add_argument(
         "--require-analytical-canopy", action="store_true",

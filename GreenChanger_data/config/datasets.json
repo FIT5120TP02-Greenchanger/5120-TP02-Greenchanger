@@ -12,6 +12,7 @@
       "observation_period": "2026",
       "access_method": "ABS ArcGIS REST API and download",
       "licence": "Creative Commons Attribution 4.0 International",
+      "licence_status": "open_confirmed",
       "update_frequency": "ASGS edition",
       "target_entities": ["analysis_area"]
     },
@@ -24,6 +25,8 @@
       "coverage": "Victoria",
       "observation_period": "continuously maintained",
       "access_method": "download and spatial web services",
+      "licence": "Creative Commons Attribution 4.0 International",
+      "licence_status": "open_confirmed",
       "target_entities": ["parcel", "site"]
     },
     {
@@ -35,6 +38,8 @@
       "coverage": "Victoria",
       "observation_period": "continuously maintained",
       "access_method": "download and spatial web services",
+      "licence": "Creative Commons Attribution 4.0 International",
+      "licence_status": "open_confirmed",
       "target_entities": ["address", "site"]
     },
     {
@@ -46,6 +51,8 @@
       "coverage": "Metropolitan Melbourne",
       "observation_period": "2019-2020",
       "access_method": "WFS, WMS, REST and download",
+      "licence": "Creative Commons Attribution 4.0 International",
+      "licence_status": "open_confirmed",
       "target_entities": ["urban_tree"]
     },
     {
@@ -58,6 +65,7 @@
       "observation_period": "varies by location up to 2020",
       "access_method": "GeoTIFF, REST and download",
       "licence": "Creative Commons Attribution 4.0 International",
+      "licence_status": "open_confirmed",
       "update_frequency": "irregular",
       "target_entities": ["canopy_patch", "vegetation_observation"]
     },
@@ -70,6 +78,8 @@
       "coverage": "City of Melbourne municipality",
       "observation_period": "2021",
       "access_method": "API and download",
+      "licence": "Creative Commons Attribution",
+      "licence_status": "open_confirmed",
       "target_entities": ["canopy_patch", "vegetation_observation"]
     },
     {
@@ -81,6 +91,8 @@
       "coverage": "Australia",
       "observation_period": "ongoing",
       "access_method": "STAC, AWS, WMS and download",
+      "licence": "Creative Commons Attribution 4.0 International",
+      "licence_status": "open_confirmed",
       "target_entities": ["vegetation_observation"]
     },
     {
@@ -92,7 +104,8 @@
       "coverage": "Global",
       "observation_period": "ongoing",
       "access_method": "Microsoft Planetary Computer STAC mirror of USGS Collection 2",
-      "licence": "USGS public-domain data; review source terms",
+      "licence": "United States public domain",
+      "licence_status": "public_domain",
       "update_frequency": "as Landsat scenes are processed",
       "target_entities": ["heat_observation"]
     },
@@ -105,6 +118,8 @@
       "coverage": "Metropolitan Melbourne",
       "observation_period": "2018",
       "access_method": "spatial download",
+      "licence": "Creative Commons Attribution 4.0 International",
+      "licence_status": "open_confirmed",
       "target_entities": ["heat_observation"]
     },
     {
@@ -116,8 +131,80 @@
       "coverage": "Ten stations covering central, western, northern, eastern, southeastern, bayside and Frankston/Mornington Melbourne",
       "observation_period": "current observations",
       "access_method": "Official station-specific IDV60901 JSON feeds listed in config/bom_stations.json",
+      "licence": "Feed-specific terms not confirmed as an open licence",
+      "licence_status": "review_required",
       "update_frequency": "approximately half-hourly where available",
       "target_entities": ["weather_observation"]
+    },
+    {
+      "key": "city_melbourne_tree_inventory",
+      "name": "Trees, with species and dimensions (Urban Forest)",
+      "publisher": "City of Melbourne",
+      "url": "https://data.melbourne.vic.gov.au/explore/dataset/trees-with-species-and-dimensions-urban-forest/",
+      "category": "tree_inventory",
+      "coverage": "City of Melbourne municipality",
+      "observation_period": "continuously maintained inventory",
+      "access_method": "Open Data Portal API and download",
+      "licence": "Creative Commons Attribution",
+      "licence_status": "open_confirmed",
+      "update_frequency": "portal update",
+      "target_entities": ["urban_tree", "species_profile"]
+    },
+    {
+      "key": "melbourne_vegetation_change_2014_2018",
+      "name": "Change in Vegetation Cover in Metropolitan Melbourne between 2014 and 2018",
+      "publisher": "Victorian Government Department of Transport and Planning",
+      "url": "https://discover.data.vic.gov.au/dataset/change-in-vegetation-cover-in-metropolitan-melbourne-between-2014-and-2018",
+      "category": "vegetation_change",
+      "coverage": "Metropolitan Melbourne comparison extent",
+      "observation_period": "2014-2018",
+      "access_method": "SHP, GDB, TAB, MIF, DWG and DXF download",
+      "licence": "Creative Commons Attribution 4.0 International",
+      "licence_status": "open_confirmed",
+      "update_frequency": "source metadata states annual; observed product is 2014-2018",
+      "target_entities": ["vegetation_observation"]
+    },
+    {
+      "key": "dea_land_cover",
+      "name": "DEA Land Cover (Landsat)",
+      "publisher": "Geoscience Australia",
+      "url": "https://knowledge.dea.ga.gov.au/data/product/dea-land-cover-landsat/",
+      "category": "land_cover",
+      "coverage": "Australia",
+      "observation_period": "annual 1988-present",
+      "access_method": "AWS, NCI, OGC web services and download",
+      "licence": "Creative Commons Attribution 4.0 International",
+      "licence_status": "open_confirmed",
+      "update_frequency": "annual",
+      "target_entities": ["vegetation_observation"]
+    },
+    {
+      "key": "era5_land",
+      "name": "ERA5-Land hourly data from 1950 to present",
+      "publisher": "Copernicus Climate Change Service / ECMWF",
+      "url": "https://cds.climate.copernicus.eu/datasets/reanalysis-era5-land",
+      "category": "weather_control",
+      "coverage": "Global; subset to Melbourne",
+      "observation_period": "1950-present",
+      "access_method": "Copernicus Climate Data Store API, STAC and download",
+      "licence": "Creative Commons Attribution 4.0 International",
+      "licence_status": "open_confirmed",
+      "update_frequency": "daily",
+      "target_entities": ["weather_observation"]
+    },
+    {
+      "key": "burnley_irrigation_experiment",
+      "name": "Identifying the mechanisms by which irrigation can cool urban green spaces in summer",
+      "publisher": "Zenodo research record by Cheung et al.",
+      "url": "https://zenodo.org/records/10972539",
+      "category": "experimental_garden_cooling",
+      "coverage": "Burnley, Melbourne",
+      "observation_period": "2021-2022",
+      "access_method": "Zenodo CSV download",
+      "licence": "Record-level licence not displayed in the current Rights field",
+      "licence_status": "review_required",
+      "update_frequency": "static research deposit",
+      "target_entities": ["experimental_observation"]
     }
   ]
 }

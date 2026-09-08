@@ -17,6 +17,10 @@ SEARCH_MIGRATION = (
     Path(__file__).resolve().parents[1]
     / "greenchanger_sql/migrations/022_address_search_and_indexes.sql"
 )
+DEDUPLICATION_MIGRATION = (
+    Path(__file__).resolve().parents[1]
+    / "greenchanger_sql/migrations/030_address_match_deduplication.sql"
+)
 
 
 class EnvironmentContextContractTests(unittest.TestCase):
@@ -103,6 +107,13 @@ class EnvironmentContextContractTests(unittest.TestCase):
             "normalize_melbourne_address_search(p_address_search)", sql
         )
         self.assertIn("ST is intentionally not expanded", sql)
+
+    def test_identical_addresses_are_not_treated_as_ambiguous(self):
+        sql = DEDUPLICATION_MIGRATION.read_text(encoding="utf-8")
+        self.assertIn("search_melbourne_addresses", sql)
+        self.assertIn("GROUP BY distinct_pairs.normalized_address", sql)
+        self.assertIn("COUNT(DISTINCT distinct_pairs.parcel_id)", sql)
+        self.assertNotIn("v_exact_match_count > 1", sql)
 
 
 if __name__ == "__main__":
