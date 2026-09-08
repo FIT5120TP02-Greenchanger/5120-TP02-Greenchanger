@@ -117,7 +117,7 @@ export default function MapView({ selectedLocation, setSelectedLocation, simulat
     const transitCoordinates = useCallback((longitude, latitude) => {
         mapRef.current?.flyTo({
             center: [longitude, latitude],
-            zoom: 18,
+            zoom: zoom,
             duration: 2000,
         });
         setMarkerCoordinates({ latitude, longitude });
@@ -255,6 +255,15 @@ export default function MapView({ selectedLocation, setSelectedLocation, simulat
         setHoverPos(null);
         setPlacing(true);
         setScenarioOpen(true);
+
+        const map = mapRef.current?.getMap();
+        if(map) {
+            map.flyTo({
+                zoom: 19.5,
+                duration: 1000,
+            });
+        }
+
     }, []);
 
     // Clicking tree in list selects it for update (fly to it, click again will deselect)

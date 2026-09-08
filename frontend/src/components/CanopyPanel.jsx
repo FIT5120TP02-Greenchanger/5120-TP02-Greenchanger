@@ -1,4 +1,3 @@
-import { fmtArea } from "../utils/geo";
 import styles from './Panel.module.css'
 
 // export default function CanopyPanel({ pct, nTrees, canopyM2, viewM2 }) {
@@ -34,9 +33,9 @@ export default function CanopyPanel({ pct, nTrees, canopyM2, viewM2, simulatedCo
                     <dt>Trees</dt>
                     <dd>{nTrees.toLocaleString()}</dd>
                     <dt>Canopy area</dt>
-                    <dd>{fmtArea(canopyM2)}</dd>
+                    <dd>{canopyM2.toFixed(0) + ' m²'}</dd>
                     <dt>View area</dt>
-                    <dd>{fmtArea(viewM2)}</dd>
+                    <dd>{viewM2.toFixed(0) + ' m²'}</dd>
                 </dl>
             </div>
             

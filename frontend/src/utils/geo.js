@@ -11,9 +11,6 @@ export function circleMetres(lng, lat, r, steps = 24) {
     return { type: "Polygon", coordinates: [ring] };
 }
 
-export const fmtArea = (m2) =>
-    m2 > 10000 ? (m2 / 10000).toFixed(2) + " ha" : Math.round(m2) + " m\u00b2";
-
 export function ringAreaM2(ring) {
     if (ring.length < 4) return 0;
     let lat0 = 0;
