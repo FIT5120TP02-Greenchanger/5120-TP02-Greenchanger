@@ -9,7 +9,7 @@ class MigrationFileTests(unittest.TestCase):
     def test_migrations_are_numbered_and_ordered(self):
         self.assertEqual(
             [version for version, _ in migration_files()],
-            list(range(1, 34)),
+            list(range(1, 36)),
         )
 
     def test_include_is_expanded(self):
@@ -152,6 +152,15 @@ class MigrationFileTests(unittest.TestCase):
         self.assertIn("ce.tree_type", sql)
         self.assertIn("ce.botanical_name", sql)
 
+    def test_cost_business_key_includes_tree_type_and_null_deduplication(self):
+        migration = next(
+            path for version, path in migration_files() if version == 35
+        )
+        sql = expanded_sql(migration)
+        self.assertIn("DROP INDEX IF EXISTS uq_cost_estimate_source_version", sql)
+        self.assertIn("cost_basis,\n        tree_type,", sql)
+        self.assertIn(") NULLS NOT DISTINCT", sql)
+
     def test_environment_context_uses_bounded_indexed_radius_queries(self):
         migration = next(
             path for version, path in migration_files() if version == 18
@@ -287,6 +296,22 @@ class MigrationFileTests(unittest.TestCase):
         self.assertIn("property_canopy_raster_clip_v1", sql)
         self.assertIn("ArcGIS Web Mercator Shape__Area", sql)
         self.assertIn("run_status = 'failed'", sql)
+
+
+    def test_separate_predictive_models_are_suppressed_and_licence_gated(self):
+        migration = next(
+            path for version, path in migration_files() if version == 34
+        )
+        sql = expanded_sql(migration)
+        self.assertIn("CREATE TABLE predictive_model_specification", sql)
+        self.assertIn("CREATE TABLE predictive_model_source", sql)
+        self.assertIn("'tree_canopy_growth'", sql)
+        self.assertIn("'melbourne_canopy_change'", sql)
+        self.assertIn("'cooling_association'", sql)
+        self.assertIn("'garden_cooling'", sql)
+        self.assertIn("'suppressed'", sql)
+        self.assertIn("licence_status IN ('open_confirmed', 'public_domain')", sql)
+        self.assertIn("precise_after_temperature_allowed", sql)
 
 
 if __name__ == "__main__":

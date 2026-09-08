@@ -246,6 +246,15 @@ domains.
 | Study measures air, wall or globe temperature rather than Landsat LST | Retain the evidence for its named outcome only; prohibit cross-metric coefficient reuse. |
 | Study reports a maximum cooling effect | Store it as a reported effect and plausibility bound, never as the default prediction. |
 
+## Predictive model contracts
+
+`predictive_models.py` loads the four independent model specifications, checks
+that a single general model is prohibited, evaluates required dataset
+availability and rejects required sources whose open licence has not been
+confirmed. `assess_model_readiness()` returns explicit blockers and always
+returns `unavailable_model_not_trained` until both the data and held-out
+validation gates pass. It intentionally does not fit an estimator.
+
 ## Tests
 
 Run all package and pipeline tests from the project root:
@@ -257,5 +266,4 @@ python -m unittest discover -v
 The tests cover normalisation, cross-record uniqueness, the unrounded quality
 gate, geometry conversion, BOM extraction, raster checks, migration history,
 classification boundaries/missing/non-finite values, scenario-input constraints,
-real-property scenario output checks and analytical calculations. The current
-suite contains 98 tests.
+real-property scenario output checks and analytical calculations.

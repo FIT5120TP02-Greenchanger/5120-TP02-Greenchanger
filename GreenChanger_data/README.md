@@ -371,6 +371,41 @@ Seven peer-reviewed primary studies are versioned in the intervention evidence
 register added by migration 014. This is a completed evidence-selection step,
 not a claim that a local intervention coefficient has passed validation.
 
+### Separate predictive-model roadmap
+
+Migration 034 and `config/predictive_model_registry.json` replace the idea of
+one general environmental model with four independent contracts:
+
+| Model | Target | Required core sources | Current status |
+| --- | --- | --- | --- |
+| Tree canopy growth | Future canopy-area range for an individual tree at a stated horizon | City of Melbourne tree inventory and 2021 canopy | Training data not prepared |
+| Melbourne-wide canopy change | 2014–2018 vegetation-cover change at Mesh Block/aligned-cell grain | Victorian metropolitan vegetation change, Vicmap Property and ERA5-Land | Training data not prepared |
+| Cooling association | Landsat land-surface-temperature range conditional on vegetation and weather | Landsat surface temperature, vegetation change and ERA5-Land | Training data not prepared |
+| Garden cooling | Paired irrigated/unirrigated experimental response | Burnley 2021–2022 irrigation experiment | Blocked pending record-level licence confirmation |
+
+These are model specifications, not trained estimators. All corresponding
+`model_version` rows have `output_precision='suppressed'`; therefore no model
+may produce a resident-facing prediction yet. Production requires aligned
+training data, a confirmed open licence for every required source, spatial and
+temporal held-out validation, uncertainty coverage checks and an explicit new
+status migration. The existing literature-bounded scenario calculator remains
+separate and unchanged.
+
+The historical modelling weather control is ERA5-Land (CC BY 4.0). Current BOM
+station observations remain useful application context, but the anonymous
+feed is optional for model training because its feed-specific open-reuse terms
+have not been confirmed. The Burnley files are also blocked until the Rights
+field for that exact Zenodo record states an acceptable reuse licence.
+
+Print the current readiness evidence without fitting or publishing anything:
+
+```bash
+python greenchanger_script/assess_predictive_models.py
+```
+
+Passing `--available-dataset KEY` means that an aligned training table exists;
+it does not bypass licence or validation gates.
+
 ### Residential Greening Scenario Simulation input contract
 
 `config/residential_greening_simulation_inputs.json` defines the versioned

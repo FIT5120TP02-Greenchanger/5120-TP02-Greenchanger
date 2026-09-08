@@ -86,6 +86,32 @@ new contract.
 Do not assume a migration or data version is deployed from repository contents.
 Confirm it with `migrate.py --status` and the database queries in the README.
 
+## Separate predictive-model contract
+
+Migration 034 registers four separate model contracts: tree canopy growth,
+Melbourne-wide canopy change, vegetation/surface-cooling association and
+experimental garden cooling. It also records a reuse decision for each model
+source. All four versions remain `draft` with `output_precision='suppressed'`;
+the migration fits no estimator and exposes no resident-facing prediction.
+
+`current_predictive_model_contract` exposes each model's target, grain,
+features, validation plan, limitations and source-licence decisions. A required
+source may be used for training only when `licence_status` is
+`open_confirmed` or `public_domain`. The Burnley experiment is blocked pending
+confirmation of the licence on that exact Zenodo record. BOM is an optional
+cross-check rather than a required training control; ERA5-Land supplies the
+confirmed CC BY 4.0 historical weather control.
+
+Run the read-only Python gate with:
+
+```bash
+python greenchanger_script/assess_predictive_models.py
+```
+
+Training requires a later change that creates versioned, quality-passed aligned
+feature tables. Publication requires separate spatial and temporal held-out
+validation and a new migration promoting only the passing model version.
+
 ## Validation commands
 
 Run fast tests:

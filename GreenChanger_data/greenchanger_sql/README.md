@@ -30,7 +30,9 @@ greenchanger_sql/
 │   ├── 018_environment_context_radius.sql
 │   ├── 019_environment_context_by_address.sql
 │   ├── 020_evidence_backed_absolute_classifications.sql
-│   └── 033_tree_type_costs.sql
+│   ├── 033_tree_type_costs.sql
+│   ├── 034_separate_predictive_models.sql
+│   └── 035_cost_estimate_tree_type_business_key.sql
 ├── seeds/001_reference_data.sql
 └── analytics/001_views.sql
 ```
@@ -63,6 +65,8 @@ greenchanger_sql/
 | `migrations/031_address_representative_coordinate.sql` | Selects longitude and latitude together from one deterministic representative address row, preventing hybrid coordinates assembled from separate aggregates. |
 | `migrations/032_fixed_canopy_benchmark_bands.sql` | Replaces canopy terciles with fixed evidence-backed progress bands using the official 15.3% metropolitan baseline and 30% Plan for Victoria urban target. |
 | `migrations/033_tree_type_costs.sql` | Adds named tree type and botanical-name fields to cost estimates, indexes current tree-price lookup and publishes both fields through the application-ready cost view. |
+| `migrations/034_separate_predictive_models.sql` | Registers four separate predictive-model contracts with licence gates and suppressed outputs until validation. |
+| `migrations/035_cost_estimate_tree_type_business_key.sql` | Adds tree type to the cost-estimate source/version business key while treating null tree types as equal so non-tree options remain idempotent. |
 | `migrations/018_environment_context_radius.sql` | Adds a bounded, application-facing radius query for current mapped-tree points and clipped 500 m heat cells. |
 | `migrations/019_environment_context_by_address.sql` | Resolves one unambiguous Melbourne address and delegates to the bounded coordinate-radius query. |
 | `migrations/020_evidence_backed_absolute_classifications.sql` | Stores threshold evidence with exact source locators and adds measurement-specific daily-mean air-temperature and canopy benchmark functions. |
@@ -284,6 +288,18 @@ For address/property ingestion:
   rebuild testing.
 
 ## Verification queries
+
+Migration `034_separate_predictive_models.sql` adds licence decisions and four
+independent, suppressed model contracts. It does not store fitted parameters or
+predictions. Required sources with an unconfirmed open licence have
+`training_use_allowed = FALSE`.
+
+```sql
+SELECT model_code, target_metric, output_metric, model_status,
+       validation_status, output_precision, source_contract
+FROM current_predictive_model_contract
+ORDER BY model_code;
+```
 
 ```sql
 -- Latest source versions and quality status

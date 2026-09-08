@@ -302,6 +302,17 @@ Validate the four intervention types without database writes:
 python greenchanger_script/validate_intervention_model.py
 ```
 
+Inspect the four separate predictive-model contracts and their current data,
+licence and validation blockers:
+
+```bash
+python greenchanger_script/assess_predictive_models.py
+```
+
+This command is read-only and does not train or publish a model. Use repeated
+`--available-dataset KEY` arguments only after the corresponding aligned
+training table has passed data-quality checks.
+
 Persist the complete case report and promote the range model only after all
 tests pass:
 

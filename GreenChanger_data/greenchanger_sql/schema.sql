@@ -699,6 +699,7 @@ CREATE UNIQUE INDEX IF NOT EXISTS uq_cost_estimate_source_version
         greening_option_id,
         cost_context,
         cost_basis,
+        tree_type,
         source_name,
         valid_from,
         source_reference

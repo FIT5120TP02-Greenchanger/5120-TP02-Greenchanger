@@ -127,6 +127,88 @@ class PostgisEnvironmentContextIntegrationTests(unittest.TestCase):
                 ],
             )
 
+    def test_cost_business_key_separates_tree_types_and_deduplicates_null(self):
+        with self.connection.cursor() as cursor:
+            cursor.execute(
+                "SELECT greening_option_id FROM greening_option "
+                "WHERE option_code = 'backyard_tree_diy'"
+            )
+            tree_option_id = cursor.fetchone()[0]
+            cursor.execute(
+                "SELECT greening_option_id FROM greening_option "
+                "WHERE option_code = 'potted_plants'"
+            )
+            non_tree_option_id = cursor.fetchone()[0]
+
+            common_values = (
+                "integration_test", "per_item", "Integration source",
+                "integration-business-key", "2026-09-08",
+            )
+            cursor.execute(
+                """
+                INSERT INTO cost_estimate (
+                    greening_option_id, cost_context, cost_basis, tree_type,
+                    minimum_cost, maximum_cost, source_name, source_reference,
+                    valid_from, last_verified_at, confidence_level
+                ) VALUES
+                    (%s, %s, %s, 'Tree A', 10, 20, %s, %s, %s,
+                     CURRENT_TIMESTAMP, 'high'),
+                    (%s, %s, %s, 'Tree B', 30, 40, %s, %s, %s,
+                     CURRENT_TIMESTAMP, 'high')
+                """,
+                (
+                    tree_option_id, *common_values[:2], *common_values[2:],
+                    tree_option_id, *common_values[:2], *common_values[2:],
+                ),
+            )
+            cursor.execute(
+                """
+                SELECT COUNT(*), COUNT(DISTINCT tree_type)
+                FROM cost_estimate
+                WHERE source_name = 'Integration source'
+                  AND source_reference = 'integration-business-key'
+                  AND greening_option_id = %s
+                """,
+                (tree_option_id,),
+            )
+            self.assertEqual(cursor.fetchone(), (2, 2))
+
+            upsert_parameters = (
+                non_tree_option_id, *common_values[:2], *common_values[2:]
+            )
+            for maximum_cost in (20, 25):
+                cursor.execute(
+                    """
+                    INSERT INTO cost_estimate (
+                        greening_option_id, cost_context, cost_basis, tree_type,
+                        minimum_cost, maximum_cost, source_name,
+                        source_reference, valid_from, last_verified_at,
+                        confidence_level
+                    ) VALUES (%s, %s, %s, NULL, 10, %s, %s, %s, %s,
+                              CURRENT_TIMESTAMP, 'high')
+                    ON CONFLICT (
+                        greening_option_id, cost_context, cost_basis, tree_type,
+                        source_name, valid_from, source_reference
+                    ) DO UPDATE SET maximum_cost = EXCLUDED.maximum_cost
+                    """,
+                    (
+                        *upsert_parameters[:3], maximum_cost,
+                        *upsert_parameters[3:],
+                    ),
+                )
+            cursor.execute(
+                """
+                SELECT COUNT(*), MAX(maximum_cost)
+                FROM cost_estimate
+                WHERE source_name = 'Integration source'
+                  AND source_reference = 'integration-business-key'
+                  AND greening_option_id = %s
+                  AND tree_type IS NULL
+                """,
+                (non_tree_option_id,),
+            )
+            self.assertEqual(cursor.fetchone(), (1, Decimal("25")))
+
     @classmethod
     def _seed_spatial_contract(cls):
         with cls.connection.cursor() as cursor:

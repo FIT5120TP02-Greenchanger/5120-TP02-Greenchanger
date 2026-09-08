@@ -306,6 +306,7 @@ def sync_sources(connection, _args: argparse.Namespace) -> dict[str, Any]:
             source["publisher"],
             source["url"],
             source.get("licence"),
+            source.get("licence_status", "review_required"),
             source["category"],
             source["coverage"],
             source.get("access_method"),
@@ -317,13 +318,14 @@ def sync_sources(connection, _args: argparse.Namespace) -> dict[str, Any]:
         connection,
         """
         INSERT INTO dataset_source (
-            source_name, publisher, source_url, licence, source_category,
+            source_name, publisher, source_url, licence, licence_status, source_category,
             geographic_coverage, access_method, update_frequency
         )
-        VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
         ON CONFLICT (source_name, publisher) DO UPDATE SET
             source_url = EXCLUDED.source_url,
             licence = EXCLUDED.licence,
+            licence_status = EXCLUDED.licence_status,
             source_category = EXCLUDED.source_category,
             geographic_coverage = EXCLUDED.geographic_coverage,
             access_method = EXCLUDED.access_method,
@@ -681,8 +683,8 @@ def ingest_costs(connection, args: argparse.Namespace) -> dict[str, Any]:
         FROM greening_option AS go
         WHERE go.option_code = %s
         ON CONFLICT (
-            greening_option_id, cost_context, cost_basis, source_name,
-            valid_from, source_reference
+            greening_option_id, cost_context, cost_basis, tree_type,
+            source_name, valid_from, source_reference
         ) DO UPDATE SET
             minimum_cost = EXCLUDED.minimum_cost,
             maximum_cost = EXCLUDED.maximum_cost,
@@ -694,7 +696,6 @@ def ingest_costs(connection, args: argparse.Namespace) -> dict[str, Any]:
             delivery_max_cost = EXCLUDED.delivery_max_cost,
             setup_min_cost = EXCLUDED.setup_min_cost,
             setup_max_cost = EXCLUDED.setup_max_cost,
-            tree_type = EXCLUDED.tree_type,
             botanical_name = EXCLUDED.botanical_name,
             valid_to = EXCLUDED.valid_to,
             last_verified_at = EXCLUDED.last_verified_at,
