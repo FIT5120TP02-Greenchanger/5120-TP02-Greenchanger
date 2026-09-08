@@ -1,10 +1,6 @@
 import { useState, useMemo, useCallback } from "react";
-// import { polygonAreaM2, pointInPolygon, circleMetres, fmtArea } from "../utils/geo";
-import { polygonAreaM2, pointInPolygon, fmtArea } from "../utils/geo"; // circleMetres unused since the circle fallback went (2026-09-03)
+import { polygonAreaM2, pointInPolygon } from "../utils/geo"; // circleMetres unused since the circle fallback went
 import { fetchParcelsAtPoint, resolveParcel, geocodeAddress, reverseGeocode, fetchPropertyBaseline } from "../services/vicmap";
-
-
-// const RADIUS_M = 50; // only used by the removed 50 m circle fallback (2026-09-03)
 
 function mapBaselineToProperties(baseline) {
 return {
@@ -148,7 +144,6 @@ export function useSelectedProperty(treeFeatures) {
         const canopy = onLot.reduce((a, t) => a + t.properties.area, 0);
         return {
             address: selectedLabel || selected.properties.ezi_address || `PFI ${selected.properties.prop_pfi}`,
-            areaLabel: fmtArea(lotArea),
             treeCount: onLot.length,
             canopyPct: lotArea ? ((canopy / lotArea) * 100).toFixed(1) + "%" : "—",
             isCircle: selected.properties?.kind === "circle",
