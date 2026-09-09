@@ -26,7 +26,9 @@
       {"code": "NAMED_TREE_UNIQUE", "type": "unique", "fields": ["source_tree_id"]},
       {"code": "NAMED_TREE_LATITUDE_RANGE", "type": "range", "field": "latitude", "minimum": -39.5, "maximum": -37.0},
       {"code": "NAMED_TREE_LONGITUDE_RANGE", "type": "range", "field": "longitude", "minimum": 144.0, "maximum": 146.0},
-      {"code": "NAMED_TREE_DBH_POSITIVE", "type": "range", "field": "diameter_breast_height_cm", "minimum": 0, "inclusive_minimum": false, "allow_blank": true}
+      {"code": "NAMED_TREE_DBH_POSITIVE", "type": "range", "field": "diameter_breast_height_cm", "minimum": 0, "inclusive_minimum": false, "allow_blank": true},
+      {"code": "NAMED_TREE_HEIGHT_POSITIVE", "type": "range", "field": "height_m", "minimum": 0, "inclusive_minimum": false, "allow_blank": true},
+      {"code": "NAMED_TREE_CANOPY_WIDTH_POSITIVE", "type": "range", "field": "canopy_width_m", "minimum": 0, "inclusive_minimum": false, "allow_blank": true}
     ],
     "weather_observation": [
       {"code": "WEATHER_REQUIRED", "type": "required", "fields": ["station_code", "station_name", "observed_at", "air_temperature_c", "geometry_wkt"]},

@@ -85,9 +85,11 @@ python greenchanger_script/ingestion.py canopy \
 # 5. Load official Vicmap Tree Urban points through the Feature Service API
 python greenchanger_script/ingestion.py trees --confirm-shared
 
-# Load named council-tree records. These names cover the City of Melbourne
-# municipality only and are not inferred for nearby Vicmap Tree Urban points.
+# Load source-labelled named council-tree records. Names are not inferred for
+# nearby Vicmap points or for private/backyard trees absent from inventories.
 python greenchanger_script/ingestion.py named-trees --confirm-shared
+python greenchanger_script/ingestion.py brimbank-trees yarra-trees casey-trees \
+  hobsons-bay-trees wyndham-trees --confirm-shared
 
 # Reuse a completed API extract without redownloading it
 python greenchanger_script/ingestion.py trees \
@@ -259,7 +261,7 @@ conversion; their 500 m source resolution is unchanged.
 
 | Output | Current result | Quality/status |
 | --- | ---: | --- |
-| Repository migrations | 001–036 | Migration 036 adds the named City of Melbourne tree inventory |
+| Repository migrations | 001–037 | Migration 037 extends named public-tree coverage across five additional Melbourne councils |
 | Automated tests | Fast unit suite + opt-in PostGIS integration suite | Use the validation commands below and in `PR_DATA_CONTRACT.md` |
 | Melbourne Address records | 3,007,474 | 100% boundary membership |
 | Melbourne Property records | 3,001,053 | 100% boundary membership |
@@ -268,10 +270,44 @@ conversion; their 500 m source resolution is unchanged.
 | Application-ready canopy baseline | 37,146 unique 500 m cells | All baseline checks passed |
 | BOM weather observations | 1,557 from 10 stations | 100% source quality pass rate; version `greater-melbourne-bom-stations-v1` |
 | Vicmap Tree Urban | 10,473,773 Melbourne points | 100% record-quality and boundary-membership pass rates |
-| City of Melbourne named trees | 82,064 records; 680 species profiles | 100% quality pass; common and scientific names available within the City of Melbourne municipality only |
+| Source-labelled council trees | 457,200 current rows across Melbourne, Yarra, Brimbank, Casey, Hobsons Bay and Wyndham | Every latest eligible-record version passes the ≥95% gate; coverage and fields vary by council |
 | Cost estimates | 8 in AWS | 100% quality pass; 0 rejected, 0 missing source URLs and 0 expired |
 | Representative residential simulations | 3 properties × 4 actions | 12/12 output checks passed; overall WARN from retained baseline caveats |
 | Validated scenario measure results | 0 | Prototype model is deliberately blocked from application output |
+
+### Named council-tree inventory results
+
+Migration 037 and `council_tree_inventories.py` add five inventories without
+pretending they describe the same physical objects as Vicmap Tree Urban. Raw
+placeholders become null, removed Brimbank records are excluded, coordinates
+are transformed to EPSG:7855 and clipped to `2GMEL`, Wyndham Z coordinates are
+reduced to the database's 2D point contract, and accepted rows retain their
+municipality, source, licence and available dimensions.
+
+| Source | Raw rows | Current rows in AWS | Eligible quality | Usable-name coverage | Height available | Canopy width available |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| Brimbank Street Trees | 133,373 | 85,900 | 98.42% | 85.50% of 102,082 active rows | 76,638 | 84,225 |
+| City of Yarra | 20,782 | 20,782 | 100% | 100% | 20,782 | Not supplied |
+| City of Casey | 205,614 | 151,204 | 100% | 73.54% | 141,640 | 1,952 non-zero values |
+| Hobsons Bay | 82,100 | 72,409 | 99.96% | 88.23% | Not supplied | Not supplied |
+| Wyndham | 44,859 | 44,841 | 99.99% | 99.97% | 34,257 | 34,260 |
+
+The quality percentage is calculated only over active records with a usable
+name; the separate name-coverage percentage prevents that gate from hiding
+source incompleteness. Brimbank's 1,378 rejected eligible rows failed only the
+identifier-uniqueness rule. A missing council record never means that a private
+or backyard tree does not exist.
+
+Application lookup:
+
+```sql
+SELECT *
+FROM get_metropolitan_named_tree_context(144.998, -37.805, 500, 100);
+```
+
+The lookup uses the latest application-ready version per source, an indexed
+metre-based radius and a bounded result limit. It returns source and licence
+metadata plus the public-tree/private-tree limitation with every row.
 
 ### Active environmental classifications
 
@@ -449,6 +485,7 @@ The Tree Urban raw extract was obtained from the official Vicmap ArcGIS Feature 
 | Vicmap Address | Address search, coordinates and Property join key |
 | Vicmap Property | Property polygons, identifiers and area |
 | Vicmap Vegetation – Tree Urban Point | Mapped individual-tree context, radius and height |
+| Six source-labelled council tree inventories | Public-tree names and available measured height, crown spread, DBH, maturity and health; fields differ by council |
 | Vicmap Vegetation – Tree Extent | Melbourne neighbourhood canopy baseline |
 | USGS Landsat Collection 2 Surface Temperature | Spatial land-surface-temperature baseline |
 | [BOM Melbourne observations](https://www.bom.gov.au/vic/observations/melbourne.shtml) | Recent multi-station air-temperature context; exact official feeds are versioned in `config/bom_stations.json` |
@@ -473,6 +510,14 @@ All source versions retain extraction time, observation period, checksum, source
 - The dimension audit suppressed 172,179 optional height values outside the conservative 0.5–100 m plausibility range. Tree locations and counts were retained; missing height must not be inferred.
 - A point does not prove current tree presence, ownership, health or exact crown extent.
 - Results must be labelled “mapped tree points” and should not replace a site inspection.
+
+### Named council trees
+
+- Council inventories describe managed street/park trees, not all vegetation or private/backyard trees.
+- They are independent source records and are not assigned to nearby Vicmap Tree Urban points by proximity.
+- Brimbank and Hobsons Bay source files date from 2019; they are not current field surveys even where catalogue metadata was refreshed later.
+- Wyndham provides common names but not botanical names. Hobsons Bay supplies DBH ranges but no height or crown width; Yarra supplies height but no crown width. Casey crown-width fields are mostly zero and are treated as missing, not measured zero.
+- A missing name or dimension returns `Unavailable`; it is never inferred from another council or from a nearby mapped point.
 
 ### Heat and weather
 

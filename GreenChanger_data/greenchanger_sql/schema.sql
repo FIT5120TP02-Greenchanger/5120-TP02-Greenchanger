@@ -3094,3 +3094,7 @@ COMMENT ON FUNCTION classify_environmental_value(TEXT, NUMERIC, TEXT) IS
     'Uses fixed GreenChanger 27/30 C display bands for heat and evidence-backed 15.3/30% progress bands for canopy. Missing, non-finite and unknown metrics return Unavailable.';
 
 COMMIT;
+
+-- The application runner expands this directive so the cumulative schema stays
+-- aligned with the append-only migration without duplicating its SQL here.
+-- include: migrations/037_metropolitan_named_tree_inventories.sql

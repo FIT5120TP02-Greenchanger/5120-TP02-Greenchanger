@@ -112,6 +112,24 @@ Training requires a later change that creates versioned, quality-passed aligned
 feature tables. Publication requires separate spatial and temporal held-out
 validation and a new migration promoting only the passing model version.
 
+## Metropolitan named council-tree contract
+
+Migration 037 extends `named_tree_inventory` and does not alter or spatially
+infer names for Vicmap Tree Urban. It adds source key, municipality, taxonomic
+precision, source-observed date, height/crown/DBH ranges, health and structure.
+`latest_metropolitan_named_tree_inventory` selects the newest
+application-ready version independently for each council source.
+`get_metropolitan_named_tree_context(longitude, latitude, radius_m,
+result_limit)` returns bounded, indexed, source-labelled public-tree records.
+
+Deployment order is: apply migration 037; run `ingestion.py sources`; then run
+`named-trees`, `brimbank-trees`, `yarra-trees`, `casey-trees`,
+`hobsons-bay-trees` and `wyndham-trees` as independent jobs. Each version keeps
+its raw checksum, eligible-record quality run, source licence and limitations.
+Placeholder names and non-positive optional dimensions become null; removed
+Brimbank records are excluded; Wyndham's source CRS and 3D coordinates are
+normalised before EPSG:7855 loading. Missing values remain `Unavailable`.
+
 ## Validation commands
 
 Run fast tests:
@@ -132,9 +150,10 @@ docker compose -f docker-compose.integration.yml down -v
 ```
 
 The integration suite applies every migration to an isolated schema and
-executes both context functions. It checks an exact and ambiguous address,
+executes the application-facing context functions. It checks an exact and ambiguous address,
 inside/outside-boundary coordinates, invalid radius, unsupported layers and the
-per-layer limit. It also executes the structured historical-temperature helper.
+per-layer limit. It also executes the structured historical-temperature helper
+and the source-labelled metropolitan named-tree radius lookup.
 
 The same suite is required by the GitHub Actions
 `GreenChanger PostGIS / Apply migrations and execute PostGIS contracts` job in
@@ -155,6 +174,9 @@ manual workflow dispatches.
   observations older than three hours are unavailable.
 - Vicmap Tree Urban is machine-derived 2019–2020 mapping, not a current field
   survey. Zero mapped points never proves that no tree exists.
+- Named council inventories cover maintained public trees only. Survey dates,
+  name completeness and dimension fields differ by council; missing records do
+  not prove that no private or backyard tree exists.
 - Address prefix searches may be ambiguous. The database rejects ambiguity
   instead of silently selecting a property.
 - Intervention temperature outputs are evidence-bounded indicative ranges, not

@@ -45,6 +45,12 @@ from greenchanger_data.city_melbourne_trees import (
     read_raw as read_named_tree_raw,
     save_raw as save_named_tree_raw,
 )
+from greenchanger_data.council_tree_inventories import (
+    SOURCES as COUNCIL_TREE_SOURCES,
+    download as download_council_trees,
+    feature_count as council_tree_feature_count,
+    iter_normalised as iter_council_tree_rows,
+)
 from greenchanger_data.property_canopy import validate_property_canopy_source
 from greenchanger_data.landsat import (
     aggregate_surface_temperature,
@@ -1242,6 +1248,7 @@ def ingest_named_trees(connection, args: argparse.Namespace) -> dict[str, Any]:
                  )
                  INSERT INTO named_tree_inventory (
                      dataset_version_id, source_tree_id, species_id,
+                     inventory_source_key, municipality, taxonomic_precision,
                      common_name, scientific_name, display_name, genus, family,
                      diameter_breast_height_cm, year_planted, date_planted,
                      age_description, useful_life_expectancy,
@@ -1249,6 +1256,12 @@ def ingest_named_trees(connection, args: argparse.Namespace) -> dict[str, Any]:
                      tree_location, quality_status
                  )
                  SELECT %s, candidate.source_tree_id, species.species_id,
+                        'city_melbourne', 'City of Melbourne',
+                        CASE
+                            WHEN candidate.scientific_name IS NOT NULL THEN 'species'
+                            WHEN candidate.common_name IS NOT NULL THEN 'common_name'
+                            ELSE NULL
+                        END,
                         candidate.common_name, candidate.scientific_name,
                         candidate.display_name, candidate.genus, candidate.family,
                         candidate.diameter_breast_height_cm,
@@ -1309,6 +1322,272 @@ def ingest_named_trees(connection, args: argparse.Namespace) -> dict[str, Any]:
         "raw_extract": str(raw_path),
         "message": f"{written} source-labelled City of Melbourne named trees integrated",
     }
+
+
+def ingest_council_named_trees(
+    connection, args: argparse.Namespace, council_key: str
+) -> dict[str, Any]:
+    """Load one council inventory while retaining its source-specific limitations."""
+
+    source = COUNCIL_TREE_SOURCES[council_key]
+    if args.council_tree_file:
+        if not args.council_tree_file.exists():
+            raise FileNotFoundError(args.council_tree_file)
+        raw_path = args.council_tree_file
+    else:
+        stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+        raw_path = download_council_trees(
+            source, ROOT / "data" / "raw" / "council_trees" / council_key / stamp
+        )
+
+    raw_count = council_tree_feature_count(council_key, raw_path)
+    inactive_count = 0
+    unnamed_count = 0
+    eligible_count = 0
+    observed_dates: list[str] = []
+    for row in iter_council_tree_rows(council_key, raw_path):
+        if not row["active_record"]:
+            inactive_count += 1
+        elif not row["display_name"]:
+            unnamed_count += 1
+        else:
+            eligible_count += 1
+            if row["source_observed_on"]:
+                observed_dates.append(row["source_observed_on"])
+
+    def eligible_rows():
+        for row in iter_council_tree_rows(council_key, raw_path):
+            if row["active_record"] and row["display_name"]:
+                yield row
+
+    rules, threshold = quality_configuration("named_tree_inventory")
+    report = validate_record_stream(
+        "named_tree_inventory", eligible_rows, rules, threshold_pct=threshold
+    )
+    registered_source_id = source_id(connection, source.source_name, source.publisher)
+    version_id = create_dataset_version(
+        connection,
+        registered_source_id=registered_source_id,
+        row_count=raw_count,
+        checksum=sha256_file(raw_path),
+        observed_from=min(observed_dates) if observed_dates else None,
+        observed_to=max(observed_dates) if observed_dates else None,
+    )
+    record_quality_run(connection, version_id, report)
+    if not report.passed_gate:
+        connection.commit()
+        return {
+            "rows_in": raw_count,
+            "rows_eligible": eligible_count,
+            "rows_written": 0,
+            "rows_rejected": report.failing_records,
+            "quality_pass_rate": report.pass_rate,
+            "dataset_version_id": str(version_id),
+            "message": f"{source.source_name} failed the quality gate; nothing integrated",
+        }
+
+    failed = set(report.failed_indices)
+
+    def accepted_rows():
+        for index, row in enumerate(eligible_rows()):
+            if index not in failed:
+                yield row
+
+    species: dict[str, tuple[str | None, str | None, str | None]] = {}
+    for row in accepted_rows():
+        if row["scientific_name"]:
+            species.setdefault(
+                row["scientific_name"],
+                (row["common_name"], row["genus"], row["family"]),
+            )
+
+    with connection.cursor() as cursor:
+        cursor.execute(
+            """SELECT analysis_area_id FROM analysis_area
+               WHERE source_area_code = '2GMEL' AND source_year = 2026
+               ORDER BY analysis_area_id DESC LIMIT 1"""
+        )
+        area = cursor.fetchone()
+        if area is None:
+            raise ValueError("Load the official Melbourne boundary before council trees")
+        analysis_area_id = area["analysis_area_id"]
+
+        cursor.executemany(
+            """INSERT INTO species_profile (
+                   scientific_name, common_name, genus, family, source_reference
+               ) VALUES (%s, %s, %s, %s, %s)
+               ON CONFLICT (scientific_name) DO UPDATE SET
+                   common_name = COALESCE(species_profile.common_name, EXCLUDED.common_name),
+                   genus = COALESCE(species_profile.genus, EXCLUDED.genus),
+                   family = COALESCE(species_profile.family, EXCLUDED.family),
+                   source_reference = COALESCE(
+                       species_profile.source_reference, EXCLUDED.source_reference
+                   )""",
+            [
+                (name, values[0], values[1], values[2], source.source_name)
+                for name, values in species.items()
+            ],
+        )
+
+        cursor.execute(
+            """CREATE TEMP TABLE council_named_tree_stage (
+                   source_tree_id TEXT, inventory_source_key TEXT,
+                   municipality TEXT, common_name TEXT, scientific_name TEXT,
+                   display_name TEXT, genus TEXT, family TEXT,
+                   taxonomic_precision TEXT, diameter_breast_height_cm NUMERIC,
+                   dbh_min_cm NUMERIC, dbh_max_cm NUMERIC, height_m NUMERIC,
+                   height_min_m NUMERIC, height_max_m NUMERIC,
+                   canopy_width_m NUMERIC, canopy_width_min_m NUMERIC,
+                   canopy_width_max_m NUMERIC, canopy_width_ew_m NUMERIC,
+                   canopy_width_ns_m NUMERIC, year_planted INTEGER,
+                   date_planted DATE, age_description TEXT,
+                   useful_life_expectancy TEXT,
+                   useful_life_expectancy_years INTEGER, health_status TEXT,
+                   structure_status TEXT, precinct TEXT, located_in TEXT,
+                   address TEXT, source_observed_on DATE,
+                   geometry_wkt TEXT, source_srid INTEGER
+               ) ON COMMIT DROP"""
+        )
+        copy_sql = """COPY council_named_tree_stage (
+            source_tree_id, inventory_source_key, municipality, common_name,
+            scientific_name, display_name, genus, family, taxonomic_precision,
+            diameter_breast_height_cm, dbh_min_cm, dbh_max_cm, height_m,
+            height_min_m, height_max_m, canopy_width_m, canopy_width_min_m,
+            canopy_width_max_m, canopy_width_ew_m, canopy_width_ns_m,
+            year_planted, date_planted, age_description,
+            useful_life_expectancy, useful_life_expectancy_years,
+            health_status, structure_status, precinct, located_in, address,
+            source_observed_on, geometry_wkt, source_srid
+        ) FROM STDIN"""
+        stage_columns = (
+            "source_tree_id", "inventory_source_key", "municipality",
+            "common_name", "scientific_name", "display_name", "genus", "family",
+            "taxonomic_precision", "diameter_breast_height_cm", "dbh_min_cm",
+            "dbh_max_cm", "height_m", "height_min_m", "height_max_m",
+            "canopy_width_m", "canopy_width_min_m", "canopy_width_max_m",
+            "canopy_width_ew_m", "canopy_width_ns_m", "year_planted",
+            "date_planted", "age_description", "useful_life_expectancy",
+            "useful_life_expectancy_years", "health_status", "structure_status",
+            "precinct", "located_in", "address", "source_observed_on",
+            "geometry_wkt", "source_srid",
+        )
+        with cursor.copy(copy_sql) as copy:
+            for row in accepted_rows():
+                copy.write_row(tuple(row[column] for column in stage_columns))
+
+        cursor.execute(
+            f"""WITH candidates AS MATERIALIZED (
+                     SELECT stage.*,
+                            ST_Transform(
+                                ST_GeomFromText(stage.geometry_wkt, stage.source_srid),
+                                {TARGET_SRID}
+                            ) AS tree_location
+                     FROM council_named_tree_stage AS stage
+                 )
+                 INSERT INTO named_tree_inventory (
+                     dataset_version_id, source_tree_id, species_id,
+                     inventory_source_key, municipality, common_name,
+                     scientific_name, display_name, genus, family,
+                     taxonomic_precision, diameter_breast_height_cm,
+                     dbh_min_cm, dbh_max_cm, height_m, height_min_m, height_max_m,
+                     canopy_width_m, canopy_width_min_m, canopy_width_max_m,
+                     canopy_width_ew_m, canopy_width_ns_m, year_planted,
+                     date_planted, age_description, useful_life_expectancy,
+                     useful_life_expectancy_years, health_status,
+                     structure_status, precinct, located_in, address,
+                     source_observed_on, tree_location, quality_status
+                 )
+                 SELECT %s, candidate.source_tree_id, species.species_id,
+                        candidate.inventory_source_key, candidate.municipality,
+                        candidate.common_name, candidate.scientific_name,
+                        candidate.display_name, candidate.genus, candidate.family,
+                        candidate.taxonomic_precision,
+                        candidate.diameter_breast_height_cm, candidate.dbh_min_cm,
+                        candidate.dbh_max_cm, candidate.height_m,
+                        candidate.height_min_m, candidate.height_max_m,
+                        candidate.canopy_width_m, candidate.canopy_width_min_m,
+                        candidate.canopy_width_max_m, candidate.canopy_width_ew_m,
+                        candidate.canopy_width_ns_m, candidate.year_planted,
+                        candidate.date_planted, candidate.age_description,
+                        candidate.useful_life_expectancy,
+                        candidate.useful_life_expectancy_years,
+                        candidate.health_status, candidate.structure_status,
+                        candidate.precinct, candidate.located_in,
+                        candidate.address, candidate.source_observed_on,
+                        candidate.tree_location, 'passed'
+                 FROM candidates AS candidate
+                 LEFT JOIN species_profile AS species
+                   ON species.scientific_name = candidate.scientific_name
+                 WHERE EXISTS (
+                     SELECT 1 FROM analysis_area_tile AS tile
+                     WHERE tile.analysis_area_id = %s
+                       AND tile.tile_geometry && candidate.tree_location
+                       AND ST_Covers(tile.tile_geometry, candidate.tree_location)
+                 )""",
+            (version_id, analysis_area_id),
+        )
+        written = cursor.rowcount
+        boundary_excluded = report.passing_records - written
+        cursor.execute(
+            """UPDATE dataset_version
+               SET integration_status = 'integrated',
+                   publication_status = 'application_ready',
+                   analysis_area_id = %s,
+                   derivation_method = %s,
+                   coverage_pass_rate = %s
+               WHERE dataset_version_id = %s""",
+            (
+                analysis_area_id,
+                f"{council_key}_inventory_filter_to_abs_2GMEL_2026_v1",
+                round(100.0 * written / report.passing_records, 2)
+                if report.passing_records else 0,
+                version_id,
+            ),
+        )
+        cursor.execute(
+            """INSERT INTO data_limitation (
+                   dataset_version_id, limitation_type, description,
+                   affected_area, analytical_impact, mitigation
+               ) VALUES
+               (%s, 'public_council_trees_only', %s, %s, %s, %s),
+               (%s, 'source_name_coverage', %s, %s, %s, %s)""",
+            (
+                version_id,
+                "The inventory describes council-managed public trees, not every private or backyard tree.",
+                source.municipality,
+                "Absence from this inventory is not evidence that no tree exists.",
+                "Keep property canopy and Vicmap observations separate and retain this limitation in user-visible output.",
+                version_id,
+                f"{unnamed_count} active source rows without a usable common, botanical or genus-level name were excluded; {inactive_count} inactive rows were excluded.",
+                source.municipality,
+                "Named-tree coverage is incomplete and differs between councils.",
+                "Return Unavailable for missing names and report source-specific coverage.",
+            ),
+        )
+
+    return {
+        "rows_in": raw_count,
+        "rows_active": raw_count - inactive_count,
+        "rows_eligible": eligible_count,
+        "rows_written": written,
+        "rows_inactive_excluded": inactive_count,
+        "rows_without_name_excluded": unnamed_count,
+        "rows_quality_rejected": report.failing_records,
+        "rows_outside_melbourne": boundary_excluded,
+        "eligible_quality_pass_rate": report.pass_rate,
+        "source_name_coverage_pct": round(
+            100.0 * eligible_count / (raw_count - inactive_count), 2
+        ) if raw_count > inactive_count else 0,
+        "dataset_version_id": str(version_id),
+        "raw_extract": str(raw_path),
+        "message": f"{written} source-labelled {source.municipality} trees integrated",
+    }
+
+
+def _council_job(council_key: str) -> Job:
+    return lambda connection, args: ingest_council_named_trees(
+        connection, args, council_key
+    )
 
 
 def ingest_canopy(connection, args: argparse.Namespace) -> dict[str, Any]:
@@ -1646,6 +1925,11 @@ JOBS: dict[str, Job] = {
     "property": ingest_property,
     "trees": ingest_trees,
     "named-trees": ingest_named_trees,
+    "brimbank-trees": _council_job("brimbank"),
+    "yarra-trees": _council_job("yarra"),
+    "casey-trees": _council_job("casey"),
+    "hobsons-bay-trees": _council_job("hobsons_bay"),
+    "wyndham-trees": _council_job("wyndham"),
 }
 
 
@@ -1686,6 +1970,10 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--city-tree-file", type=Path,
         help="Reuse a gzip City of Melbourne named-tree JSONL extract.",
+    )
+    parser.add_argument(
+        "--council-tree-file", type=Path,
+        help="Reuse one downloaded council spatial file; use with one council-tree job.",
     )
     parser.add_argument(
         "--vicmap-bbox", nargs=4, type=float,

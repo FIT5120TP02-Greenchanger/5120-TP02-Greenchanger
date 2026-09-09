@@ -9,7 +9,7 @@ class MigrationFileTests(unittest.TestCase):
     def test_migrations_are_numbered_and_ordered(self):
         self.assertEqual(
             [version for version, _ in migration_files()],
-            list(range(1, 37)),
+            list(range(1, 38)),
         )
 
     def test_include_is_expanded(self):
@@ -20,6 +20,15 @@ class MigrationFileTests(unittest.TestCase):
             included.write_text("SELECT 1;", encoding="utf-8")
             migration.write_text("-- include: included.sql\n", encoding="utf-8")
             self.assertIn("SELECT 1;", expanded_sql(migration))
+
+    def test_cumulative_schema_expands_metropolitan_tree_contract(self):
+        schema = pathlib.Path(__file__).resolve().parents[1] / "greenchanger_sql/schema.sql"
+        sql = expanded_sql(schema)
+        self.assertLess(
+            sql.index("CREATE TABLE named_tree_inventory"),
+            sql.index("get_metropolitan_named_tree_context"),
+        )
+        self.assertIn("latest_metropolitan_named_tree_inventory", sql)
 
     def test_circular_include_is_rejected(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -172,6 +181,19 @@ class MigrationFileTests(unittest.TestCase):
         self.assertIn("latest_city_melbourne_named_tree_inventory", sql)
         self.assertIn("get_named_tree_context", sql)
         self.assertIn("not joined to a Vicmap Tree Urban point", sql)
+
+    def test_metropolitan_tree_inventory_preserves_source_and_dimensions(self):
+        migration = next(
+            path for version, path in migration_files() if version == 37
+        )
+        sql = expanded_sql(migration)
+        self.assertIn("ADD COLUMN IF NOT EXISTS inventory_source_key TEXT", sql)
+        self.assertIn("ADD COLUMN IF NOT EXISTS municipality TEXT", sql)
+        self.assertIn("ADD COLUMN IF NOT EXISTS height_m NUMERIC", sql)
+        self.assertIn("ADD COLUMN IF NOT EXISTS canopy_width_m NUMERIC", sql)
+        self.assertIn("latest_metropolitan_named_tree_inventory", sql)
+        self.assertIn("get_metropolitan_named_tree_context", sql)
+        self.assertIn("Council inventories cover maintained public trees", sql)
 
     def test_environment_context_uses_bounded_indexed_radius_queries(self):
         migration = next(

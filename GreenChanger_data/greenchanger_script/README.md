@@ -71,6 +71,14 @@ python greenchanger_script/ingestion.py property --confirm-shared
 python greenchanger_script/ingestion.py trees --confirm-shared
 python greenchanger_script/ingestion.py named-trees --confirm-shared
 
+# Extend named public-tree coverage across central, inner, western and
+# southeastern Melbourne. Each job creates a separate version and source label.
+python greenchanger_script/ingestion.py brimbank-trees --confirm-shared
+python greenchanger_script/ingestion.py yarra-trees --confirm-shared
+python greenchanger_script/ingestion.py casey-trees --confirm-shared
+python greenchanger_script/ingestion.py hobsons-bay-trees --confirm-shared
+python greenchanger_script/ingestion.py wyndham-trees --confirm-shared
+
 # Create application-ready Melbourne-only derived versions
 python greenchanger_script/clip_to_melbourne.py --confirm-shared
 
@@ -168,6 +176,12 @@ python greenchanger_script/ingestion.py trees \
 # Reuse a preserved City of Melbourne named-tree extract
 python greenchanger_script/ingestion.py named-trees \
   --city-tree-file data/raw/city_melbourne/named_trees_TIMESTAMP.jsonl.gz \
+  --confirm-shared
+
+# Reuse a downloaded council file instead of downloading it again. Select
+# exactly one of the five council jobs when this override is supplied.
+python greenchanger_script/ingestion.py yarra-trees \
+  --council-tree-file data/raw/council_trees/yarra/TIMESTAMP/yarra_trees.geojson \
   --confirm-shared
 ```
 

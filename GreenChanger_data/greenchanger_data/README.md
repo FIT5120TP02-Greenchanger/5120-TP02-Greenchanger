@@ -15,6 +15,7 @@ functions and perform database writes.
 | `canopy.py` | Inspect and aggregate a binary tree-extent raster into Melbourne grid summaries. |
 | `canopy_baseline.py` | Define versioned baseline and source-provenance rules, including analytical-versus-proxy classification. |
 | `city_melbourne_trees.py` | Download, preserve and normalise the City of Melbourne tree inventory, including common/scientific names, taxonomy, DBH, planting information and coordinates. |
+| `council_tree_inventories.py` | Download and batch-normalise Brimbank, Yarra, Casey, Hobsons Bay and Wyndham council tree inventories into one source-labelled contract while preserving source-specific fields and limitations. |
 | `classification.py` | Apply fixed 27°C/30°C temperature display bands, evidence-backed 15.3%/30% canopy progress bands and separate historical helpers, with explicit missing-data handling. |
 | `landsat.py` | Search Landsat Collection 2, sign/download assets, mask unusable pixels and calculate land-surface temperature. |
 | `heat_baseline.py` | Define and reference-test the latest-date/same-day-overlap baseline mosaic rule. |

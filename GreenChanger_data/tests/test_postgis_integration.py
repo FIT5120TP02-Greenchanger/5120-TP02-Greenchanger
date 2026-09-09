@@ -127,6 +127,25 @@ class PostgisEnvironmentContextIntegrationTests(unittest.TestCase):
                 ],
             )
 
+    def test_metropolitan_named_tree_lookup_preserves_council_source(self):
+        with self.connection.cursor() as cursor:
+            cursor.execute(
+                """
+                SELECT municipality, display_name, taxonomic_precision,
+                       height_m, canopy_width_m, status, limitation
+                FROM get_metropolitan_named_tree_context(
+                    144.96, -37.81, 100, 10
+                )
+                """
+            )
+            rows = cursor.fetchall()
+            self.assertEqual(len(rows), 1)
+            self.assertEqual(rows[0][:6], (
+                "City of Brimbank", "River Red Gum", "species",
+                Decimal("12"), Decimal("8"), "observed_council_inventory",
+            ))
+            self.assertIn("not every private tree", rows[0][6])
+
     def test_cost_business_key_separates_tree_types_and_deduplicates_null(self):
         with self.connection.cursor() as cursor:
             cursor.execute(
@@ -246,6 +265,9 @@ class PostgisEnvironmentContextIntegrationTests(unittest.TestCase):
                  "landsat_latest_daily_mosaic_v1"),
                 ("weather", "BOM Melbourne station observations",
                  "Bureau of Meteorology", "weather", "bom_multi_station_fixture_v1"),
+                ("named_trees", "Brimbank Street Trees",
+                 "Brimbank City Council", "tree_inventory",
+                 "brimbank_inventory_filter_to_abs_2GMEL_2026_v1"),
             )
             for key, source_name, publisher, category, method in specifications:
                 cursor.execute(
@@ -328,6 +350,37 @@ class PostgisEnvironmentContextIntegrationTests(unittest.TestCase):
                 FROM UNNEST(ARRAY[5, 10, 15]) AS fixture(offset_m)
                 """,
                 (versions["trees"],),
+            )
+            cursor.execute(
+                """
+                INSERT INTO species_profile (
+                    scientific_name, common_name, genus, source_reference
+                ) VALUES (
+                    'Eucalyptus camaldulensis', 'River Red Gum',
+                    'Eucalyptus', 'PostGIS integration fixture'
+                )
+                RETURNING species_id
+                """
+            )
+            species_id = cursor.fetchone()[0]
+            cursor.execute(
+                """
+                INSERT INTO named_tree_inventory (
+                    dataset_version_id, source_tree_id, species_id,
+                    inventory_source_key, municipality, common_name,
+                    scientific_name, display_name, genus, taxonomic_precision,
+                    height_m, canopy_width_m, tree_location, quality_status
+                ) VALUES (
+                    %s, 'BRIMBANK-FIXTURE-1', %s, 'brimbank',
+                    'City of Brimbank', 'River Red Gum',
+                    'Eucalyptus camaldulensis', 'River Red Gum',
+                    'Eucalyptus', 'species', 12, 8,
+                    ST_Transform(ST_SetSRID(
+                        ST_MakePoint(144.9601, -37.81), 4326
+                    ), 7855), 'passed'
+                )
+                """,
+                (versions["named_trees"], species_id),
             )
             cursor.execute(
                 """

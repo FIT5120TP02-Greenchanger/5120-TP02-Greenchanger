@@ -10,10 +10,11 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
 from greenchanger_script import db  # noqa: E402
+from greenchanger_script.migrate import expanded_sql  # noqa: E402
 
 
 def execute_file(connection, path: Path) -> None:
-    sql = path.read_text(encoding="utf-8")
+    sql = expanded_sql(path)
     with connection.cursor() as cursor:
         cursor.execute(sql)
     print(f"Applied: {path.relative_to(ROOT)}")

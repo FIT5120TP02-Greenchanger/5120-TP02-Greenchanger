@@ -33,7 +33,8 @@ greenchanger_sql/
 │   ├── 033_tree_type_costs.sql
 │   ├── 034_separate_predictive_models.sql
 │   ├── 035_cost_estimate_tree_type_business_key.sql
-│   └── 036_named_tree_inventory.sql
+│   ├── 036_named_tree_inventory.sql
+│   └── 037_metropolitan_named_tree_inventories.sql
 ├── seeds/001_reference_data.sql
 └── analytics/001_views.sql
 ```
@@ -69,6 +70,7 @@ greenchanger_sql/
 | `migrations/034_separate_predictive_models.sql` | Registers four separate predictive-model contracts with licence gates and suppressed outputs until validation. |
 | `migrations/035_cost_estimate_tree_type_business_key.sql` | Adds tree type to the cost-estimate source/version business key while treating null tree types as equal so non-tree options remain idempotent. |
 | `migrations/036_named_tree_inventory.sql` | Adds a source-specific City of Melbourne named-tree table, species taxonomy, latest-version view and radius lookup function. |
+| `migrations/037_metropolitan_named_tree_inventories.sql` | Extends the named-tree contract to Brimbank, Yarra, Casey, Hobsons Bay and Wyndham; preserves municipality, taxonomic precision, observed dimensions and health; and adds the source-labelled metropolitan radius lookup. |
 | `migrations/018_environment_context_radius.sql` | Adds a bounded, application-facing radius query for current mapped-tree points and clipped 500 m heat cells. |
 | `migrations/019_environment_context_by_address.sql` | Resolves one unambiguous Melbourne address and delegates to the bounded coordinate-radius query. |
 | `migrations/020_evidence_backed_absolute_classifications.sql` | Stores threshold evidence with exact source locators and adds measurement-specific daily-mean air-temperature and canopy benchmark functions. |
@@ -80,8 +82,10 @@ greenchanger_sql/
 | `analytics/001_views.sql` | Defines reusable analytical views for dataset quality, site baselines and scenario comparison. |
 
 `schema.sql` must describe the same current structure as the cumulative
-migrations. Existing databases advance through migrations; new schema changes
-must be added as the next numbered migration.
+migrations. Its final include directive is expanded by `apply_database.py` to
+reuse migration 037 without duplicating the SQL. Existing databases advance
+through migrations; new schema changes must be added as the next numbered
+migration.
 
 ## Main entity groups
 

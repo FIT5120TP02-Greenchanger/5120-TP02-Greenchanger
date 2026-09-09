@@ -15,7 +15,7 @@
     "required_fields": ["source_tree_id", "geometry_wkt", "source_srid"]
   },
   "named_tree_inventory": {
-    "grain": "one City of Melbourne council inventory tree per dataset version",
+    "grain": "one source-labelled council inventory tree per dataset version",
     "business_key": ["source_tree_id"],
     "required_fields": ["source_tree_id", "display_name", "geometry_wkt", "source_srid"]
   },
