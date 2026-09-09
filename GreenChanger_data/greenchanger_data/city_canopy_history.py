@@ -14,8 +14,10 @@ from shapely import make_valid, normalize, transform
 from shapely.geometry import GeometryCollection, MultiPolygon, Polygon, shape
 
 
-SUPPORTED_YEARS = (2016, 2021)
+SUPPORTED_YEARS = (2008, 2015, 2016, 2021)
 DATASET_IDS = {
+    2008: "tree-canopies-2008-urban-forest",
+    2015: "tree-canopies-2015-urban-forest",
     2016: "tree-canopies-2016-urban-forest",
     2021: "tree-canopies-2021-urban-forest",
 }
@@ -89,12 +91,16 @@ def _polygonal_geometry(value: Any):
 
 
 def normalise_record(record: dict[str, Any], year: int) -> dict[str, Any]:
-    """Create one common record contract for the 2016 and 2021 schemas."""
+    """Create one common record contract for all supported snapshot schemas."""
 
     if year not in SUPPORTED_YEARS:
         raise ValueError(f"Unsupported canopy year: {year}")
     geometry, repaired = _polygonal_geometry(record.get("geo_shape"))
-    source_area = record.get("area")
+    source_area = next(
+        (record.get(field) for field in ("area", "shape_area", "shape__area")
+         if record.get(field) not in (None, "")),
+        None,
+    )
     try:
         source_area = float(source_area) if source_area not in (None, "") else None
     except (TypeError, ValueError):

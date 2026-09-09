@@ -134,14 +134,19 @@ class PostgisEnvironmentContextIntegrationTests(unittest.TestCase):
                    FROM dataset_source
                    WHERE publisher = 'City of Melbourne'
                      AND source_name IN (
+                         'Tree Canopies 2008 (Urban Forest)',
+                         'Tree Canopies 2015 (Urban Forest)',
                          'Tree Canopies 2016 (Urban Forest)',
                          'Tree Canopies 2021 (Urban Forest)'
                      )
                    ORDER BY source_name"""
             )
             sources = cursor.fetchall()
-            self.assertEqual(len(sources), 2)
-            source_id = sources[0][0]
+            self.assertEqual(len(sources), 4)
+            source_id = next(
+                source_id for source_id, name in sources
+                if name == "Tree Canopies 2016 (Urban Forest)"
+            )
             cursor.execute(
                 """INSERT INTO dataset_version (
                        source_id, source_observed_from, source_observed_to,
@@ -175,6 +180,51 @@ class PostgisEnvironmentContextIntegrationTests(unittest.TestCase):
                    WHERE source_feature_key = 'fixture-polygon'"""
             )
             self.assertEqual(cursor.fetchone(), (2016, 7855, "internal"))
+
+    def test_metropolitan_vegetation_change_has_separate_versioned_grain(self):
+        with self.connection.cursor() as cursor:
+            cursor.execute(
+                """SELECT source_id
+                   FROM dataset_source
+                   WHERE source_name =
+                     'Change in Vegetation Cover in Metropolitan Melbourne between 2014 and 2018'"""
+            )
+            source_id = cursor.fetchone()[0]
+            cursor.execute(
+                """INSERT INTO dataset_version (
+                       source_id, source_observed_from, source_observed_to,
+                       quality_status, integration_status, publication_status,
+                       derivation_method
+                   ) VALUES (
+                       %s, DATE '2014-01-01', DATE '2018-12-31',
+                       'passed_with_limitations', 'integrated', 'internal',
+                       'integration_fixture'
+                   ) RETURNING dataset_version_id""",
+                (source_id,),
+            )
+            version_id = cursor.fetchone()[0]
+            cursor.execute(
+                """INSERT INTO metropolitan_vegetation_change_feature (
+                       dataset_version_id, source_feature_key, mesh_block_code,
+                       tree_change_pct_points, change_geometry
+                   ) VALUES (
+                       %s, 'fixture-change', '200000001', 4.5,
+                       ST_Multi(ST_Buffer(ST_Transform(ST_SetSRID(
+                           ST_MakePoint(144.96, -37.81), 4326
+                       ), 7855), 100))
+                   )""",
+                (version_id,),
+            )
+            cursor.execute(
+                """SELECT mesh_block_code, tree_change_pct_points,
+                          ST_SRID(change_geometry), publication_status
+                   FROM latest_metropolitan_vegetation_change
+                   JOIN dataset_version USING (dataset_version_id)
+                   WHERE source_feature_key = 'fixture-change'"""
+            )
+            self.assertEqual(
+                cursor.fetchone(), ("200000001", Decimal("4.5"), 7855, "internal")
+            )
 
     def test_metropolitan_named_tree_lookup_preserves_council_source(self):
         with self.connection.cursor() as cursor:

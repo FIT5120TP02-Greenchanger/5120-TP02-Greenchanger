@@ -39,6 +39,11 @@
     "business_key": ["dataset_version_id", "source_feature_key"],
     "required_fields": ["source_feature_key", "observed_year", "observed_on", "calculated_area_m2", "geometry_wkt", "source_srid"]
   },
+  "metropolitan_vegetation_change_feature": {
+    "grain": "one 2016 ABS Mesh Block-based polygon with 2014-to-2018 vegetation percentage-point change",
+    "business_key": ["dataset_version_id", "source_feature_key"],
+    "required_fields": ["source_feature_key", "observed_from", "observed_to", "geometry_wkt", "source_srid", "has_change_measure"]
+  },
   "cost_estimate": {
     "grain": "one greening option, tree type where applicable, context, unit and validity period",
     "business_key": ["option_code", "tree_type", "cost_context", "cost_basis", "valid_from", "source_name"],

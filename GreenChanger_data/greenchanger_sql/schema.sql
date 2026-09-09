@@ -3099,3 +3099,4 @@ COMMIT;
 -- aligned with the append-only migration without duplicating its SQL here.
 -- include: migrations/037_metropolitan_named_tree_inventories.sql
 -- include: migrations/038_city_canopy_history.sql
+-- include: migrations/039_historical_canopy_and_vegetation_change.sql

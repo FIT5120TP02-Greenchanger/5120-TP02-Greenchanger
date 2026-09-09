@@ -32,6 +32,20 @@ class CityCanopyHistoryTests(unittest.TestCase):
         self.assertEqual(row["source_area_m2"], 100.5)
         self.assertEqual(len(row["source_feature_key"]), 64)
 
+    def test_2008_shape_area_is_normalised_to_common_contract(self):
+        row = normalise_record(
+            {"geo_shape": self.polygon_feature(), "shape_area": "3.49"}, 2008
+        )
+        self.assertEqual(row["observed_year"], 2008)
+        self.assertEqual(row["observed_on"], "2008-12-31")
+        self.assertEqual(row["source_area_m2"], 3.49)
+        self.assertGreater(row["calculated_area_m2"], 0)
+
+    def test_2015_snapshot_is_supported(self):
+        row = normalise_record({"geo_shape": self.polygon_feature()}, 2015)
+        self.assertEqual(row["observed_year"], 2015)
+        self.assertTrue(row["geometry_wkt"].startswith("MULTIPOLYGON"))
+
     def test_2021_multipolygon_has_same_contract(self):
         geometry = self.polygon_feature()["geometry"]
         row = normalise_record(

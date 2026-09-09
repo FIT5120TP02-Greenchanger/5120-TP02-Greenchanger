@@ -47,6 +47,8 @@
         "location"
       ],
       "datasets": [
+        {"key": "melbourne_canopy_2008", "role": "longer historical canopy context", "required": false},
+        {"key": "melbourne_canopy_2015", "role": "near-baseline historical canopy context", "required": false},
         {"key": "melbourne_canopy_2016", "role": "five-year canopy baseline", "required": true},
         {"key": "melbourne_canopy_2021", "role": "five-year observed canopy outcome", "required": true},
         {"key": "melbourne_vegetation_change_2014_2018", "role": "Melbourne-wide change target", "required": true},

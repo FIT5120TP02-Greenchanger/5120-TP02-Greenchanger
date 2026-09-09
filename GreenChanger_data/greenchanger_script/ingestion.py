@@ -68,6 +68,12 @@ from greenchanger_data.landsat import (
     search_surface_temperature,
     signed_asset_href,
 )
+from greenchanger_data.metropolitan_vegetation_change import (
+    SOURCE_NAME as VEGETATION_CHANGE_SOURCE_NAME,
+    feature_count as vegetation_change_feature_count,
+    normalised_rows as normalised_vegetation_change_rows,
+    source_checksum as vegetation_change_source_checksum,
+)
 from greenchanger_data.quality import QualityReport, validate_record_stream, validate_records
 from greenchanger_data.sources import load_source_registry, sha256_file
 from greenchanger_data.vicmap_features import extract_to_jsonl, read_jsonl
@@ -1809,11 +1815,13 @@ def ingest_canopy(connection, args: argparse.Namespace) -> dict[str, Any]:
 
 
 def ingest_city_canopy_history(connection, args: argparse.Namespace) -> dict[str, Any]:
-    """Load one normalised City of Melbourne 2016 or 2021 canopy snapshot."""
+    """Load one normalised City of Melbourne historical canopy snapshot."""
 
     year = args.city_canopy_year
     if year is None:
-        raise ValueError("city-canopy requires --city-canopy-year 2016 or 2021")
+        raise ValueError(
+            "city-canopy requires --city-canopy-year 2008, 2015, 2016 or 2021"
+        )
     if args.city_canopy_file:
         if not args.city_canopy_file.exists():
             raise FileNotFoundError(args.city_canopy_file)
@@ -1933,10 +1941,11 @@ def ingest_city_canopy_history(connection, args: argparse.Namespace) -> dict[str
                ) VALUES (%s, 'cross_year_method_difference', %s, %s, %s, %s)""",
             (
                 version_id,
-                "The 2016 layer was mapped from aerial photography and LiDAR; "
-                "the 2021 layer used high-resolution multispectral imagery.",
+                "The City canopy snapshots do not all use the same capture and "
+                "classification method: 2008, 2015 and 2016 use aerial imagery "
+                "and LiDAR, while 2021 uses high-resolution multispectral imagery.",
                 "City of Melbourne municipality",
-                "Apparent 2016-2021 canopy change can include mapping-method differences.",
+                "Apparent cross-year canopy change can include mapping-method differences.",
                 "Align both snapshots to one grid and complete temporal/spatial validation before creating ML labels.",
             ),
         )
@@ -1965,6 +1974,137 @@ def ingest_city_canopy_history(connection, args: argparse.Namespace) -> dict[str
         "raw_extract": str(raw_path),
         "publication_status": "internal",
         "message": "Snapshot loaded; cross-year training labels are not yet validated",
+    }
+
+
+def ingest_metropolitan_vegetation_change(
+    connection, args: argparse.Namespace
+) -> dict[str, Any]:
+    """Load a DataShare SHP/GDB download of 2014-2018 vegetation change."""
+
+    path = args.vegetation_change_file
+    if path is None:
+        raise ValueError(
+            "vegetation-change requires --vegetation-change-file pointing to the "
+            "SHP or GDB downloaded from the official DataShare order page"
+        )
+    if not path.exists():
+        raise FileNotFoundError(path)
+    raw_count = vegetation_change_feature_count(path)
+
+    def rows():
+        return normalised_vegetation_change_rows(path)
+
+    rules, threshold = quality_configuration("metropolitan_vegetation_change_feature")
+    report = validate_record_stream(
+        "metropolitan_vegetation_change_feature", rows, rules,
+        threshold_pct=threshold,
+    )
+    registered_source_id = source_id(
+        connection, VEGETATION_CHANGE_SOURCE_NAME,
+        "Victorian Government Department of Transport and Planning",
+    )
+    version_id = create_dataset_version(
+        connection,
+        registered_source_id=registered_source_id,
+        row_count=raw_count,
+        checksum=vegetation_change_source_checksum(path),
+        observed_from="2014-01-01",
+        observed_to="2018-12-31",
+    )
+    record_quality_run(connection, version_id, report)
+    if not report.passed_gate:
+        connection.commit()
+        return {
+            "rows_in": raw_count,
+            "rows_written": 0,
+            "rows_rejected": report.failing_records,
+            "quality_pass_rate": report.pass_rate,
+            "dataset_version_id": str(version_id),
+            "message": "Vegetation change failed the 95% quality gate",
+        }
+
+    failed = set(report.failed_indices)
+    with connection.cursor() as cursor:
+        cursor.execute(
+            """CREATE TEMP TABLE vegetation_change_stage (
+                   source_feature_key TEXT, mesh_block_code TEXT,
+                   observed_from DATE, observed_to DATE,
+                   tree_change_pct_points NUMERIC,
+                   shrub_change_pct_points NUMERIC,
+                   grass_change_pct_points NUMERIC,
+                   total_vegetation_change_pct_points NUMERIC,
+                   geometry_wkt TEXT, source_srid INTEGER,
+                   source_properties JSONB
+               ) ON COMMIT DROP"""
+        )
+        with cursor.copy(
+            """COPY vegetation_change_stage (
+                   source_feature_key, mesh_block_code, observed_from, observed_to,
+                   tree_change_pct_points, shrub_change_pct_points,
+                   grass_change_pct_points, total_vegetation_change_pct_points,
+                   geometry_wkt, source_srid, source_properties
+               ) FROM STDIN"""
+        ) as copy:
+            for index, row in enumerate(rows()):
+                if index in failed:
+                    continue
+                copy.write_row((
+                    row["source_feature_key"], row["mesh_block_code"],
+                    row["observed_from"], row["observed_to"],
+                    row["tree_change_pct_points"], row["shrub_change_pct_points"],
+                    row["grass_change_pct_points"],
+                    row["total_vegetation_change_pct_points"],
+                    row["geometry_wkt"], row["source_srid"],
+                    json.dumps(row["source_properties"]),
+                ))
+        cursor.execute(
+            f"""INSERT INTO metropolitan_vegetation_change_feature (
+                    dataset_version_id, source_feature_key, mesh_block_code,
+                    observed_from, observed_to, tree_change_pct_points,
+                    shrub_change_pct_points, grass_change_pct_points,
+                    total_vegetation_change_pct_points, change_geometry,
+                    source_properties, quality_status
+                )
+                SELECT %s, source_feature_key, mesh_block_code, observed_from,
+                       observed_to, tree_change_pct_points, shrub_change_pct_points,
+                       grass_change_pct_points,
+                       total_vegetation_change_pct_points,
+                       ST_Multi(ST_Transform(
+                           ST_GeomFromText(geometry_wkt, source_srid), {TARGET_SRID}
+                       )), source_properties, 'passed'
+                FROM vegetation_change_stage""",
+            (version_id,),
+        )
+        written = cursor.rowcount
+        cursor.execute(
+            """UPDATE dataset_version
+               SET integration_status = 'integrated', publication_status = 'internal',
+                   quality_status = 'passed_with_limitations',
+                   derivation_method = 'datavic_vegetation_change_normalisation_v1'
+               WHERE dataset_version_id = %s""",
+            (version_id,),
+        )
+        cursor.execute(
+            """INSERT INTO data_limitation (
+                   dataset_version_id, limitation_type, description,
+                   affected_area, analytical_impact, mitigation
+               ) VALUES (%s, 'source_download_and_grain', %s, %s, %s, %s)""",
+            (
+                version_id,
+                "DataShare supplies an ordered spatial download rather than a direct feature API; polygons are based on 2016 ABS Mesh Blocks.",
+                "Metropolitan Melbourne comparison extent",
+                "Values describe area-level percentage-point change and cannot be treated as individual-tree or parcel observations.",
+                "Keep the raw download checksum and align features to a common modelling grid before joining other years.",
+            ),
+        )
+    return {
+        "rows_in": raw_count,
+        "rows_written": written,
+        "rows_rejected": report.failing_records,
+        "quality_pass_rate": report.pass_rate,
+        "dataset_version_id": str(version_id),
+        "message": f"{written} metropolitan vegetation-change features integrated",
     }
 
 
@@ -2088,6 +2228,7 @@ JOBS: dict[str, Job] = {
     "costs": ingest_costs,
     "canopy": ingest_canopy,
     "city-canopy": ingest_city_canopy_history,
+    "vegetation-change": ingest_metropolitan_vegetation_change,
     "heat": ingest_heat,
     "address": ingest_address,
     "property": ingest_property,
@@ -2117,7 +2258,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--cost-file", type=Path, default=DEFAULT_COST_FILE)
     parser.add_argument("--canopy-file", type=Path)
     parser.add_argument(
-        "--city-canopy-year", type=int, choices=(2016, 2021),
+        "--city-canopy-year", type=int, choices=(2008, 2015, 2016, 2021),
         help="City of Melbourne historical canopy snapshot year.",
     )
     parser.add_argument(
@@ -2127,6 +2268,10 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--max-city-canopy-records", type=int,
         help="Diagnostic record limit; omit for a complete production extract.",
+    )
+    parser.add_argument(
+        "--vegetation-change-file", type=Path,
+        help="Official DataShare SHP/GDB for metropolitan 2014-2018 vegetation change.",
     )
     parser.add_argument(
         "--canopy-aggregate-file", type=Path,

@@ -79,12 +79,21 @@ python greenchanger_script/ingestion.py casey-trees --confirm-shared
 python greenchanger_script/ingestion.py hobsons-bay-trees --confirm-shared
 python greenchanger_script/ingestion.py wyndham-trees --confirm-shared
 
-# Load the two City of Melbourne polygon snapshots that will later be aligned
-# into a genuine 2016-2021 five-year canopy-change training target.
+# Load the four City of Melbourne polygon snapshots. Each run preserves and
+# checksums a separate official API extraction.
+python greenchanger_script/ingestion.py city-canopy \
+  --city-canopy-year 2008 --confirm-shared
+python greenchanger_script/ingestion.py city-canopy \
+  --city-canopy-year 2015 --confirm-shared
 python greenchanger_script/ingestion.py city-canopy \
   --city-canopy-year 2016 --confirm-shared
 python greenchanger_script/ingestion.py city-canopy \
   --city-canopy-year 2021 --confirm-shared
+
+# DataShare uses an order/download workflow, so supply the downloaded SHP/GDB.
+python greenchanger_script/ingestion.py vegetation-change \
+  --vegetation-change-file /path/to/VEGETATIONCOVER201418CHG.shp \
+  --confirm-shared
 
 # Create application-ready Melbourne-only derived versions
 python greenchanger_script/clip_to_melbourne.py --confirm-shared

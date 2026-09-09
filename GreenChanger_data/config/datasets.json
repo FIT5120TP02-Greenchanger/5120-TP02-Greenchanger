@@ -70,6 +70,34 @@
       "target_entities": ["canopy_patch", "vegetation_observation"]
     },
     {
+      "key": "melbourne_canopy_2008",
+      "name": "Tree Canopies 2008 (Urban Forest)",
+      "publisher": "City of Melbourne",
+      "url": "https://data.melbourne.vic.gov.au/explore/dataset/tree-canopies-2008-urban-forest/",
+      "category": "historical_canopy",
+      "coverage": "City of Melbourne municipality",
+      "observation_period": "2008",
+      "access_method": "Open Data Portal JSON-lines API and download",
+      "licence": "Creative Commons Attribution 4.0 International",
+      "licence_status": "open_confirmed",
+      "update_frequency": "static historical snapshot",
+      "target_entities": ["canopy_snapshot_feature"]
+    },
+    {
+      "key": "melbourne_canopy_2015",
+      "name": "Tree Canopies 2015 (Urban Forest)",
+      "publisher": "City of Melbourne",
+      "url": "https://data.melbourne.vic.gov.au/explore/dataset/tree-canopies-2015-urban-forest/",
+      "category": "historical_canopy",
+      "coverage": "City of Melbourne municipality",
+      "observation_period": "2015",
+      "access_method": "Open Data Portal JSON-lines API and download",
+      "licence": "Creative Commons Attribution 4.0 International",
+      "licence_status": "open_confirmed",
+      "update_frequency": "static historical snapshot",
+      "target_entities": ["canopy_snapshot_feature"]
+    },
+    {
       "key": "melbourne_canopy_2016",
       "name": "Tree Canopies 2016 (Urban Forest)",
       "publisher": "City of Melbourne",
@@ -247,7 +275,7 @@
       "licence": "Creative Commons Attribution 4.0 International",
       "licence_status": "open_confirmed",
       "update_frequency": "source metadata states annual; observed product is 2014-2018",
-      "target_entities": ["vegetation_observation"]
+      "target_entities": ["metropolitan_vegetation_change_feature"]
     },
     {
       "key": "dea_land_cover",

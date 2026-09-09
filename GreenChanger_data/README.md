@@ -420,31 +420,45 @@ one general environmental model with four independent contracts:
 | Model | Target | Required core sources | Current status |
 | --- | --- | --- | --- |
 | Tree canopy growth | Future canopy-area range for an individual tree at a stated horizon | City of Melbourne tree inventory and 2021 canopy | Training data not prepared |
-| Melbourne canopy change | Initial five-year canopy-area change at an aligned City of Melbourne cell; later extension across Melbourne | City of Melbourne 2016/2021 canopy snapshots, Victorian metropolitan vegetation change, Vicmap Property and ERA5-Land | Snapshot ingestion implemented; aligned labels not prepared |
+| Melbourne canopy change | Historical canopy/change at a consistently aligned spatial grain | City of Melbourne 2008/2015/2016/2021 canopy snapshots, Victorian metropolitan vegetation change, Vicmap Property and ERA5-Land | Source ingestion implemented; aligned labels not prepared |
 | Cooling association | Landsat land-surface-temperature range conditional on vegetation and weather | Landsat surface temperature, vegetation change and ERA5-Land | Training data not prepared |
 | Garden cooling | Paired irrigated/unirrigated experimental response | Burnley 2021–2022 irrigation experiment | Blocked pending record-level licence confirmation |
 
-#### Initial five-year canopy training inputs
+#### Historical canopy and vegetation-change inputs
 
-The first longitudinal preparation stage uses the City of Melbourne canopy
-polygon snapshots for 2016 and 2021. Run migration 038, synchronise the source
-registry, then load each year separately:
+The longitudinal preparation stage supports City of Melbourne canopy polygons
+for 2008, 2015, 2016 and 2021. Migration 039 adds the earlier years without
+rewriting migration 038 and creates a separate contract for the statewide
+department's 2014–2018 metropolitan percentage-point change layer:
 
 ```bash
 python greenchanger_script/migrate.py --confirm-shared
 python greenchanger_script/ingestion.py sources --confirm-shared
 python greenchanger_script/ingestion.py city-canopy \
+  --city-canopy-year 2008 --confirm-shared
+python greenchanger_script/ingestion.py city-canopy \
+  --city-canopy-year 2015 --confirm-shared
+python greenchanger_script/ingestion.py city-canopy \
   --city-canopy-year 2016 --confirm-shared
 python greenchanger_script/ingestion.py city-canopy \
   --city-canopy-year 2021 --confirm-shared
+python greenchanger_script/ingestion.py vegetation-change \
+  --vegetation-change-file /path/to/VEGETATIONCOVER201418CHG.shp \
+  --confirm-shared
 ```
 
-The official JSON-lines API extracts are checksummed, geometry-repaired where
+The City API extracts are checksummed, geometry-repaired where
 possible, normalised to multipolygons in EPSG:7855 and subjected to required,
 unique, year and positive-area checks. Passing snapshots remain `internal`.
-They do not become ML labels or resident-facing results until both years have
-been aligned to a common grid and the aerial/LiDAR versus multispectral mapping
-difference has been assessed. The source supplies year-level rather than exact
+The metropolitan product must first be ordered/downloaded in SHP or GDB format
+from DataShare because its catalogue page is not a direct data API. Its raw
+attributes are preserved in JSONB while recognised tree, shrub, grass and total
+change fields are normalised to percentage points. It remains separate because
+its polygons are based on 2016 ABS Mesh Blocks, not canopy patches.
+
+These inputs do not become ML labels or resident-facing results until all
+selected years have been aligned to a common grid and capture/classification
+method differences have been assessed. The canopy sources supply year-level rather than exact
 acquisition dates, so `observed_on` stores 31 December only as a period-end
 convention; modelling must use `observed_year`.
 
