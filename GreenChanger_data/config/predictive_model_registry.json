@@ -33,11 +33,11 @@
       "limitations": "City of Melbourne training coverage is not representative of all residential Melbourne. Do not extrapolate unsupported species or horizons."
     },
     "melbourne_canopy_change": {
-      "name": "Melbourne-wide canopy change model",
+      "name": "Melbourne canopy change model",
       "status": "training_data_not_prepared",
-      "target": "vegetation_cover_change_percentage_points_2014_2018",
+      "target": "canopy_area_change_m2_2016_2021",
       "output": "expected_canopy_change_range_percentage_points",
-      "grain": "ABS 2016 Mesh Block or consistently aligned analysis cell",
+      "grain": "consistently aligned City of Melbourne analysis cell",
       "features": [
         "baseline_tree_cover_pct",
         "land_use_class",
@@ -47,13 +47,15 @@
         "location"
       ],
       "datasets": [
+        {"key": "melbourne_canopy_2016", "role": "five-year canopy baseline", "required": true},
+        {"key": "melbourne_canopy_2021", "role": "five-year observed canopy outcome", "required": true},
         {"key": "melbourne_vegetation_change_2014_2018", "role": "Melbourne-wide change target", "required": true},
         {"key": "vicmap_property", "role": "parcel characteristics", "required": true},
         {"key": "dea_land_cover", "role": "land-cover covariates and longer-term context", "required": false},
         {"key": "era5_land", "role": "openly licensed historical weather controls", "required": true}
       ],
       "validation": "Spatial block cross-validation with complete suburbs or LGAs held out; report MAE and interval coverage, including growth-area error slices.",
-      "limitations": "The target records net vegetation change, not the causal effect of a particular planting action."
+      "limitations": "The initial five-year target covers the City of Melbourne municipality, not all Melbourne. Different 2016 and 2021 mapping methods may create non-biological differences. The target records net canopy change, not the causal effect of a particular planting action."
     },
     "cooling_association": {
       "name": "Vegetation and surface-cooling association model",

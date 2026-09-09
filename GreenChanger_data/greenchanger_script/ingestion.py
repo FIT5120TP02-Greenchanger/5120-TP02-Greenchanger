@@ -45,6 +45,13 @@ from greenchanger_data.city_melbourne_trees import (
     read_raw as read_named_tree_raw,
     save_raw as save_named_tree_raw,
 )
+from greenchanger_data.city_canopy_history import (
+    SOURCE_NAMES as CITY_CANOPY_SOURCE_NAMES,
+    download as download_city_canopy,
+    limited as limit_city_canopy_rows,
+    normalised_rows as normalised_city_canopy_rows,
+    read_raw as read_city_canopy_raw,
+)
 from greenchanger_data.council_tree_inventories import (
     SOURCES as COUNCIL_TREE_SOURCES,
     download as download_council_trees,
@@ -1801,6 +1808,166 @@ def ingest_canopy(connection, args: argparse.Namespace) -> dict[str, Any]:
     }
 
 
+def ingest_city_canopy_history(connection, args: argparse.Namespace) -> dict[str, Any]:
+    """Load one normalised City of Melbourne 2016 or 2021 canopy snapshot."""
+
+    year = args.city_canopy_year
+    if year is None:
+        raise ValueError("city-canopy requires --city-canopy-year 2016 or 2021")
+    if args.city_canopy_file:
+        if not args.city_canopy_file.exists():
+            raise FileNotFoundError(args.city_canopy_file)
+        raw_path = args.city_canopy_file
+        raw_count = sum(
+            1 for _ in limit_city_canopy_rows(
+                read_city_canopy_raw(raw_path), args.max_city_canopy_records
+            )
+        )
+    else:
+        stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+        raw_path = (
+            ROOT / "data" / "raw" / "city_canopy" / str(year)
+            / f"canopy_{year}_{stamp}.jsonl.gz"
+        )
+        downloaded_count = download_city_canopy(year, raw_path)
+        raw_count = min(downloaded_count, args.max_city_canopy_records) \
+            if args.max_city_canopy_records else downloaded_count
+
+    def rows():
+        return limit_city_canopy_rows(
+            normalised_city_canopy_rows(raw_path, year),
+            args.max_city_canopy_records,
+        )
+
+    rules, threshold = quality_configuration("canopy_snapshot_feature")
+    report = validate_record_stream(
+        "canopy_snapshot_feature", rows, rules, threshold_pct=threshold
+    )
+    registered_source_id = source_id(
+        connection, CITY_CANOPY_SOURCE_NAMES[year], "City of Melbourne"
+    )
+    version_id = create_dataset_version(
+        connection,
+        registered_source_id=registered_source_id,
+        row_count=raw_count,
+        checksum=sha256_file(raw_path),
+        observed_from=f"{year}-01-01",
+        observed_to=f"{year}-12-31",
+    )
+    record_quality_run(connection, version_id, report)
+    if not report.passed_gate:
+        connection.commit()
+        return {
+            "rows_in": raw_count,
+            "rows_written": 0,
+            "rows_rejected": report.failing_records,
+            "quality_pass_rate": report.pass_rate,
+            "dataset_version_id": str(version_id),
+            "message": "Historical canopy failed the 95% quality gate",
+        }
+
+    failed = set(report.failed_indices)
+    with connection.cursor() as cursor:
+        cursor.execute(
+            """CREATE TEMP TABLE city_canopy_stage (
+                   source_feature_key TEXT, observed_year SMALLINT,
+                   observed_on DATE, geometry_wkt TEXT, source_srid INTEGER,
+                   source_area_m2 NUMERIC, calculated_area_m2 NUMERIC,
+                   source_area_difference_pct NUMERIC,
+                   geometry_repaired BOOLEAN
+               ) ON COMMIT DROP"""
+        )
+        with cursor.copy(
+            """COPY city_canopy_stage (
+                   source_feature_key, observed_year, observed_on, geometry_wkt,
+                   source_srid, source_area_m2, calculated_area_m2,
+                   source_area_difference_pct,
+                   geometry_repaired
+               ) FROM STDIN"""
+        ) as copy:
+            for index, row in enumerate(rows()):
+                if index in failed:
+                    continue
+                copy.write_row(
+                    (
+                        row["source_feature_key"], row["observed_year"],
+                        row["observed_on"], row["geometry_wkt"],
+                        row["source_srid"], row["source_area_m2"],
+                        row["calculated_area_m2"],
+                        row["source_area_difference_pct"],
+                        row["geometry_repaired"],
+                    )
+                )
+        cursor.execute(
+            f"""INSERT INTO canopy_snapshot_feature (
+                    dataset_version_id, source_feature_key, observed_year,
+                    observed_on, canopy_geometry, source_area_m2,
+                    calculated_area_m2, source_area_difference_pct,
+                    geometry_repaired, quality_status
+                )
+                SELECT %s, source_feature_key, observed_year, observed_on,
+                       ST_Multi(ST_Transform(
+                           ST_GeomFromText(geometry_wkt, source_srid),
+                           {TARGET_SRID}
+                       )),
+                       source_area_m2, calculated_area_m2,
+                       source_area_difference_pct,
+                       geometry_repaired, 'passed'
+                FROM city_canopy_stage""",
+            (version_id,),
+        )
+        written = cursor.rowcount
+        cursor.execute(
+            """UPDATE dataset_version
+               SET integration_status = 'integrated',
+                   publication_status = 'internal',
+                   quality_status = 'passed_with_limitations',
+                   derivation_method = 'city_canopy_polygon_normalisation_v1'
+               WHERE dataset_version_id = %s""",
+            (version_id,),
+        )
+        cursor.execute(
+            """INSERT INTO data_limitation (
+                   dataset_version_id, limitation_type, description,
+                   affected_area, analytical_impact, mitigation
+               ) VALUES (%s, 'cross_year_method_difference', %s, %s, %s, %s)""",
+            (
+                version_id,
+                "The 2016 layer was mapped from aerial photography and LiDAR; "
+                "the 2021 layer used high-resolution multispectral imagery.",
+                "City of Melbourne municipality",
+                "Apparent 2016-2021 canopy change can include mapping-method differences.",
+                "Align both snapshots to one grid and complete temporal/spatial validation before creating ML labels.",
+            ),
+        )
+        cursor.execute(
+            """INSERT INTO data_limitation (
+                   dataset_version_id, limitation_type, description,
+                   affected_area, analytical_impact, mitigation
+               ) VALUES (%s, 'year_only_observation_date', %s, %s, %s, %s)""",
+            (
+                version_id,
+                f"The source identifies observation year {year}, not an exact acquisition day; 31 December is stored as a period-end convention.",
+                "All snapshot features",
+                "Do not interpret observed_on as an exact image acquisition date.",
+                "Use observed_year for modelling and disclose the year-level temporal precision.",
+            ),
+        )
+
+    return {
+        "year": year,
+        "rows_in": raw_count,
+        "rows_written": written,
+        "rows_rejected": report.failing_records,
+        "geometry_repaired": sum(1 for row in rows() if row["geometry_repaired"]),
+        "quality_pass_rate": report.pass_rate,
+        "dataset_version_id": str(version_id),
+        "raw_extract": str(raw_path),
+        "publication_status": "internal",
+        "message": "Snapshot loaded; cross-year training labels are not yet validated",
+    }
+
+
 def ingest_heat(connection, args: argparse.Namespace) -> dict[str, Any]:
     """Discover, download and integrate official Landsat surface temperature."""
 
@@ -1920,6 +2087,7 @@ JOBS: dict[str, Job] = {
     "bom": ingest_bom,
     "costs": ingest_costs,
     "canopy": ingest_canopy,
+    "city-canopy": ingest_city_canopy_history,
     "heat": ingest_heat,
     "address": ingest_address,
     "property": ingest_property,
@@ -1948,6 +2116,18 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument("--cost-file", type=Path, default=DEFAULT_COST_FILE)
     parser.add_argument("--canopy-file", type=Path)
+    parser.add_argument(
+        "--city-canopy-year", type=int, choices=(2016, 2021),
+        help="City of Melbourne historical canopy snapshot year.",
+    )
+    parser.add_argument(
+        "--city-canopy-file", type=Path,
+        help="Reuse a .jsonl or .jsonl.gz City of Melbourne canopy extract.",
+    )
+    parser.add_argument(
+        "--max-city-canopy-records", type=int,
+        help="Diagnostic record limit; omit for a complete production extract.",
+    )
     parser.add_argument(
         "--canopy-aggregate-file", type=Path,
         help="Completed .jsonl.gz from aggregate_vicmap_tree_extent.py.",

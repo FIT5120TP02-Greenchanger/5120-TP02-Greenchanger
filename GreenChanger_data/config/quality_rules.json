@@ -49,6 +49,13 @@
       {"code": "VEGETATION_PERCENT_RANGE", "type": "range", "field": "vegetation_percentage", "minimum": 0, "maximum": 100, "allow_blank": true},
       {"code": "CONFIDENCE_RANGE", "type": "range", "field": "confidence_score", "minimum": 0, "maximum": 100, "allow_blank": true}
     ],
+    "canopy_snapshot_feature": [
+      {"code": "CANOPY_SNAPSHOT_REQUIRED", "type": "required", "fields": ["source_feature_key", "observed_year", "observed_on", "geometry_wkt", "calculated_area_m2"]},
+      {"code": "CANOPY_SNAPSHOT_UNIQUE", "type": "unique", "fields": ["source_feature_key"]},
+      {"code": "CANOPY_SNAPSHOT_YEAR_ALLOWED", "type": "allowed", "field": "observed_year", "values": [2016, 2021]},
+      {"code": "CANOPY_SNAPSHOT_AREA_POSITIVE", "type": "range", "field": "calculated_area_m2", "minimum": 0, "inclusive_minimum": false},
+      {"code": "CANOPY_SNAPSHOT_SOURCE_AREA_CONSISTENT", "type": "range", "field": "source_area_difference_pct", "minimum": 0, "maximum": 2, "allow_blank": true}
+    ],
     "cost_estimate": [
       {"code": "COST_REQUIRED", "type": "required", "fields": ["option_code", "cost_context", "cost_basis", "minimum_cost", "maximum_cost", "currency", "includes_installation", "source_name", "source_reference", "source_url", "valid_from", "valid_to", "last_verified_at", "confidence_level"]},
       {"code": "COST_UNIQUE", "type": "unique", "fields": ["option_code", "cost_context", "cost_basis", "source_name", "valid_from", "source_reference"]},

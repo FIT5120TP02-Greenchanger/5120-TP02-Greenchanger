@@ -70,17 +70,32 @@
       "target_entities": ["canopy_patch", "vegetation_observation"]
     },
     {
+      "key": "melbourne_canopy_2016",
+      "name": "Tree Canopies 2016 (Urban Forest)",
+      "publisher": "City of Melbourne",
+      "url": "https://data.melbourne.vic.gov.au/explore/dataset/tree-canopies-2016-urban-forest/",
+      "category": "historical_canopy",
+      "coverage": "City of Melbourne municipality",
+      "observation_period": "2016",
+      "access_method": "Open Data Portal JSON-lines API and download",
+      "licence": "Creative Commons Attribution 4.0 International",
+      "licence_status": "open_confirmed",
+      "update_frequency": "static historical snapshot",
+      "target_entities": ["canopy_snapshot_feature"]
+    },
+    {
       "key": "melbourne_canopy_2021",
       "name": "Tree Canopies 2021 (Urban Forest)",
       "publisher": "City of Melbourne",
-      "url": "https://discover.data.vic.gov.au/en_AU/dataset/tree-canopies-2021-urban-forest",
-      "category": "canopy",
+      "url": "https://data.melbourne.vic.gov.au/explore/dataset/tree-canopies-2021-urban-forest/",
+      "category": "historical_canopy",
       "coverage": "City of Melbourne municipality",
       "observation_period": "2021",
-      "access_method": "API and download",
-      "licence": "Creative Commons Attribution",
+      "access_method": "Open Data Portal JSON-lines API and download",
+      "licence": "Creative Commons Attribution 4.0 International",
       "licence_status": "open_confirmed",
-      "target_entities": ["canopy_patch", "vegetation_observation"]
+      "update_frequency": "static historical snapshot",
+      "target_entities": ["canopy_snapshot_feature"]
     },
     {
       "key": "dea_sentinel2",

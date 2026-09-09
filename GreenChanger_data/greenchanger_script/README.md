@@ -25,7 +25,7 @@ repository.
 | `__init__.py` | Marks this directory as the command package and supports imports shared by scripts and tests. |
 | `db.py` | PostgreSQL connection settings, local-password handling and shared Aurora IAM-token generation. |
 | `migrate.py` | Apply, inspect or baseline numbered SQL migrations. Shared reset is prohibited. |
-| `ingestion.py` | Unified source, boundary, BOM, cost, canopy, heat, address, property, mapped-tree and named council-tree ingestion jobs. |
+| `ingestion.py` | Unified source, boundary, BOM, cost, current/historical canopy, heat, address, property, mapped-tree and named council-tree ingestion jobs. |
 | `check_source_registry.py` | Validate source configuration and print target SRID/quality threshold. |
 | `extract_bom.py` | Download and normalise the BOM feed without loading the database. |
 | `extract_vicmap_canopy_api.py` | Create the documented lower-resolution Vicmap canopy tile proxy. |
@@ -78,6 +78,13 @@ python greenchanger_script/ingestion.py yarra-trees --confirm-shared
 python greenchanger_script/ingestion.py casey-trees --confirm-shared
 python greenchanger_script/ingestion.py hobsons-bay-trees --confirm-shared
 python greenchanger_script/ingestion.py wyndham-trees --confirm-shared
+
+# Load the two City of Melbourne polygon snapshots that will later be aligned
+# into a genuine 2016-2021 five-year canopy-change training target.
+python greenchanger_script/ingestion.py city-canopy \
+  --city-canopy-year 2016 --confirm-shared
+python greenchanger_script/ingestion.py city-canopy \
+  --city-canopy-year 2021 --confirm-shared
 
 # Create application-ready Melbourne-only derived versions
 python greenchanger_script/clip_to_melbourne.py --confirm-shared
@@ -199,6 +206,11 @@ checksum, creates a `dataset_version`, applies the configured quality rules,
 records rule-level outcomes, rejects failed rows, inserts accepted rows in
 bounded batches, transforms spatial data into EPSG:7855 and marks only a
 successful version as `application_ready`.
+
+Historical City of Melbourne canopy is intentionally stricter: successful
+2016 and 2021 loads remain `internal` with `passed_with_limitations`. This
+prevents unvalidated cross-year differences from being treated as application
+measurements or ML targets.
 
 ## Melbourne boundary filtering
 

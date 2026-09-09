@@ -9,7 +9,7 @@ class MigrationFileTests(unittest.TestCase):
     def test_migrations_are_numbered_and_ordered(self):
         self.assertEqual(
             [version for version, _ in migration_files()],
-            list(range(1, 38)),
+            list(range(1, 39)),
         )
 
     def test_include_is_expanded(self):
@@ -346,6 +346,18 @@ class MigrationFileTests(unittest.TestCase):
         self.assertIn("'suppressed'", sql)
         self.assertIn("licence_status IN ('open_confirmed', 'public_domain')", sql)
         self.assertIn("precise_after_temperature_allowed", sql)
+
+    def test_city_canopy_history_is_versioned_for_five_year_labels(self):
+        migration = next(
+            path for version, path in migration_files() if version == 38
+        )
+        sql = expanded_sql(migration)
+        self.assertIn("CREATE TABLE canopy_snapshot_feature", sql)
+        self.assertIn("Tree Canopies 2016 (Urban Forest)", sql)
+        self.assertIn("Tree Canopies 2021 (Urban Forest)", sql)
+        self.assertIn("latest_city_canopy_snapshots", sql)
+        self.assertIn("five-year canopy baseline", sql)
+        self.assertIn("five-year observed canopy outcome", sql)
 
 
 if __name__ == "__main__":

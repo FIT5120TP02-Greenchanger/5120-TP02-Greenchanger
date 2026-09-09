@@ -127,6 +127,55 @@ class PostgisEnvironmentContextIntegrationTests(unittest.TestCase):
                 ],
             )
 
+    def test_historical_canopy_sources_and_metric_geometry_contract(self):
+        with self.connection.cursor() as cursor:
+            cursor.execute(
+                """SELECT source_id, source_name
+                   FROM dataset_source
+                   WHERE publisher = 'City of Melbourne'
+                     AND source_name IN (
+                         'Tree Canopies 2016 (Urban Forest)',
+                         'Tree Canopies 2021 (Urban Forest)'
+                     )
+                   ORDER BY source_name"""
+            )
+            sources = cursor.fetchall()
+            self.assertEqual(len(sources), 2)
+            source_id = sources[0][0]
+            cursor.execute(
+                """INSERT INTO dataset_version (
+                       source_id, source_observed_from, source_observed_to,
+                       quality_status, integration_status, publication_status,
+                       derivation_method
+                   ) VALUES (
+                       %s, DATE '2016-01-01', DATE '2016-12-31',
+                       'passed_with_limitations', 'integrated', 'internal',
+                       'integration_fixture'
+                   ) RETURNING dataset_version_id""",
+                (source_id,),
+            )
+            version_id = cursor.fetchone()[0]
+            cursor.execute(
+                """INSERT INTO canopy_snapshot_feature (
+                       dataset_version_id, source_feature_key, observed_year,
+                       observed_on, canopy_geometry, calculated_area_m2
+                   ) VALUES (
+                       %s, 'fixture-polygon', 2016, DATE '2016-12-31',
+                       ST_Multi(ST_Buffer(ST_Transform(ST_SetSRID(
+                           ST_MakePoint(144.96, -37.81), 4326
+                       ), 7855), 5)), 78.54
+                   )""",
+                (version_id,),
+            )
+            cursor.execute(
+                """SELECT observed_year, ST_SRID(canopy_geometry),
+                          publication_status
+                   FROM latest_city_canopy_snapshots
+                   JOIN dataset_version USING (dataset_version_id)
+                   WHERE source_feature_key = 'fixture-polygon'"""
+            )
+            self.assertEqual(cursor.fetchone(), (2016, 7855, "internal"))
+
     def test_metropolitan_named_tree_lookup_preserves_council_source(self):
         with self.connection.cursor() as cursor:
             cursor.execute(

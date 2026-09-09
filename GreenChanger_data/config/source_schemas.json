@@ -34,6 +34,11 @@
     "business_key": ["observed_on", "vegetation_type", "geometry_wkt"],
     "required_fields": ["observed_on", "geometry_wkt", "source_srid"]
   },
+  "canopy_snapshot_feature": {
+    "grain": "one observed canopy polygon in one City of Melbourne snapshot",
+    "business_key": ["dataset_version_id", "source_feature_key"],
+    "required_fields": ["source_feature_key", "observed_year", "observed_on", "calculated_area_m2", "geometry_wkt", "source_srid"]
+  },
   "cost_estimate": {
     "grain": "one greening option, tree type where applicable, context, unit and validity period",
     "business_key": ["option_code", "tree_type", "cost_context", "cost_basis", "valid_from", "source_name"],
