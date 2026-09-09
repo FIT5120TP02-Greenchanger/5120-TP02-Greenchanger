@@ -14,6 +14,11 @@
     "business_key": ["source_tree_id"],
     "required_fields": ["source_tree_id", "geometry_wkt", "source_srid"]
   },
+  "named_tree_inventory": {
+    "grain": "one City of Melbourne council inventory tree per dataset version",
+    "business_key": ["source_tree_id"],
+    "required_fields": ["source_tree_id", "display_name", "geometry_wkt", "source_srid"]
+  },
   "weather_observation": {
     "grain": "one weather station observation at one timestamp",
     "business_key": ["station_code", "observed_at"],

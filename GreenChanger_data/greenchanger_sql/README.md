@@ -32,7 +32,8 @@ greenchanger_sql/
 │   ├── 020_evidence_backed_absolute_classifications.sql
 │   ├── 033_tree_type_costs.sql
 │   ├── 034_separate_predictive_models.sql
-│   └── 035_cost_estimate_tree_type_business_key.sql
+│   ├── 035_cost_estimate_tree_type_business_key.sql
+│   └── 036_named_tree_inventory.sql
 ├── seeds/001_reference_data.sql
 └── analytics/001_views.sql
 ```
@@ -67,6 +68,7 @@ greenchanger_sql/
 | `migrations/033_tree_type_costs.sql` | Adds named tree type and botanical-name fields to cost estimates, indexes current tree-price lookup and publishes both fields through the application-ready cost view. |
 | `migrations/034_separate_predictive_models.sql` | Registers four separate predictive-model contracts with licence gates and suppressed outputs until validation. |
 | `migrations/035_cost_estimate_tree_type_business_key.sql` | Adds tree type to the cost-estimate source/version business key while treating null tree types as equal so non-tree options remain idempotent. |
+| `migrations/036_named_tree_inventory.sql` | Adds a source-specific City of Melbourne named-tree table, species taxonomy, latest-version view and radius lookup function. |
 | `migrations/018_environment_context_radius.sql` | Adds a bounded, application-facing radius query for current mapped-tree points and clipped 500 m heat cells. |
 | `migrations/019_environment_context_by_address.sql` | Resolves one unambiguous Melbourne address and delegates to the bounded coordinate-radius query. |
 | `migrations/020_evidence_backed_absolute_classifications.sql` | Stores threshold evidence with exact source locators and adds measurement-specific daily-mean air-temperature and canopy benchmark functions. |
@@ -202,6 +204,7 @@ historical values.
   source type, native source-pixel size and an explicit proxy flag. The
   `latest_greater_melbourne_canopy_baseline` view exposes the current version.
 - `vegetation_observation`, `canopy_patch`, `urban_tree`: canopy and greenery.
+- `named_tree_inventory`: City of Melbourne council inventory records with common/scientific names, taxonomy, DBH and planting metadata; deliberately separate from unnamed Vicmap points.
 - `species_profile`, `greening_option`: available intervention definitions.
 - `cost_estimate`: dated, source-backed indicative cost ranges, including named tree type and botanical name where applicable.
 - `application_ready_cost_estimate`: current cost contexts joined to greening-option labels with tree type, confidence, inclusions and the mandatory not-a-quote disclaimer.

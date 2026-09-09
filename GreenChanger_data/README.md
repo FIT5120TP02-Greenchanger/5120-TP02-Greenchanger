@@ -85,6 +85,10 @@ python greenchanger_script/ingestion.py canopy \
 # 5. Load official Vicmap Tree Urban points through the Feature Service API
 python greenchanger_script/ingestion.py trees --confirm-shared
 
+# Load named council-tree records. These names cover the City of Melbourne
+# municipality only and are not inferred for nearby Vicmap Tree Urban points.
+python greenchanger_script/ingestion.py named-trees --confirm-shared
+
 # Reuse a completed API extract without redownloading it
 python greenchanger_script/ingestion.py trees \
   --urban-tree-file data/raw/vicmap/urban_tree_TIMESTAMP.jsonl.gz \
@@ -255,7 +259,7 @@ conversion; their 500 m source resolution is unchanged.
 
 | Output | Current result | Quality/status |
 | --- | ---: | --- |
-| Repository migrations | 001–024 | Deployment state must be confirmed with `migrate.py --status` |
+| Repository migrations | 001–036 | Migration 036 adds the named City of Melbourne tree inventory |
 | Automated tests | Fast unit suite + opt-in PostGIS integration suite | Use the validation commands below and in `PR_DATA_CONTRACT.md` |
 | Melbourne Address records | 3,007,474 | 100% boundary membership |
 | Melbourne Property records | 3,001,053 | 100% boundary membership |
@@ -264,6 +268,7 @@ conversion; their 500 m source resolution is unchanged.
 | Application-ready canopy baseline | 37,146 unique 500 m cells | All baseline checks passed |
 | BOM weather observations | 1,557 from 10 stations | 100% source quality pass rate; version `greater-melbourne-bom-stations-v1` |
 | Vicmap Tree Urban | 10,473,773 Melbourne points | 100% record-quality and boundary-membership pass rates |
+| City of Melbourne named trees | 82,064 records; 680 species profiles | 100% quality pass; common and scientific names available within the City of Melbourne municipality only |
 | Cost estimates | 8 in AWS | 100% quality pass; 0 rejected, 0 missing source URLs and 0 expired |
 | Representative residential simulations | 3 properties × 4 actions | 12/12 output checks passed; overall WARN from retained baseline caveats |
 | Validated scenario measure results | 0 | Prototype model is deliberately blocked from application output |

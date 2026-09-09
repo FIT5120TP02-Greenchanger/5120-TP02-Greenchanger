@@ -9,7 +9,7 @@ class MigrationFileTests(unittest.TestCase):
     def test_migrations_are_numbered_and_ordered(self):
         self.assertEqual(
             [version for version, _ in migration_files()],
-            list(range(1, 36)),
+            list(range(1, 37)),
         )
 
     def test_include_is_expanded(self):
@@ -160,6 +160,18 @@ class MigrationFileTests(unittest.TestCase):
         self.assertIn("DROP INDEX IF EXISTS uq_cost_estimate_source_version", sql)
         self.assertIn("cost_basis,\n        tree_type,", sql)
         self.assertIn(") NULLS NOT DISTINCT", sql)
+
+    def test_named_tree_inventory_keeps_names_separate_from_vicmap_points(self):
+        migration = next(
+            path for version, path in migration_files() if version == 36
+        )
+        sql = expanded_sql(migration)
+        self.assertIn("CREATE TABLE named_tree_inventory", sql)
+        self.assertIn("common_name TEXT", sql)
+        self.assertIn("scientific_name TEXT", sql)
+        self.assertIn("latest_city_melbourne_named_tree_inventory", sql)
+        self.assertIn("get_named_tree_context", sql)
+        self.assertIn("not joined to a Vicmap Tree Urban point", sql)
 
     def test_environment_context_uses_bounded_indexed_radius_queries(self):
         migration = next(

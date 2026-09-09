@@ -25,7 +25,7 @@ repository.
 | `__init__.py` | Marks this directory as the command package and supports imports shared by scripts and tests. |
 | `db.py` | PostgreSQL connection settings, local-password handling and shared Aurora IAM-token generation. |
 | `migrate.py` | Apply, inspect or baseline numbered SQL migrations. Shared reset is prohibited. |
-| `ingestion.py` | Unified source, boundary, BOM, cost, canopy, heat, address, property and mapped-tree ingestion jobs. |
+| `ingestion.py` | Unified source, boundary, BOM, cost, canopy, heat, address, property, mapped-tree and named council-tree ingestion jobs. |
 | `check_source_registry.py` | Validate source configuration and print target SRID/quality threshold. |
 | `extract_bom.py` | Download and normalise the BOM feed without loading the database. |
 | `extract_vicmap_canopy_api.py` | Create the documented lower-resolution Vicmap canopy tile proxy. |
@@ -69,6 +69,7 @@ python greenchanger_script/ingestion.py property --confirm-shared
 
 # Load mapped individual-tree context from the official Tree Urban API
 python greenchanger_script/ingestion.py trees --confirm-shared
+python greenchanger_script/ingestion.py named-trees --confirm-shared
 
 # Create application-ready Melbourne-only derived versions
 python greenchanger_script/clip_to_melbourne.py --confirm-shared
@@ -162,6 +163,11 @@ python greenchanger_script/ingestion.py property \
 
 python greenchanger_script/ingestion.py trees \
   --urban-tree-file data/raw/vicmap/urban_tree_TIMESTAMP.jsonl.gz \
+  --confirm-shared
+
+# Reuse a preserved City of Melbourne named-tree extract
+python greenchanger_script/ingestion.py named-trees \
+  --city-tree-file data/raw/city_melbourne/named_trees_TIMESTAMP.jsonl.gz \
   --confirm-shared
 ```
 

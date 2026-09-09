@@ -21,6 +21,13 @@
       {"code": "URBAN_TREE_CANOPY_RADIUS_POSITIVE", "type": "range", "field": "canopy_radius_m", "minimum": 0, "inclusive_minimum": false, "allow_blank": true},
       {"code": "URBAN_TREE_HEIGHT_POSITIVE", "type": "range", "field": "height_m", "minimum": 0, "inclusive_minimum": false, "allow_blank": true}
     ],
+    "named_tree_inventory": [
+      {"code": "NAMED_TREE_REQUIRED", "type": "required", "fields": ["source_tree_id", "display_name", "geometry_wkt"]},
+      {"code": "NAMED_TREE_UNIQUE", "type": "unique", "fields": ["source_tree_id"]},
+      {"code": "NAMED_TREE_LATITUDE_RANGE", "type": "range", "field": "latitude", "minimum": -39.5, "maximum": -37.0},
+      {"code": "NAMED_TREE_LONGITUDE_RANGE", "type": "range", "field": "longitude", "minimum": 144.0, "maximum": 146.0},
+      {"code": "NAMED_TREE_DBH_POSITIVE", "type": "range", "field": "diameter_breast_height_cm", "minimum": 0, "inclusive_minimum": false, "allow_blank": true}
+    ],
     "weather_observation": [
       {"code": "WEATHER_REQUIRED", "type": "required", "fields": ["station_code", "station_name", "observed_at", "air_temperature_c", "geometry_wkt"]},
       {"code": "WEATHER_UNIQUE", "type": "unique", "fields": ["station_code", "observed_at"]},
