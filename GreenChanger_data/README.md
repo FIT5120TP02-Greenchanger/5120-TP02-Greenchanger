@@ -443,7 +443,7 @@ python greenchanger_script/ingestion.py city-canopy \
 python greenchanger_script/ingestion.py city-canopy \
   --city-canopy-year 2021 --confirm-shared
 python greenchanger_script/ingestion.py vegetation-change \
-  --vegetation-change-file /path/to/VEGETATIONCOVER201418CHG.shp \
+  --vegetation-change-file /path/to/VEGETATION_COVER_2014_18_CHG.shp \
   --confirm-shared
 ```
 
@@ -453,8 +453,12 @@ unique, year and positive-area checks. Passing snapshots remain `internal`.
 The metropolitan product must first be ordered/downloaded in SHP or GDB format
 from DataShare because its catalogue page is not a direct data API. Its raw
 attributes are preserved in JSONB while recognised tree, shrub, grass and total
-change fields are normalised to percentage points. It remains separate because
-its polygons are based on 2016 ABS Mesh Blocks, not canopy patches.
+change fields (`PP_ANYTREE`, `PP_SHRUB`, `PP_GRASS` and `PP_ANYVEG`) are
+normalised to percentage points. The large source is read in bounded 5,000-row
+batches. Its business key combines `MMB_CODE` and `UNIQUEID`, because one
+modified Mesh Block can contain multiple land-type polygons. It remains
+separate because its polygons are based on 2016 ABS Mesh Blocks, not canopy
+patches.
 
 These inputs do not become ML labels or resident-facing results until all
 selected years have been aligned to a common grid and capture/classification

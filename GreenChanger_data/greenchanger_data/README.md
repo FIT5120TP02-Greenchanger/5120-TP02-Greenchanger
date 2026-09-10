@@ -29,7 +29,7 @@ functions and perform database writes.
 | `scenario_inputs.py` | Validate the versioned Residential Greening Scenario Simulation quantity, area, maturity, survival and suitability contract and translate it into evidence-bounded model inputs. |
 | `sources.py` | Load the source registry and calculate reproducibility checksums. |
 | `city_canopy_history.py` | Stream the official 2008/2015/2016/2021 City of Melbourne JSON-lines canopy exports, repair polygon geometry and normalise all years to one metric-area contract. |
-| `metropolitan_vegetation_change.py` | Read the official 2014–2018 DataShare spatial download, reproject and repair Mesh-Block-based polygons, map recognised percentage-point change fields and preserve raw attributes. |
+| `metropolitan_vegetation_change.py` | Read the large official 2014–2018 DataShare spatial download in bounded batches, reproject and repair Mesh-Block-based polygons, map the official `PP_*` percentage-point change fields, create a stable `MMB_CODE` + `UNIQUEID` key and preserve raw attributes. |
 | `spatial.py` | Read, repair, reproject, clip and write general vector datasets. |
 | `vicmap_features.py` | Extract, clean and normalise current Vicmap Address, Property and Tree Urban features from official ArcGIS APIs. |
 | `vicmap_tiles.py` | Build a georeferenced Vicmap Tree Extent proxy from official cached map tiles. |

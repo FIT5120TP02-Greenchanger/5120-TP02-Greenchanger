@@ -24,15 +24,18 @@ class MetropolitanVegetationChangeTests(unittest.TestCase):
     def test_aliases_are_mapped_to_percentage_point_contract(self):
         row = normalise_feature(
             {
+                "MMB_CODE": "200000001_1",
+                "UNIQUEID": 14,
                 "MB_CODE16": "200000001",
-                "TREE_CHG": "4.5",
-                "SHRUB_CHANGE": -1,
-                "GRASS_CHANGE_PCT": 2.25,
-                "VEG_CHANGE": 5.75,
+                "PP_ANYTREE": "4.5",
+                "PP_SHRUB": -1,
+                "PP_GRASS": 2.25,
+                "PP_ANYVEG": 5.75,
             },
             self.polygon,
         )
-        self.assertEqual(row["source_feature_key"], "200000001")
+        self.assertEqual(row["source_feature_key"], "200000001_1:14")
+        self.assertEqual(row["mesh_block_code"], "200000001")
         self.assertEqual(row["tree_change_pct_points"], 4.5)
         self.assertEqual(row["shrub_change_pct_points"], -1.0)
         self.assertEqual(row["grass_change_pct_points"], 2.25)

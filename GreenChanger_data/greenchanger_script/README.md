@@ -92,7 +92,7 @@ python greenchanger_script/ingestion.py city-canopy \
 
 # DataShare uses an order/download workflow, so supply the downloaded SHP/GDB.
 python greenchanger_script/ingestion.py vegetation-change \
-  --vegetation-change-file /path/to/VEGETATIONCOVER201418CHG.shp \
+  --vegetation-change-file /path/to/VEGETATION_COVER_2014_18_CHG.shp \
   --confirm-shared
 
 # Create application-ready Melbourne-only derived versions

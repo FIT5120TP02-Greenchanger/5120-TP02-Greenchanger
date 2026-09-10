@@ -9,8 +9,7 @@ from pathlib import Path
 import re
 from typing import Any, Iterator
 
-import geopandas as gpd
-from pyogrio import read_info
+from pyogrio import read_dataframe, read_info
 from shapely import make_valid, normalize
 from shapely.geometry import GeometryCollection, MultiPolygon, Polygon
 
@@ -21,28 +20,35 @@ SOURCE_URL = (
     "change-in-vegetation-cover-in-metropolitan-melbourne-between-2014-and-2018"
 )
 TARGET_SRID = 7855
+READ_BATCH_SIZE = 5_000
 
 FIELD_ALIASES = {
     "mesh_block_code": (
         "mesh_block_code", "meshblock", "mb_code16", "mb_code_16", "mb_code",
     ),
     "tree_change_pct_points": (
+        "pp_anytree",
         "tree_change", "tree_chg", "tree_pct_change", "tree_change_pct",
         "tree_cover_change", "treechange",
     ),
     "shrub_change_pct_points": (
+        "pp_shrub",
         "shrub_change", "shrub_chg", "shrub_pct_change", "shrub_change_pct",
         "shrub_cover_change", "shrubchange",
     ),
     "grass_change_pct_points": (
+        "pp_grass",
         "grass_change", "grass_chg", "grass_pct_change", "grass_change_pct",
         "grass_cover_change", "grasschange",
     ),
     "total_vegetation_change_pct_points": (
+        "pp_anyveg",
         "vegetation_change", "veg_change", "total_change", "total_veg_change",
         "vegetation_change_pct", "vegchange",
     ),
 }
+
+SOURCE_FEATURE_KEY_ALIASES = ("mmb_code",)
 
 
 def _key(value: Any) -> str:
@@ -102,7 +108,13 @@ def normalise_feature(properties: dict[str, Any], geometry) -> dict[str, Any]:
 
     geometry, repaired = _polygonal(geometry)
     mesh_block = _value(properties, FIELD_ALIASES["mesh_block_code"])
-    feature_key = str(mesh_block).strip() if mesh_block not in (None, "") else None
+    modified_mesh_block = _value(properties, SOURCE_FEATURE_KEY_ALIASES)
+    unique_id = _value(properties, ("uniqueid", "unique_id"))
+    feature_key = (
+        f"{str(modified_mesh_block).strip()}:{str(unique_id).strip()}"
+        if modified_mesh_block not in (None, "")
+        and unique_id not in (None, "") else None
+    )
     if feature_key is None and geometry is not None:
         feature_key = sha256(geometry.wkb).hexdigest()
     row = {
@@ -160,17 +172,27 @@ def source_checksum(path: Path) -> str:
     return digest.hexdigest()
 
 
-def normalised_rows(path: Path) -> Iterator[dict[str, Any]]:
-    """Read the downloaded vector layer and yield EPSG:7855 records."""
+def normalised_rows(
+    path: Path, *, batch_size: int = READ_BATCH_SIZE
+) -> Iterator[dict[str, Any]]:
+    """Read bounded vector batches and yield EPSG:7855 records."""
 
-    frame = gpd.read_file(path)
-    if frame.crs is None:
-        raise ValueError("Vegetation-change source has no declared coordinate system")
-    frame = frame.to_crs(epsg=TARGET_SRID)
-    geometry_name = frame.geometry.name
-    for _, source_row in frame.iterrows():
-        properties = {
-            str(name): value for name, value in source_row.items()
-            if name != geometry_name
-        }
-        yield normalise_feature(properties, source_row.geometry)
+    if batch_size <= 0:
+        raise ValueError("batch_size must be positive")
+    total = feature_count(path)
+    for offset in range(0, total, batch_size):
+        frame = read_dataframe(
+            path, skip_features=offset, max_features=batch_size,
+        )
+        if frame.crs is None:
+            raise ValueError(
+                "Vegetation-change source has no declared coordinate system"
+            )
+        frame = frame.to_crs(epsg=TARGET_SRID)
+        geometry_name = frame.geometry.name
+        for _, source_row in frame.iterrows():
+            properties = {
+                str(name): value for name, value in source_row.items()
+                if name != geometry_name
+            }
+            yield normalise_feature(properties, source_row.geometry)
