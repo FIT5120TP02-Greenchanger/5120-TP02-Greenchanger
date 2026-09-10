@@ -65,6 +65,23 @@
       {"code": "GRASS_CHANGE_RANGE", "type": "range", "field": "grass_change_pct_points", "minimum": -100, "maximum": 100, "allow_blank": true},
       {"code": "TOTAL_CHANGE_RANGE", "type": "range", "field": "total_vegetation_change_pct_points", "minimum": -100, "maximum": 100, "allow_blank": true}
     ],
+    "plant_trait_observation": [
+      {"code": "PLANT_TRAIT_REQUIRED", "type": "required", "fields": ["source_row_number", "dataset_id", "taxon_name", "trait_name", "value_text"]},
+      {"code": "PLANT_TRAIT_SOURCE_ROW_UNIQUE", "type": "unique", "fields": ["source_row_number"]},
+      {"code": "PLANT_TRAIT_PROTOTYPE_SCOPE", "type": "allowed", "field": "trait_name", "values": ["establishment_light_environment_index", "leaf_water_use_efficiency_instantaneous", "leaf_water_use_efficiency_integrated", "leaf_water_use_efficiency_intrinsic", "lifespan", "plant_growth_form", "plant_height", "plant_tolerance_water_logged_soils", "root_structure", "root_system_type", "stem_growth_habit"]}
+    ],
+    "urban_tree_growth_observation": [
+      {"code": "TREE_GROWTH_REQUIRED", "type": "required", "fields": ["source_row_number", "city", "species_name", "tree_number", "ring_sequence", "tree_ring_width_mm"]},
+      {"code": "TREE_GROWTH_SOURCE_ROW_UNIQUE", "type": "unique", "fields": ["source_row_number"]},
+      {"code": "TREE_RING_WIDTH_PLAUSIBLE", "type": "range", "field": "tree_ring_width_mm", "minimum": 0, "inclusive_minimum": false, "maximum": 10},
+      {"code": "BASAL_AREA_INCREMENT_PLAUSIBLE", "type": "range", "field": "basal_area_increment_cm2_year", "minimum": 0, "maximum": 100, "allow_blank": true}
+    ],
+    "urban_tree_growth_climate": [
+      {"code": "TREE_GROWTH_CLIMATE_REQUIRED", "type": "required", "fields": ["source_row_number", "city", "year", "variant_number", "source_occurrence_count", "AP", "PDM", "PWM", "PDQ", "MTWM", "MAT", "MTCM", "IDM", "IP"]},
+      {"code": "TREE_GROWTH_CLIMATE_ROW_UNIQUE", "type": "unique", "fields": ["source_row_number"]},
+      {"code": "TREE_GROWTH_CLIMATE_YEAR_PLAUSIBLE", "type": "range", "field": "year", "minimum": 1900, "maximum": 2100},
+      {"code": "TREE_GROWTH_CLIMATE_PRECIPITATION_PLAUSIBLE", "type": "range", "field": "AP", "minimum": 0, "maximum": 10000}
+    ],
     "cost_estimate": [
       {"code": "COST_REQUIRED", "type": "required", "fields": ["option_code", "cost_context", "cost_basis", "minimum_cost", "maximum_cost", "currency", "includes_installation", "source_name", "source_reference", "source_url", "valid_from", "valid_to", "last_verified_at", "confidence_level"]},
       {"code": "COST_UNIQUE", "type": "unique", "fields": ["option_code", "cost_context", "cost_basis", "source_name", "valid_from", "source_reference"]},

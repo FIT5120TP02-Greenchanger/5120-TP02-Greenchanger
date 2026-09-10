@@ -88,6 +88,13 @@ Confirm it with `migrate.py --status` and the database queries in the README.
 
 ## Separate predictive-model contract
 
+Migration 040 adds two optional, CC BY 4.0 research inputs to the tree-canopy
+growth contract. `plant_trait_observation` stores selected AusTraits records;
+`urban_tree_growth_observation` stores ring measurements; and the climate table
+retains conflicting city-year variants while its usable view excludes them.
+Apply migration 040, synchronise `sources`, then run the `austraits` and
+`urban-growth` jobs. Both versions remain internal and are not predictions.
+
 Migration 034 registers four separate model contracts: tree canopy growth,
 Melbourne-wide canopy change, vegetation/surface-cooling association and
 experimental garden cooling. It also records a reuse decision for each model

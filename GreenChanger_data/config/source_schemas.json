@@ -44,6 +44,21 @@
     "business_key": ["dataset_version_id", "source_feature_key"],
     "required_fields": ["source_feature_key", "observed_from", "observed_to", "geometry_wkt", "source_srid", "has_change_measure"]
   },
+  "plant_trait_observation": {
+    "grain": "one selected AusTraits observation row in one release",
+    "business_key": ["dataset_version_id", "source_row_number"],
+    "required_fields": ["source_row_number", "dataset_id", "taxon_name", "trait_name", "value_text"]
+  },
+  "urban_tree_growth_observation": {
+    "grain": "one tree-ring measurement for one study tree and within-tree source sequence",
+    "business_key": ["dataset_version_id", "city", "species_name", "tree_number", "ring_sequence"],
+    "required_fields": ["source_row_number", "city", "species_name", "tree_number", "ring_sequence", "tree_ring_width_mm"]
+  },
+  "urban_tree_growth_climate": {
+    "grain": "one distinct published climate-value variant for one city-year",
+    "business_key": ["dataset_version_id", "city", "year", "variant_number"],
+    "required_fields": ["source_row_number", "city", "year", "variant_number", "source_occurrence_count", "city_year_ambiguous"]
+  },
   "cost_estimate": {
     "grain": "one greening option, tree type where applicable, context, unit and validity period",
     "business_key": ["option_code", "tree_type", "cost_context", "cost_basis", "valid_from", "source_name"],

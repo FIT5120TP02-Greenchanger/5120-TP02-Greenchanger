@@ -25,7 +25,7 @@ repository.
 | `__init__.py` | Marks this directory as the command package and supports imports shared by scripts and tests. |
 | `db.py` | PostgreSQL connection settings, local-password handling and shared Aurora IAM-token generation. |
 | `migrate.py` | Apply, inspect or baseline numbered SQL migrations. Shared reset is prohibited. |
-| `ingestion.py` | Unified source, boundary, BOM, cost, current/historical canopy, heat, address, property, mapped-tree and named council-tree ingestion jobs. |
+| `ingestion.py` | Unified source, boundary, BOM, cost, canopy, heat, property, tree and open tree-research ingestion jobs. |
 | `check_source_registry.py` | Validate source configuration and print target SRID/quality threshold. |
 | `extract_bom.py` | Download and normalise the BOM feed without loading the database. |
 | `extract_vicmap_canopy_api.py` | Create the documented lower-resolution Vicmap canopy tile proxy. |
@@ -94,6 +94,10 @@ python greenchanger_script/ingestion.py city-canopy \
 python greenchanger_script/ingestion.py vegetation-change \
   --vegetation-change-file /path/to/VEGETATION_COVER_2014_18_CHG.shp \
   --confirm-shared
+
+# Versioned CC BY 4.0 research evidence; retained as internal model inputs.
+python greenchanger_script/ingestion.py austraits --confirm-shared
+python greenchanger_script/ingestion.py urban-growth --confirm-shared
 
 # Create application-ready Melbourne-only derived versions
 python greenchanger_script/clip_to_melbourne.py --confirm-shared

@@ -75,6 +75,18 @@ from greenchanger_data.metropolitan_vegetation_change import (
     source_checksum as vegetation_change_source_checksum,
 )
 from greenchanger_data.quality import QualityReport, validate_record_stream, validate_records
+from greenchanger_data.research_tree_data import (
+    AUSTRAITS_SOURCE_NAME,
+    URBAN_GROWTH_SOURCE_NAME,
+    austraits_counts,
+    combined_checksum,
+    download_austraits,
+    download_urban_growth,
+    iter_austraits_rows,
+    normalise_climate_rows,
+    normalise_growth_rows,
+    read_urban_growth_workbook,
+)
 from greenchanger_data.sources import load_source_registry, sha256_file
 from greenchanger_data.vicmap_features import extract_to_jsonl, read_jsonl
 
@@ -2108,6 +2120,269 @@ def ingest_metropolitan_vegetation_change(
     }
 
 
+def ingest_austraits(connection, args: argparse.Namespace) -> dict[str, Any]:
+    """Load the prototype-relevant subset of the versioned AusTraits release."""
+
+    archive = args.austraits_file or (
+        ROOT / "data" / "raw" / "austraits" / "austraits-7.0.0.zip"
+    )
+    if args.austraits_file is None:
+        download_austraits(archive)
+    elif not archive.exists():
+        raise FileNotFoundError(archive)
+
+    raw_count, selected_count = austraits_counts(archive)
+    maximum = args.max_austraits_records
+
+    def rows():
+        return iter_austraits_rows(archive, maximum=maximum)
+
+    rules, threshold = quality_configuration("plant_trait_observation")
+    report = validate_record_stream(
+        "plant_trait_observation", rows, rules, threshold_pct=threshold
+    )
+    registered_source_id = source_id(
+        connection, AUSTRAITS_SOURCE_NAME, "AusTraits collaboration"
+    )
+    version_id = create_dataset_version(
+        connection,
+        registered_source_id=registered_source_id,
+        row_count=raw_count,
+        checksum=sha256_file(archive),
+    )
+    record_quality_run(connection, version_id, report)
+    if not report.passed_gate:
+        connection.commit()
+        return {
+            "rows_in": raw_count,
+            "rows_selected": report.total_records,
+            "rows_written": 0,
+            "rows_rejected": report.failing_records,
+            "quality_pass_rate": report.pass_rate,
+            "dataset_version_id": str(version_id),
+            "message": "AusTraits selected observations failed the 95% quality gate",
+        }
+
+    failed = set(report.failed_indices)
+    with connection.cursor() as cursor:
+        with cursor.copy(
+            """COPY plant_trait_observation (
+                   dataset_version_id, source_row_number, dataset_id,
+                   observation_id, taxon_name, original_name, trait_name,
+                   value_text, value_numeric, unit, entity_type, value_type,
+                   basis_of_value, replicates, basis_of_record, life_stage,
+                   location_id, collection_date, source_dataset_id,
+                   measurement_remarks, quality_status
+               ) FROM STDIN"""
+        ) as copy:
+            for index, row in enumerate(rows()):
+                if index in failed:
+                    continue
+                copy.write_row((
+                    version_id, row["source_row_number"], row["dataset_id"],
+                    row["observation_id"], row["taxon_name"], row["original_name"],
+                    row["trait_name"], row["value_text"], row["value_numeric"],
+                    row["unit"], row["entity_type"], row["value_type"],
+                    row["basis_of_value"], row["replicates"],
+                    row["basis_of_record"], row["life_stage"], row["location_id"],
+                    row["collection_date"], row["source_dataset_id"],
+                    row["measurement_remarks"], "passed",
+                ))
+        written = report.passing_records
+        cursor.execute(
+            """UPDATE dataset_version
+               SET integration_status = 'integrated', publication_status = 'internal',
+                   quality_status = 'passed_with_limitations',
+                   derivation_method = 'prototype_relevant_trait_filter_v1'
+               WHERE dataset_version_id = %s""",
+            (version_id,),
+        )
+        cursor.execute(
+            """INSERT INTO data_limitation (
+                   dataset_version_id, limitation_type, description,
+                   affected_area, analytical_impact, mitigation
+               ) VALUES (%s, 'trait_semantics', %s, %s, %s, %s)""",
+            (
+                version_id,
+                "Only explicitly selected prototype-relevant traits are loaded from the full release.",
+                "All AusTraits records used by GreenChanger",
+                "Observed plant height and physiological water-use traits are not guaranteed mature dimensions, horticultural water-needs classes, root-risk ratings or allergen ratings.",
+                "Retain source context and use traits only as optional research features until a horticultural contract and held-out model validation exist.",
+            ),
+        )
+    return {
+        "rows_in": raw_count,
+        "rows_available_in_selected_traits": selected_count,
+        "rows_assessed": report.total_records,
+        "rows_written": written,
+        "rows_rejected": report.failing_records,
+        "quality_pass_rate": report.pass_rate,
+        "dataset_version_id": str(version_id),
+        "publication_status": "internal",
+        "message": f"{written} AusTraits research observations integrated",
+    }
+
+
+def ingest_urban_growth(connection, args: argparse.Namespace) -> dict[str, Any]:
+    """Load the seven-city tree-ring study and its separately usable climate data."""
+
+    directory = args.urban_growth_directory or (
+        ROOT / "data" / "raw" / "urban_tree_growth" / "figshare_28970981_v2"
+    )
+    if args.urban_growth_directory is None:
+        paths = download_urban_growth(directory)
+    else:
+        paths = {
+            name: directory / name
+            for name in ("Raw_data_GCB.xlsx", "Climate_data_GCB.xlsx")
+        }
+        missing = [str(path) for path in paths.values() if not path.exists()]
+        if missing:
+            raise FileNotFoundError("Missing urban-growth workbook(s): " + ", ".join(missing))
+
+    raw_growth = read_urban_growth_workbook(paths["Raw_data_GCB.xlsx"])
+    raw_climate = read_urban_growth_workbook(paths["Climate_data_GCB.xlsx"])
+    growth_rows = normalise_growth_rows(raw_growth)
+    climate_rows = normalise_climate_rows(raw_climate)
+    growth_rules, threshold = quality_configuration("urban_tree_growth_observation")
+    climate_rules, _ = quality_configuration("urban_tree_growth_climate")
+    growth_report = validate_records(
+        "urban_tree_growth_observation", growth_rows, growth_rules,
+        threshold_pct=threshold,
+    )
+    climate_report = validate_records(
+        "urban_tree_growth_climate", climate_rows, climate_rules,
+        threshold_pct=threshold,
+    )
+    registered_source_id = source_id(
+        connection, URBAN_GROWTH_SOURCE_NAME, "Esperon-Rodriguez et al."
+    )
+    version_id = create_dataset_version(
+        connection,
+        registered_source_id=registered_source_id,
+        row_count=len(raw_growth) + len(raw_climate),
+        checksum=combined_checksum(paths.values()),
+    )
+    record_quality_run(connection, version_id, growth_report)
+    record_quality_run(connection, version_id, climate_report)
+    passed_gate = growth_report.passed_gate and climate_report.passed_gate
+    if not passed_gate:
+        with connection.cursor() as cursor:
+            cursor.execute(
+                """UPDATE dataset_version
+                   SET quality_status = 'failed', integration_status = 'failed'
+                   WHERE dataset_version_id = %s""",
+                (version_id,),
+            )
+        connection.commit()
+        return {
+            "rows_in": len(raw_growth) + len(raw_climate),
+            "rows_written": 0,
+            "rows_rejected": growth_report.failing_records + climate_report.failing_records,
+            "dataset_version_id": str(version_id),
+            "message": "Urban tree growth evidence failed the 95% quality gate",
+        }
+
+    growth_failed = set(growth_report.failed_indices)
+    climate_failed = set(climate_report.failed_indices)
+    with connection.cursor() as cursor:
+        with cursor.copy(
+            """COPY urban_tree_growth_observation (
+                   dataset_version_id, source_row_number, city,
+                   species_name_original, species_name, tree_number,
+                   ring_sequence, tree_ring_width_mm,
+                   basal_area_increment_cm2_year, quality_status
+               ) FROM STDIN"""
+        ) as copy:
+            for index, row in enumerate(growth_rows):
+                if index not in growth_failed:
+                    copy.write_row((
+                        version_id, row["source_row_number"], row["city"],
+                        row["species_name_original"], row["species_name"],
+                        row["tree_number"], row["ring_sequence"],
+                        row["tree_ring_width_mm"],
+                        row["basal_area_increment_cm2_year"], "passed",
+                    ))
+        with cursor.copy(
+            """COPY urban_tree_growth_climate (
+                   dataset_version_id, source_row_number, city, observation_year,
+                   variant_number, source_occurrence_count, city_year_ambiguous,
+                   annual_precipitation_mm, precipitation_driest_month_mm,
+                   precipitation_wettest_month_mm,
+                   precipitation_driest_quarter_mm,
+                   mean_temperature_warmest_month_c,
+                   mean_annual_temperature_c,
+                   mean_temperature_coldest_month_c,
+                   isothermality_divided_by_100, precipitation_index,
+                   quality_status
+               ) FROM STDIN"""
+        ) as copy:
+            for index, row in enumerate(climate_rows):
+                if index not in climate_failed:
+                    copy.write_row((
+                        version_id, row["source_row_number"], row["city"], row["year"],
+                        row["variant_number"], row["source_occurrence_count"],
+                        row["city_year_ambiguous"], row["AP"], row["PDM"], row["PWM"],
+                        row["PDQ"], row["MTWM"], row["MAT"], row["MTCM"],
+                        row["IDM"], row["IP"], "passed",
+                    ))
+        combined_total = growth_report.total_records + climate_report.total_records
+        combined_passed = growth_report.passing_records + climate_report.passing_records
+        combined_rate = round(combined_passed / combined_total * 100, 2)
+        cursor.execute(
+            """UPDATE dataset_version
+               SET integration_status = 'integrated', publication_status = 'internal',
+                   quality_status = 'passed_with_limitations', quality_pass_rate = %s,
+                   derivation_method = 'figshare_v2_tree_ring_and_climate_normalisation_v1'
+               WHERE dataset_version_id = %s""",
+            (combined_rate, version_id),
+        )
+        limitations = [
+            (
+                "temporal_linkage",
+                "The growth workbook has no calendar-year column; ring_sequence is source order within each tree, not tree age or year.",
+                "Direct growth-to-climate joins",
+                "Growth rings cannot be safely joined to the climate workbook by year.",
+                "Obtain and validate ring calendar-year metadata before any temporal join.",
+            ),
+            (
+                "source_conflict",
+                "Exact climate duplicates are collapsed with occurrence counts; conflicting city-year variants are retained and flagged.",
+                "Mildura climate records",
+                "Ambiguous city-years are excluded from usable_urban_tree_growth_climate.",
+                "Resolve conflicts against the study authors or source publication before use.",
+            ),
+            (
+                "target_mismatch",
+                "Tree-ring width and basal-area increment measure stem growth, not canopy area.",
+                "Tree canopy growth modelling",
+                "The source cannot directly produce 5- or 10-year canopy predictions.",
+                "Fit and validate a separate species-aware allometric link with canopy observations.",
+            ),
+        ]
+        cursor.executemany(
+            """INSERT INTO data_limitation (
+                   dataset_version_id, limitation_type, description,
+                   affected_area, analytical_impact, mitigation
+               ) VALUES (%s, %s, %s, %s, %s, %s)""",
+            [(version_id, *row) for row in limitations],
+        )
+
+    ambiguous = sum(row["city_year_ambiguous"] for row in climate_rows)
+    return {
+        "rows_in": len(raw_growth) + len(raw_climate),
+        "growth_rows_written": growth_report.passing_records,
+        "climate_rows_written": climate_report.passing_records,
+        "rows_written": growth_report.passing_records + climate_report.passing_records,
+        "rows_rejected": growth_report.failing_records + climate_report.failing_records,
+        "ambiguous_climate_variants_retained": ambiguous,
+        "quality_pass_rate": combined_rate,
+        "dataset_version_id": str(version_id),
+        "publication_status": "internal",
+        "message": "Australian urban-tree growth research evidence integrated",
+    }
+
+
 def ingest_heat(connection, args: argparse.Namespace) -> dict[str, Any]:
     """Discover, download and integrate official Landsat surface temperature."""
 
@@ -2229,6 +2504,8 @@ JOBS: dict[str, Job] = {
     "canopy": ingest_canopy,
     "city-canopy": ingest_city_canopy_history,
     "vegetation-change": ingest_metropolitan_vegetation_change,
+    "austraits": ingest_austraits,
+    "urban-growth": ingest_urban_growth,
     "heat": ingest_heat,
     "address": ingest_address,
     "property": ingest_property,
@@ -2272,6 +2549,18 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--vegetation-change-file", type=Path,
         help="Official DataShare SHP/GDB for metropolitan 2014-2018 vegetation change.",
+    )
+    parser.add_argument(
+        "--austraits-file", type=Path,
+        help="Reuse the official austraits-7.0.0.zip release archive.",
+    )
+    parser.add_argument(
+        "--max-austraits-records", type=int,
+        help="Diagnostic limit after relevant-trait filtering; omit in production.",
+    )
+    parser.add_argument(
+        "--urban-growth-directory", type=Path,
+        help="Directory containing Raw_data_GCB.xlsx and Climate_data_GCB.xlsx.",
     )
     parser.add_argument(
         "--canopy-aggregate-file", type=Path,

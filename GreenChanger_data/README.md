@@ -88,6 +88,11 @@ python greenchanger_script/ingestion.py trees --confirm-shared
 # Load source-labelled named council-tree records. Names are not inferred for
 # nearby Vicmap points or for private/backyard trees absent from inventories.
 python greenchanger_script/ingestion.py named-trees --confirm-shared
+
+# Load openly licensed research inputs for future species-aware modelling.
+# These remain internal evidence and do not publish canopy predictions.
+python greenchanger_script/ingestion.py austraits --confirm-shared
+python greenchanger_script/ingestion.py urban-growth --confirm-shared
 python greenchanger_script/ingestion.py brimbank-trees yarra-trees casey-trees \
   hobsons-bay-trees wyndham-trees --confirm-shared
 

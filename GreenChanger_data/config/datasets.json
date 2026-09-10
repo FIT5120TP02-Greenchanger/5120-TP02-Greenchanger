@@ -306,6 +306,34 @@
       "target_entities": ["weather_observation"]
     },
     {
+      "key": "austraits_v7",
+      "name": "AusTraits 7.0.0",
+      "publisher": "AusTraits collaboration",
+      "url": "https://github.com/traitecoevo/austraits.build/releases/tag/v7.0.0",
+      "category": "plant_traits",
+      "coverage": "Australia",
+      "observation_period": "compiled observations; release 7.0.0",
+      "access_method": "Versioned GitHub release ZIP",
+      "licence": "Creative Commons Attribution 4.0 International",
+      "licence_status": "open_confirmed",
+      "update_frequency": "versioned research release",
+      "target_entities": ["plant_trait_observation"]
+    },
+    {
+      "key": "australian_urban_tree_growth",
+      "name": "Tree growth of 10 tree species planted in seven Australian cities",
+      "publisher": "Esperon-Rodriguez et al.",
+      "url": "https://figshare.com/articles/dataset/Tree_growth_of_10_urban_tree_species_in_seven_Australian_cities/28970981",
+      "category": "urban_tree_growth",
+      "coverage": "Seven Australian cities, including Melbourne and Mildura",
+      "observation_period": "published 2025; source tree-ring and climate records",
+      "access_method": "Figshare version 2 XLSX downloads",
+      "licence": "Creative Commons Attribution 4.0 International",
+      "licence_status": "open_confirmed",
+      "update_frequency": "static research deposit",
+      "target_entities": ["urban_tree_growth_observation", "urban_tree_growth_climate"]
+    },
+    {
       "key": "burnley_irrigation_experiment",
       "name": "Identifying the mechanisms by which irrigation can cool urban green spaces in summer",
       "publisher": "Zenodo research record by Cheung et al.",

@@ -68,6 +68,48 @@ class PostgisEnvironmentContextIntegrationTests(unittest.TestCase):
                 time.sleep(0.5)
         raise last_error
 
+    def test_open_tree_research_contract_is_internal_and_conflict_safe(self):
+        with self.connection.cursor() as cursor:
+            cursor.execute(
+                """SELECT source_name, licence_status
+                   FROM dataset_source
+                   WHERE source_name IN (
+                       'AusTraits 7.0.0',
+                       'Tree growth of 10 tree species planted in seven Australian cities'
+                   )
+                   ORDER BY source_name"""
+            )
+            self.assertEqual(
+                cursor.fetchall(),
+                [
+                    ("AusTraits 7.0.0", "open_confirmed"),
+                    (
+                        "Tree growth of 10 tree species planted in seven Australian cities",
+                        "open_confirmed",
+                    ),
+                ],
+            )
+            cursor.execute(
+                """SELECT COUNT(*)
+                   FROM predictive_model_source AS link
+                   JOIN dataset_source AS source USING (source_id)
+                   WHERE link.model_code = 'tree_canopy_growth'
+                     AND NOT link.required_for_training
+                     AND link.training_use_allowed
+                     AND source.source_name IN (
+                         'AusTraits 7.0.0',
+                         'Tree growth of 10 tree species planted in seven Australian cities'
+                     )"""
+            )
+            self.assertEqual(cursor.fetchone()[0], 2)
+            cursor.execute(
+                """SELECT to_regclass('plant_trait_observation'),
+                          to_regclass('urban_tree_growth_observation'),
+                          to_regclass('urban_tree_growth_climate'),
+                          to_regclass('usable_urban_tree_growth_climate')"""
+            )
+            self.assertTrue(all(cursor.fetchone()))
+
     @classmethod
     def tearDownClass(cls):
         if hasattr(cls, "connection"):

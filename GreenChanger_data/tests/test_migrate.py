@@ -9,7 +9,7 @@ class MigrationFileTests(unittest.TestCase):
     def test_migrations_are_numbered_and_ordered(self):
         self.assertEqual(
             [version for version, _ in migration_files()],
-            list(range(1, 40)),
+            list(range(1, 41)),
         )
 
     def test_include_is_expanded(self):
@@ -20,6 +20,17 @@ class MigrationFileTests(unittest.TestCase):
             included.write_text("SELECT 1;", encoding="utf-8")
             migration.write_text("-- include: included.sql\n", encoding="utf-8")
             self.assertIn("SELECT 1;", expanded_sql(migration))
+
+    def test_open_tree_research_evidence_preserves_source_limitations(self):
+        migration = next(path for version, path in migration_files() if version == 40)
+        sql = expanded_sql(migration)
+        self.assertIn("CREATE TABLE plant_trait_observation", sql)
+        self.assertIn("CREATE TABLE urban_tree_growth_observation", sql)
+        self.assertIn("CREATE TABLE urban_tree_growth_climate", sql)
+        self.assertIn("city_year_ambiguous", sql)
+        self.assertIn("ring_sequence is source row order", sql)
+        self.assertIn("not guaranteed mature nursery height", sql)
+        self.assertIn("Creative Commons Attribution 4.0 International", sql)
 
     def test_cumulative_schema_expands_metropolitan_tree_contract(self):
         schema = pathlib.Path(__file__).resolve().parents[1] / "greenchanger_sql/schema.sql"

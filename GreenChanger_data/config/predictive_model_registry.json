@@ -27,7 +27,9 @@
       "datasets": [
         {"key": "city_melbourne_tree_inventory", "role": "tree attributes and planting year", "required": true},
         {"key": "melbourne_canopy_2021", "role": "observed canopy target", "required": true},
-        {"key": "vicmap_property", "role": "parcel and site context", "required": false}
+        {"key": "vicmap_property", "role": "parcel and site context", "required": false},
+        {"key": "austraits_v7", "role": "optional species trait context; not horticultural site advice", "required": false},
+        {"key": "australian_urban_tree_growth", "role": "optional observed Australian tree-ring growth evidence", "required": false}
       ],
       "validation": "Group spatial hold-out by precinct and temporal hold-out by observation year; report MAE and empirical interval coverage by species.",
       "limitations": "City of Melbourne training coverage is not representative of all residential Melbourne. Do not extrapolate unsupported species or horizons."
