@@ -25,7 +25,7 @@ repository.
 | `__init__.py` | Marks this directory as the command package and supports imports shared by scripts and tests. |
 | `db.py` | PostgreSQL connection settings, local-password handling and shared Aurora IAM-token generation. |
 | `migrate.py` | Apply, inspect or baseline numbered SQL migrations. Shared reset is prohibited. |
-| `ingestion.py` | Unified source, boundary, BOM, cost, canopy, heat, property, tree and open tree-research ingestion jobs. |
+| `ingestion.py` | Unified source, boundary, BOM, cost, canopy, heat, DEA Land Cover, ERA5-Land, property, tree and open tree-research ingestion jobs. |
 | `check_source_registry.py` | Validate source configuration and print target SRID/quality threshold. |
 | `extract_bom.py` | Download and normalise the BOM feed without loading the database. |
 | `extract_vicmap_canopy_api.py` | Create the documented lower-resolution Vicmap canopy tile proxy. |
@@ -94,6 +94,22 @@ python greenchanger_script/ingestion.py city-canopy \
 python greenchanger_script/ingestion.py vegetation-change \
   --vegetation-change-file /path/to/VEGETATION_COVER_2014_18_CHG.shp \
   --confirm-shared
+
+# Stream only the Melbourne window of the official public 2025 Level-3 COG,
+# aggregate 30 m classes to 500 m model cells, then boundary-filter in PostGIS.
+python greenchanger_script/ingestion.py dea-land-cover \
+  --dea-year 2025 --dea-grid-size-m 500 --confirm-shared
+
+# Download an authenticated CDS subset and aggregate its hourly fields to daily
+# approximately 9 km weather-control points. Accept the dataset terms and set
+# ~/.cdsapirc first, following the official CDS API instructions.
+python greenchanger_script/ingestion.py era5-land \
+  --era5-start 2014-01-01 --era5-end 2018-12-31 --confirm-shared
+
+# Reuse already downloaded NetCDF files without another API request.
+python greenchanger_script/ingestion.py era5-land \
+  --era5-file data/raw/era5_land \
+  --era5-start 2014-01-01 --era5-end 2018-12-31 --confirm-shared
 
 # Versioned CC BY 4.0 research evidence; retained as internal model inputs.
 python greenchanger_script/ingestion.py austraits --confirm-shared

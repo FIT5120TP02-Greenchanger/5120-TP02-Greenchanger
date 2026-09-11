@@ -9,7 +9,7 @@ class MigrationFileTests(unittest.TestCase):
     def test_migrations_are_numbered_and_ordered(self):
         self.assertEqual(
             [version for version, _ in migration_files()],
-            list(range(1, 41)),
+            list(range(1, 42)),
         )
 
     def test_include_is_expanded(self):
@@ -31,6 +31,16 @@ class MigrationFileTests(unittest.TestCase):
         self.assertIn("ring_sequence is source row order", sql)
         self.assertIn("not guaranteed mature nursery height", sql)
         self.assertIn("Creative Commons Attribution 4.0 International", sql)
+
+    def test_dea_and_era5_migration_separates_spatial_grains(self):
+        migration = next(path for version, path in migration_files() if version == 41)
+        sql = expanded_sql(migration)
+        self.assertIn("CREATE TABLE dea_land_cover_observation", sql)
+        self.assertIn("CREATE TABLE era5_land_daily_observation", sql)
+        self.assertIn("approximately 9 km ERA5-Land reanalysis", sql)
+        self.assertIn("not property-scale canopy", sql)
+        self.assertIn("USING GIST(observation_geometry)", sql)
+        self.assertIn("USING GIST(observation_location)", sql)
 
     def test_cumulative_schema_expands_metropolitan_tree_contract(self):
         schema = pathlib.Path(__file__).resolve().parents[1] / "greenchanger_sql/schema.sql"

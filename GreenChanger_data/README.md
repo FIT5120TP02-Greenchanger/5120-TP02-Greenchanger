@@ -93,6 +93,13 @@ python greenchanger_script/ingestion.py named-trees --confirm-shared
 # These remain internal evidence and do not publish canopy predictions.
 python greenchanger_script/ingestion.py austraits --confirm-shared
 python greenchanger_script/ingestion.py urban-growth --confirm-shared
+
+# Add historical modelling covariates. DEA streams the public annual COG;
+# ERA5-Land requires accepted CDS terms and a configured ~/.cdsapirc token.
+python greenchanger_script/ingestion.py dea-land-cover \
+  --dea-year 2025 --dea-grid-size-m 500 --confirm-shared
+python greenchanger_script/ingestion.py era5-land \
+  --era5-start 2014-01-01 --era5-end 2018-12-31 --confirm-shared
 python greenchanger_script/ingestion.py brimbank-trees yarra-trees casey-trees \
   hobsons-bay-trees wyndham-trees --confirm-shared
 
@@ -425,7 +432,7 @@ one general environmental model with four independent contracts:
 | Model | Target | Required core sources | Current status |
 | --- | --- | --- | --- |
 | Tree canopy growth | Future canopy-area range for an individual tree at a stated horizon | City of Melbourne tree inventory and 2021 canopy | Training data not prepared |
-| Melbourne canopy change | Historical canopy/change at a consistently aligned spatial grain | City of Melbourne 2008/2015/2016/2021 canopy snapshots, Victorian metropolitan vegetation change, Vicmap Property and ERA5-Land | Source ingestion implemented; aligned labels not prepared |
+| Melbourne canopy change | Historical canopy/change at a consistently aligned spatial grain | City of Melbourne 2008/2015/2016/2021 canopy snapshots, Victorian metropolitan vegetation change, Vicmap Property, DEA Land Cover and ERA5-Land | DEA/ERA5 ingestion implemented; shared versions and aligned labels still need to be built |
 | Cooling association | Landsat land-surface-temperature range conditional on vegetation and weather | Landsat surface temperature, vegetation change and ERA5-Land | Training data not prepared |
 | Garden cooling | Paired irrigated/unirrigated experimental response | Burnley 2021–2022 irrigation experiment | Blocked pending record-level licence confirmation |
 
@@ -479,7 +486,13 @@ temporal held-out validation, uncertainty coverage checks and an explicit new
 status migration. The existing literature-bounded scenario calculator remains
 separate and unchanged.
 
-The historical modelling weather control is ERA5-Land (CC BY 4.0). Current BOM
+The historical modelling weather control is ERA5-Land (CC BY 4.0). Migration
+041 stores daily summaries of its approximately 9 km reanalysis grid in a
+separate table, with temperature (°C), precipitation (mm), layer-1 soil water
+(m³/m³), surface solar radiation (MJ/m²) and wind speed (m/s). DEA Land Cover
+(CC BY 4.0) is separately stored as annual fractions of its six Level-3 classes
+on aligned 500 m Melbourne modelling cells. Neither dataset is published as a
+property observation. Current BOM
 station observations remain useful application context, but the anonymous
 feed is optional for model training because its feed-specific open-reuse terms
 have not been confirmed. The Burnley files are also blocked until the Rights

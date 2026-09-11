@@ -35,6 +35,7 @@ greenchanger_sql/
 │   ├── 038_city_canopy_history.sql
 │   ├── 039_historical_canopy_and_vegetation_change.sql
 │   ├── 040_open_tree_research_evidence.sql
+│   ├── 041_dea_land_cover_and_era5_land.sql
 │   ├── 035_cost_estimate_tree_type_business_key.sql
 │   ├── 036_named_tree_inventory.sql
 │   └── 037_metropolitan_named_tree_inventories.sql
@@ -74,6 +75,7 @@ greenchanger_sql/
 | `migrations/038_city_canopy_history.sql` | Adds versioned 2016/2021 City of Melbourne canopy polygons and registers them as internal five-year model inputs. |
 | `migrations/039_historical_canopy_and_vegetation_change.sql` | Adds the 2008/2015 City canopy sources and allowed years, plus a separate versioned 2014–2018 metropolitan Mesh-Block vegetation-change table and latest view. |
 | `migrations/040_open_tree_research_evidence.sql` | Adds versioned AusTraits observations, seven-city tree-ring growth and climate evidence, conflict-safe views, licences and optional canopy-model links. |
+| `migrations/041_dea_land_cover_and_era5_land.sql` | Adds indexed, versioned 500 m DEA land-cover class fractions and daily approximately 9 km ERA5-Land weather controls while keeping both separate from parcel canopy, Landsat surface heat and BOM station observations. |
 | `migrations/035_cost_estimate_tree_type_business_key.sql` | Adds tree type to the cost-estimate source/version business key while treating null tree types as equal so non-tree options remain idempotent. |
 | `migrations/036_named_tree_inventory.sql` | Adds a source-specific City of Melbourne named-tree table, species taxonomy, latest-version view and radius lookup function. |
 | `migrations/037_metropolitan_named_tree_inventories.sql` | Extends the named-tree contract to Brimbank, Yarra, Casey, Hobsons Bay and Wyndham; preserves municipality, taxonomic precision, observed dimensions and health; and adds the source-labelled metropolitan radius lookup. |

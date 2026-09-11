@@ -3101,3 +3101,4 @@ COMMIT;
 -- include: migrations/038_city_canopy_history.sql
 -- include: migrations/039_historical_canopy_and_vegetation_change.sql
 -- include: migrations/040_open_tree_research_evidence.sql
+-- include: migrations/041_dea_land_cover_and_era5_land.sql

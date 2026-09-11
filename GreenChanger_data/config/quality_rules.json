@@ -49,6 +49,31 @@
       {"code": "VEGETATION_PERCENT_RANGE", "type": "range", "field": "vegetation_percentage", "minimum": 0, "maximum": 100, "allow_blank": true},
       {"code": "CONFIDENCE_RANGE", "type": "range", "field": "confidence_score", "minimum": 0, "maximum": 100, "allow_blank": true}
     ],
+    "dea_land_cover_observation": [
+      {"code": "DEA_LAND_COVER_REQUIRED", "type": "required", "fields": ["cell_key", "observed_year", "observed_on", "dominant_level3_code", "dominant_level3_name", "geometry_wkt"]},
+      {"code": "DEA_LAND_COVER_CELL_UNIQUE", "type": "unique", "fields": ["cell_key", "observed_year"]},
+      {"code": "DEA_LAND_COVER_CLASS_ALLOWED", "type": "allowed", "field": "dominant_level3_code", "values": [111, 112, 124, 215, 216, 220]},
+      {"code": "DEA_CULTIVATED_PERCENT_RANGE", "type": "range", "field": "cultivated_vegetation_pct", "minimum": 0, "maximum": 100},
+      {"code": "DEA_NATURAL_TERRESTRIAL_PERCENT_RANGE", "type": "range", "field": "natural_terrestrial_vegetation_pct", "minimum": 0, "maximum": 100},
+      {"code": "DEA_NATURAL_AQUATIC_PERCENT_RANGE", "type": "range", "field": "natural_aquatic_vegetation_pct", "minimum": 0, "maximum": 100},
+      {"code": "DEA_ARTIFICIAL_PERCENT_RANGE", "type": "range", "field": "artificial_surface_pct", "minimum": 0, "maximum": 100},
+      {"code": "DEA_BARE_PERCENT_RANGE", "type": "range", "field": "natural_bare_surface_pct", "minimum": 0, "maximum": 100},
+      {"code": "DEA_WATER_PERCENT_RANGE", "type": "range", "field": "water_pct", "minimum": 0, "maximum": 100},
+      {"code": "DEA_VALID_DATA_PERCENT_RANGE", "type": "range", "field": "valid_data_pct", "minimum": 0, "inclusive_minimum": false, "maximum": 100}
+    ],
+    "era5_land_daily_observation": [
+      {"code": "ERA5_LAND_REQUIRED", "type": "required", "fields": ["cell_key", "observed_on", "air_temperature_mean_c", "air_temperature_min_c", "air_temperature_max_c", "geometry_wkt", "hour_count"]},
+      {"code": "ERA5_LAND_CELL_DATE_UNIQUE", "type": "unique", "fields": ["cell_key", "observed_on"]},
+      {"code": "ERA5_LAND_MEAN_TEMPERATURE_PLAUSIBLE", "type": "range", "field": "air_temperature_mean_c", "minimum": -30, "maximum": 60},
+      {"code": "ERA5_LAND_MIN_TEMPERATURE_PLAUSIBLE", "type": "range", "field": "air_temperature_min_c", "minimum": -30, "maximum": 60},
+      {"code": "ERA5_LAND_MAX_TEMPERATURE_PLAUSIBLE", "type": "range", "field": "air_temperature_max_c", "minimum": -30, "maximum": 60},
+      {"code": "ERA5_LAND_TEMPERATURE_ORDER", "type": "field_order", "lower_field": "air_temperature_min_c", "upper_field": "air_temperature_max_c"},
+      {"code": "ERA5_LAND_PRECIPITATION_NONNEGATIVE", "type": "range", "field": "precipitation_total_mm", "minimum": 0, "allow_blank": true},
+      {"code": "ERA5_LAND_SOIL_WATER_RANGE", "type": "range", "field": "soil_water_layer_1_mean_m3_m3", "minimum": 0, "maximum": 1, "allow_blank": true},
+      {"code": "ERA5_LAND_SOLAR_NONNEGATIVE", "type": "range", "field": "surface_solar_radiation_total_mj_m2", "minimum": 0, "allow_blank": true},
+      {"code": "ERA5_LAND_WIND_NONNEGATIVE", "type": "range", "field": "wind_speed_mean_ms", "minimum": 0, "allow_blank": true},
+      {"code": "ERA5_LAND_HOUR_COVERAGE", "type": "range", "field": "hour_count", "minimum": 18, "maximum": 24}
+    ],
     "canopy_snapshot_feature": [
       {"code": "CANOPY_SNAPSHOT_REQUIRED", "type": "required", "fields": ["source_feature_key", "observed_year", "observed_on", "geometry_wkt", "calculated_area_m2"]},
       {"code": "CANOPY_SNAPSHOT_UNIQUE", "type": "unique", "fields": ["source_feature_key"]},

@@ -8,3 +8,6 @@ pyogrio>=0.9,<1
 pyarrow>=17,<20
 rasterio>=1.4,<2
 shapely>=2.0,<3
+cdsapi>=0.7.7,<1
+xarray>=2025.1,<2027
+netCDF4>=1.7,<2

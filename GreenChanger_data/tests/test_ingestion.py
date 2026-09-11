@@ -2,6 +2,7 @@ import inspect
 import unittest
 
 from greenchanger_script.ingestion import (
+    JOBS,
     ingest_bom,
     ingest_costs,
     optional_bool,
@@ -50,6 +51,10 @@ class IngestionHelperTests(unittest.TestCase):
             "source_name, valid_from, source_reference",
             source,
         )
+
+    def test_dea_and_era5_jobs_are_registered(self):
+        self.assertIn("dea-land-cover", JOBS)
+        self.assertIn("era5-land", JOBS)
 
 
 if __name__ == "__main__":

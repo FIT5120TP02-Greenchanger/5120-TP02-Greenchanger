@@ -58,6 +58,18 @@ from greenchanger_data.council_tree_inventories import (
     feature_count as council_tree_feature_count,
     iter_normalised as iter_council_tree_rows,
 )
+from greenchanger_data.dea_land_cover import (
+    aggregate_land_cover,
+    continental_cog_url,
+    request_checksum as dea_request_checksum,
+)
+from greenchanger_data.era5_land import (
+    combined_checksum as era5_combined_checksum,
+    download_era5_land,
+    normalise_era5_files,
+    request_metadata as era5_request_metadata,
+    source_files as era5_source_files,
+)
 from greenchanger_data.property_canopy import validate_property_canopy_source
 from greenchanger_data.landsat import (
     aggregate_surface_temperature,
@@ -249,6 +261,34 @@ def quality_dimension(rule_type: str) -> str:
         "allowed": "validity",
         "field_order": "consistency",
     }[rule_type]
+
+
+def official_melbourne_bbox(connection) -> tuple[float, float, float, float]:
+    """Read the WGS84 bounds of the versioned official 2GMEL boundary."""
+
+    with connection.cursor() as cursor:
+        cursor.execute(
+            """SELECT ST_XMin(bounds) AS west, ST_YMin(bounds) AS south,
+                      ST_XMax(bounds) AS east, ST_YMax(bounds) AS north
+               FROM (
+                   SELECT ST_Extent(
+                              ST_Transform(boundary_geometry, 4326)
+                          )::box3d AS bounds
+                   FROM analysis_area
+                   WHERE source_area_code = '2GMEL'
+               ) AS official"""
+        )
+        row = cursor.fetchone()
+    values = (
+        (row["west"], row["south"], row["east"], row["north"])
+        if isinstance(row, dict) and row is not None
+        else row
+    )
+    if values is None or values[0] is None:
+        raise RuntimeError(
+            "Official Melbourne boundary is missing; run the boundary ingestion first"
+        )
+    return tuple(float(value) for value in values)
 
 
 def record_quality_run(connection, dataset_version_id, report: QualityReport) -> None:
@@ -2495,6 +2535,327 @@ def ingest_heat(connection, args: argparse.Namespace) -> dict[str, Any]:
     }
 
 
+def ingest_dea_land_cover(connection, args: argparse.Namespace) -> dict[str, Any]:
+    """Aggregate the official annual DEA Level-3 COG to Melbourne model cells."""
+
+    year = args.dea_year
+    bbox = args.model_bbox or official_melbourne_bbox(connection)
+    source = str(args.dea_file) if args.dea_file else continental_cog_url(year)
+    if args.dea_file and not args.dea_file.exists():
+        raise FileNotFoundError(args.dea_file)
+    rows = list(aggregate_land_cover(
+        source,
+        year=year,
+        bbox_wgs84=bbox,
+        grid_size_m=args.dea_grid_size_m,
+    ))
+    rules, threshold = quality_configuration("dea_land_cover_observation")
+    report = validate_records(
+        "dea_land_cover_observation", rows, rules, threshold_pct=threshold
+    )
+    registered_source_id = source_id(
+        connection, "DEA Land Cover (Landsat)", "Geoscience Australia"
+    )
+    checksum = (
+        sha256_file(args.dea_file) if args.dea_file
+        else dea_request_checksum(source, year, bbox, args.dea_grid_size_m)
+    )
+    version_id = create_dataset_version(
+        connection,
+        registered_source_id=registered_source_id,
+        row_count=len(rows),
+        checksum=checksum,
+        observed_from=f"{year}-01-01",
+        observed_to=f"{year}-12-31",
+        spatial_resolution_m=30,
+    )
+    register_spatial_assets(connection, version_id, [{
+        "asset_role": "annual_land_cover_level3",
+        "source_scene_id": f"ga_ls_landcover_class_cyear_3-{year}-level3",
+        "source_href": continental_cog_url(year),
+        "local_path": str(args.dea_file.resolve()) if args.dea_file else None,
+        "media_type": "image/tiff; application=geotiff; profile=cloud-optimized",
+        "source_crs": "EPSG:3577",
+        "pixel_size_m": 30,
+        "checksum": checksum,
+        "acquired_at": f"{year}-12-31T23:59:59Z",
+        "metadata": {
+            "product_id": "ga_ls_landcover_class_cyear_3",
+            "product_version": "2.0.0",
+            "band": "level3",
+            "bbox_wgs84": list(bbox),
+            "aggregation_grid_m": args.dea_grid_size_m,
+        },
+    }])
+    record_quality_run(connection, version_id, report)
+    if not report.passed_gate:
+        connection.commit()
+        return {
+            "rows_in": len(rows), "rows_written": 0,
+            "rows_rejected": report.failing_records,
+            "quality_pass_rate": report.pass_rate,
+            "dataset_version_id": str(version_id),
+            "message": "DEA Land Cover failed the 95% quality gate",
+        }
+
+    failed = set(report.failed_indices)
+    values = [(
+        version_id, row["cell_key"], row["observed_year"], row["observed_on"],
+        row["geometry_wkt"], row["source_srid"], row["dominant_level3_code"],
+        row["dominant_level3_name"], row["cultivated_vegetation_pct"],
+        row["natural_terrestrial_vegetation_pct"],
+        row["natural_aquatic_vegetation_pct"], row["artificial_surface_pct"],
+        row["natural_bare_surface_pct"], row["water_pct"], row["valid_data_pct"],
+        args.dea_grid_size_m,
+    ) for index, row in enumerate(rows) if index not in failed]
+    with connection.cursor() as cursor:
+        cursor.execute(
+            """CREATE TEMP TABLE dea_land_cover_stage (
+                   dataset_version_id UUID, cell_key TEXT, observed_year SMALLINT,
+                   observed_on DATE, geometry_wkt TEXT, source_srid INTEGER,
+                   dominant_level3_code SMALLINT, dominant_level3_name TEXT,
+                   cultivated_vegetation_pct NUMERIC,
+                   natural_terrestrial_vegetation_pct NUMERIC,
+                   natural_aquatic_vegetation_pct NUMERIC,
+                   artificial_surface_pct NUMERIC, natural_bare_surface_pct NUMERIC,
+                   water_pct NUMERIC, valid_data_pct NUMERIC, aggregation_grid_m NUMERIC
+               ) ON COMMIT DROP"""
+        )
+        with cursor.copy(
+            """COPY dea_land_cover_stage (
+                   dataset_version_id, cell_key, observed_year, observed_on,
+                   geometry_wkt, source_srid, dominant_level3_code,
+                   dominant_level3_name, cultivated_vegetation_pct,
+                   natural_terrestrial_vegetation_pct,
+                   natural_aquatic_vegetation_pct, artificial_surface_pct,
+                   natural_bare_surface_pct, water_pct, valid_data_pct,
+                   aggregation_grid_m
+               ) FROM STDIN"""
+        ) as copy:
+            for value in values:
+                copy.write_row(value)
+        cursor.execute(
+            f"""INSERT INTO dea_land_cover_observation (
+                    dataset_version_id, cell_key, observed_year, observed_on,
+                    observation_geometry, dominant_level3_code,
+                    dominant_level3_name, cultivated_vegetation_pct,
+                    natural_terrestrial_vegetation_pct,
+                    natural_aquatic_vegetation_pct, artificial_surface_pct,
+                    natural_bare_surface_pct, water_pct, valid_data_pct,
+                    aggregation_grid_m, quality_status
+                )
+                SELECT stage.dataset_version_id, stage.cell_key, stage.observed_year,
+                       stage.observed_on,
+                       ST_GeomFromText(stage.geometry_wkt, stage.source_srid),
+                       stage.dominant_level3_code, stage.dominant_level3_name,
+                       stage.cultivated_vegetation_pct,
+                       stage.natural_terrestrial_vegetation_pct,
+                       stage.natural_aquatic_vegetation_pct,
+                       stage.artificial_surface_pct, stage.natural_bare_surface_pct,
+                       stage.water_pct, stage.valid_data_pct,
+                       stage.aggregation_grid_m, 'passed'
+                FROM dea_land_cover_stage AS stage
+                WHERE EXISTS (
+                    SELECT 1 FROM analysis_area AS area
+                    WHERE area.source_area_code = '2GMEL'
+                      AND ST_Covers(
+                        area.boundary_geometry,
+                        ST_Centroid(ST_GeomFromText(stage.geometry_wkt, stage.source_srid))
+                    )
+                )"""
+        )
+        written = cursor.rowcount
+        cursor.execute(
+            """UPDATE dataset_version
+               SET integration_status = 'integrated', publication_status = 'internal',
+                   quality_status = 'passed_with_limitations',
+                   derivation_method = 'dea_level3_30m_to_500m_class_fraction_v1'
+               WHERE dataset_version_id = %s""", (version_id,)
+        )
+        cursor.execute(
+            """INSERT INTO data_limitation (
+                   dataset_version_id, limitation_type, description,
+                   affected_area, analytical_impact, mitigation
+               ) VALUES (%s, 'spatial_and_semantic_resolution', %s, %s, %s, %s)""",
+            (
+                version_id,
+                "DEA Land Cover is an annual 30 m satellite-derived classification aggregated to modelling cells.",
+                "Melbourne modelling extent",
+                "It is suitable for land-cover covariates, not individual-tree, parcel-canopy or current field-survey claims.",
+                "Keep property canopy from the analytical Vicmap raster and use DEA only at the aligned modelling grain.",
+            ),
+        )
+    return {
+        "rows_in": len(rows), "rows_written": written,
+        "rows_rejected": report.failing_records,
+        "rows_outside_melbourne": len(values) - written,
+        "quality_pass_rate": report.pass_rate,
+        "dataset_version_id": str(version_id),
+        "year": year, "source": source,
+        "message": f"{written} Melbourne DEA land-cover cells integrated",
+    }
+
+
+def ingest_era5_land(connection, args: argparse.Namespace) -> dict[str, Any]:
+    """Download/reuse ERA5-Land NetCDF and load daily Melbourne weather controls."""
+
+    if not args.era5_start or not args.era5_end:
+        raise ValueError("era5-land requires --era5-start and --era5-end")
+    start = datetime.strptime(args.era5_start, "%Y-%m-%d").date()
+    end = datetime.strptime(args.era5_end, "%Y-%m-%d").date()
+    if end < start:
+        raise ValueError("--era5-end must not precede --era5-start")
+    bbox = args.model_bbox or official_melbourne_bbox(connection)
+    if args.era5_file:
+        paths = era5_source_files(args.era5_file)
+    else:
+        output = ROOT / "data" / "raw" / "era5_land"
+        paths = download_era5_land(
+            output, start=start, end=end, bbox_wgs84=bbox
+        )
+    def rows():
+        return normalise_era5_files(paths, start=start, end=end)
+
+    rules, threshold = quality_configuration("era5_land_daily_observation")
+    report = validate_record_stream(
+        "era5_land_daily_observation", rows, rules, threshold_pct=threshold
+    )
+    registered_source_id = source_id(
+        connection,
+        "ERA5-Land hourly data from 1950 to present",
+        "Copernicus Climate Change Service / ECMWF",
+    )
+    checksum = era5_combined_checksum(paths)
+    version_id = create_dataset_version(
+        connection,
+        registered_source_id=registered_source_id,
+        row_count=report.total_records, checksum=checksum,
+        observed_from=start, observed_to=end, spatial_resolution_m=9000,
+    )
+    register_spatial_assets(connection, version_id, [{
+        "asset_role": "hourly_weather_control_netcdf",
+        "source_scene_id": path.name,
+        "source_href": "https://cds.climate.copernicus.eu/api",
+        "local_path": str(path.resolve()), "media_type": "application/x-netcdf",
+        "source_crs": "EPSG:4326 regular 0.1 degree grid", "pixel_size_m": 9000,
+        "checksum": sha256_file(path),
+        "metadata": json.loads(era5_request_metadata(start, end, bbox)),
+    } for path in paths])
+    record_quality_run(connection, version_id, report)
+    if not report.passed_gate:
+        connection.commit()
+        return {
+            "rows_in": report.total_records, "rows_written": 0,
+            "rows_rejected": report.failing_records,
+            "quality_pass_rate": report.pass_rate,
+            "dataset_version_id": str(version_id),
+            "message": "ERA5-Land failed the 95% quality gate",
+        }
+
+    failed = set(report.failed_indices)
+    with connection.cursor() as cursor:
+        cursor.execute(
+            """CREATE TEMP TABLE era5_land_stage (
+                   dataset_version_id UUID, cell_key TEXT, observed_on DATE,
+                   geometry_wkt TEXT, source_srid INTEGER,
+                   air_temperature_mean_c NUMERIC,
+                   air_temperature_min_c NUMERIC,
+                   air_temperature_max_c NUMERIC,
+                   precipitation_total_mm NUMERIC,
+                   soil_water_layer_1_mean_m3_m3 NUMERIC,
+                   surface_solar_radiation_total_mj_m2 NUMERIC,
+                   wind_speed_mean_ms NUMERIC, hour_count SMALLINT
+               ) ON COMMIT DROP"""
+        )
+        accepted = 0
+        with cursor.copy(
+            """COPY era5_land_stage (
+                   dataset_version_id, cell_key, observed_on, geometry_wkt,
+                   source_srid, air_temperature_mean_c, air_temperature_min_c,
+                   air_temperature_max_c, precipitation_total_mm,
+                   soil_water_layer_1_mean_m3_m3,
+                   surface_solar_radiation_total_mj_m2, wind_speed_mean_ms,
+                   hour_count
+               ) FROM STDIN"""
+        ) as copy:
+            for index, row in enumerate(rows()):
+                if index in failed:
+                    continue
+                copy.write_row((
+                    version_id, row["cell_key"], row["observed_on"],
+                    row["geometry_wkt"], row["source_srid"],
+                    row["air_temperature_mean_c"], row["air_temperature_min_c"],
+                    row["air_temperature_max_c"], row["precipitation_total_mm"],
+                    row["soil_water_layer_1_mean_m3_m3"],
+                    row["surface_solar_radiation_total_mj_m2"],
+                    row["wind_speed_mean_ms"], row["hour_count"],
+                ))
+                accepted += 1
+        cursor.execute(
+            f"""INSERT INTO era5_land_daily_observation (
+                    dataset_version_id, cell_key, observed_on, observation_location,
+                    air_temperature_mean_c, air_temperature_min_c,
+                    air_temperature_max_c, precipitation_total_mm,
+                    soil_water_layer_1_mean_m3_m3,
+                    surface_solar_radiation_total_mj_m2, wind_speed_mean_ms,
+                    hour_count, quality_status
+                )
+                SELECT stage.dataset_version_id, stage.cell_key, stage.observed_on,
+                       ST_Transform(
+                           ST_GeomFromText(stage.geometry_wkt, stage.source_srid),
+                           {TARGET_SRID}
+                       ), stage.air_temperature_mean_c,
+                       stage.air_temperature_min_c, stage.air_temperature_max_c,
+                       stage.precipitation_total_mm,
+                       stage.soil_water_layer_1_mean_m3_m3,
+                       stage.surface_solar_radiation_total_mj_m2,
+                       stage.wind_speed_mean_ms, stage.hour_count, 'passed'
+                FROM era5_land_stage AS stage
+                WHERE EXISTS (
+                    SELECT 1 FROM analysis_area AS area
+                    WHERE area.source_area_code = '2GMEL'
+                      AND ST_Covers(
+                          area.boundary_geometry,
+                          ST_Transform(
+                              ST_GeomFromText(stage.geometry_wkt, stage.source_srid),
+                              {TARGET_SRID}
+                          )
+                      )
+                )"""
+        )
+        written = cursor.rowcount
+        cursor.execute(
+            """UPDATE dataset_version
+               SET integration_status = 'integrated', publication_status = 'internal',
+                   quality_status = 'passed_with_limitations',
+                   derivation_method = 'era5_land_hourly_to_daily_grid_v1'
+               WHERE dataset_version_id = %s""", (version_id,)
+        )
+        cursor.execute(
+            """INSERT INTO data_limitation (
+                   dataset_version_id, limitation_type, description,
+                   affected_area, analytical_impact, mitigation
+               ) VALUES (%s, 'reanalysis_not_station_measurement', %s, %s, %s, %s)""",
+            (
+                version_id,
+                "ERA5-Land is model reanalysis at approximately 9 km and is aggregated here from hourly to daily values.",
+                "Melbourne CDS subset",
+                "It controls historical model conditions but must not be displayed as live property air temperature or property-scale weather.",
+                "Use recent BOM observations for resident-facing air temperature and preserve ERA5 units and model provenance.",
+            ),
+        )
+    return {
+        "rows_in": report.total_records, "rows_written": written,
+        "rows_rejected": report.failing_records,
+        "rows_outside_melbourne": accepted - written,
+        "quality_pass_rate": report.pass_rate,
+        "dataset_version_id": str(version_id),
+        "observed_from": start.isoformat(), "observed_to": end.isoformat(),
+        "source_files": [str(path) for path in paths],
+        "message": f"{written} daily ERA5-Land grid controls integrated",
+    }
+
+
 Job = Callable[[Any, argparse.Namespace], dict[str, Any]]
 JOBS: dict[str, Job] = {
     "sources": sync_sources,
@@ -2506,6 +2867,8 @@ JOBS: dict[str, Job] = {
     "vegetation-change": ingest_metropolitan_vegetation_change,
     "austraits": ingest_austraits,
     "urban-growth": ingest_urban_growth,
+    "dea-land-cover": ingest_dea_land_cover,
+    "era5-land": ingest_era5_land,
     "heat": ingest_heat,
     "address": ingest_address,
     "property": ingest_property,
@@ -2561,6 +2924,23 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--urban-growth-directory", type=Path,
         help="Directory containing Raw_data_GCB.xlsx and Climate_data_GCB.xlsx.",
+    )
+    parser.add_argument(
+        "--dea-file", type=Path,
+        help="Optional local DEA Level-3 COG; otherwise stream the official public COG.",
+    )
+    parser.add_argument("--dea-year", type=int, default=2025)
+    parser.add_argument("--dea-grid-size-m", type=float, default=500.0)
+    parser.add_argument(
+        "--era5-file", type=Path,
+        help="Optional ERA5-Land NetCDF file or directory; otherwise use the CDS API.",
+    )
+    parser.add_argument("--era5-start", help="ERA5 first date: YYYY-MM-DD")
+    parser.add_argument("--era5-end", help="ERA5 last date: YYYY-MM-DD")
+    parser.add_argument(
+        "--model-bbox", nargs=4, type=float,
+        metavar=("WEST", "SOUTH", "EAST", "NORTH"),
+        help="Optional diagnostic extent; defaults to the official 2GMEL boundary bounds.",
     )
     parser.add_argument(
         "--canopy-aggregate-file", type=Path,

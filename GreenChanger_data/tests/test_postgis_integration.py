@@ -110,6 +110,39 @@ class PostgisEnvironmentContextIntegrationTests(unittest.TestCase):
             )
             self.assertTrue(all(cursor.fetchone()))
 
+    def test_dea_and_era5_tables_enforce_separate_spatial_contracts(self):
+        with self.connection.cursor() as cursor:
+            cursor.execute(
+                """SELECT to_regclass('dea_land_cover_observation'),
+                          to_regclass('era5_land_daily_observation'),
+                          to_regclass('latest_dea_land_cover'),
+                          to_regclass('latest_era5_land_daily')"""
+            )
+            self.assertTrue(all(cursor.fetchone()))
+            cursor.execute(
+                """SELECT
+                       Find_SRID(current_schema()::text, 'dea_land_cover_observation',
+                                 'observation_geometry'),
+                       Find_SRID(current_schema()::text, 'era5_land_daily_observation',
+                                 'observation_location')"""
+            )
+            self.assertEqual(cursor.fetchone(), (7855, 7855))
+            cursor.execute(
+                """SELECT source_name, licence_status
+                   FROM dataset_source
+                   WHERE source_name IN (
+                       'DEA Land Cover (Landsat)',
+                       'ERA5-Land hourly data from 1950 to present'
+                   ) ORDER BY source_name"""
+            )
+            self.assertEqual(
+                cursor.fetchall(),
+                [
+                    ("DEA Land Cover (Landsat)", "open_confirmed"),
+                    ("ERA5-Land hourly data from 1950 to present", "open_confirmed"),
+                ],
+            )
+
     @classmethod
     def tearDownClass(cls):
         if hasattr(cls, "connection"):

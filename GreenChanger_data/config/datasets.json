@@ -136,7 +136,7 @@
       "access_method": "STAC, AWS, WMS and download",
       "licence": "Creative Commons Attribution 4.0 International",
       "licence_status": "open_confirmed",
-      "target_entities": ["vegetation_observation"]
+      "target_entities": ["dea_land_cover_observation"]
     },
     {
       "key": "landsat_surface_temperature",
@@ -177,7 +177,7 @@
       "licence": "Feed-specific terms not confirmed as an open licence",
       "licence_status": "review_required",
       "update_frequency": "approximately half-hourly where available",
-      "target_entities": ["weather_observation"]
+      "target_entities": ["era5_land_daily_observation"]
     },
     {
       "key": "city_melbourne_tree_inventory",
