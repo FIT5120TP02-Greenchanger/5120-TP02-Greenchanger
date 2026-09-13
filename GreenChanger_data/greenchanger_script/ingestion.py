@@ -2706,7 +2706,10 @@ def ingest_era5_land(connection, args: argparse.Namespace) -> dict[str, Any]:
     if end < start:
         raise ValueError("--era5-end must not precede --era5-start")
     bbox = args.model_bbox or official_melbourne_bbox(connection)
-    if args.era5_file:
+    prepared_paths = getattr(args, "_era5_downloaded_paths", None)
+    if prepared_paths:
+        paths = prepared_paths
+    elif args.era5_file:
         paths = era5_source_files(args.era5_file)
     else:
         output = ROOT / "data" / "raw" / "era5_land"
@@ -2856,6 +2859,38 @@ def ingest_era5_land(connection, args: argparse.Namespace) -> dict[str, Any]:
     }
 
 
+def prepare_era5_land_download(args: argparse.Namespace) -> None:
+    """Download ERA5 files before opening the long-lived ingestion connection.
+
+    CDS requests can take hours. Aurora or an intervening network device can
+    close a PostgreSQL connection that remains idle for that long, so the
+    database connection used for loading must be created after the downloads.
+    """
+
+    if "era5-land" not in args.jobs or args.era5_file:
+        return
+    if not args.era5_start or not args.era5_end:
+        raise ValueError("era5-land requires --era5-start and --era5-end")
+    start = datetime.strptime(args.era5_start, "%Y-%m-%d").date()
+    end = datetime.strptime(args.era5_end, "%Y-%m-%d").date()
+    if end < start:
+        raise ValueError("--era5-end must not precede --era5-start")
+
+    if args.model_bbox:
+        bbox = args.model_bbox
+    else:
+        lookup_connection = db.connect()
+        try:
+            bbox = official_melbourne_bbox(lookup_connection)
+        finally:
+            lookup_connection.close()
+
+    output = ROOT / "data" / "raw" / "era5_land"
+    args._era5_downloaded_paths = download_era5_land(
+        output, start=start, end=end, bbox_wgs84=bbox
+    )
+
+
 Job = Callable[[Any, argparse.Namespace], dict[str, Any]]
 JOBS: dict[str, Job] = {
     "sources": sync_sources,
@@ -2993,6 +3028,7 @@ def main() -> None:
             "Use a local DB_HOST or explicitly confirm the shared target."
         )
 
+    prepare_era5_land_download(args)
     connection = db.connect()
     try:
         for name in args.jobs:
@@ -3003,7 +3039,11 @@ def main() -> None:
             if result.get("rows_in", 0) and not result.get("rows_written", 0):
                 raise RuntimeError(result["message"])
     except Exception:
-        connection.rollback()
+        try:
+            connection.rollback()
+        except Exception:
+            # Preserve the original failure when the connection itself died.
+            pass
         raise
     finally:
         connection.close()

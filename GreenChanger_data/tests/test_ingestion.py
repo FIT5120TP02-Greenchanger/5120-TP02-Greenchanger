@@ -5,6 +5,7 @@ from greenchanger_script.ingestion import (
     JOBS,
     ingest_bom,
     ingest_costs,
+    main,
     optional_bool,
     quality_dimension,
     sync_sources,
@@ -55,6 +56,14 @@ class IngestionHelperTests(unittest.TestCase):
     def test_dea_and_era5_jobs_are_registered(self):
         self.assertIn("dea-land-cover", JOBS)
         self.assertIn("era5-land", JOBS)
+
+    def test_era5_download_is_prepared_before_ingestion_connection(self):
+        source = inspect.getsource(main)
+        self.assertLess(
+            source.index("prepare_era5_land_download(args)"),
+            source.index("connection = db.connect()"),
+        )
+        self.assertIn("Preserve the original failure", source)
 
 
 if __name__ == "__main__":

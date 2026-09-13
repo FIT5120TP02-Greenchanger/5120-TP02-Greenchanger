@@ -66,6 +66,9 @@ def download_era5_land(
         last_day = min(end, month_end)
         days = [f"{day:02d}" for day in range(first_day.day, last_day.day + 1)]
         target = output_directory / f"era5_land_{month_start:%Y_%m}.nc"
+        if target.is_file() and target.stat().st_size > 0:
+            paths.append(target)
+            continue
         request = {
             "variable": list(VARIABLES),
             "year": f"{month_start.year:04d}",
@@ -76,7 +79,9 @@ def download_era5_land(
             "download_format": "unarchived",
             "area": [bbox_wgs84[3], bbox_wgs84[0], bbox_wgs84[1], bbox_wgs84[2]],
         }
-        client.retrieve(DATASET_ID, request, str(target))
+        partial_target = target.with_suffix(f"{target.suffix}.part")
+        client.retrieve(DATASET_ID, request, str(partial_target))
+        partial_target.replace(target)
         paths.append(target)
     return paths
 

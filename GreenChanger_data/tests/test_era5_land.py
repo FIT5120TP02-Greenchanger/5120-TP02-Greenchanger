@@ -1,16 +1,36 @@
 from datetime import date
 from pathlib import Path
+import sys
 import tempfile
+from types import SimpleNamespace
 import unittest
+from unittest.mock import Mock, patch
 
 import numpy as np
 import pandas as pd
 import xarray as xr
 
-from greenchanger_data.era5_land import normalise_era5_files
+from greenchanger_data.era5_land import download_era5_land, normalise_era5_files
 
 
 class Era5LandTests(unittest.TestCase):
+    def test_download_reuses_completed_month_without_new_cds_request(self):
+        client = Mock()
+        with tempfile.TemporaryDirectory() as directory:
+            target = Path(directory) / "era5_land_2018_01.nc"
+            target.write_bytes(b"completed")
+            fake_cdsapi = SimpleNamespace(Client=Mock(return_value=client))
+            with patch.dict(sys.modules, {"cdsapi": fake_cdsapi}):
+                paths = download_era5_land(
+                    Path(directory),
+                    start=date(2018, 1, 1),
+                    end=date(2018, 1, 31),
+                    bbox_wgs84=(144.3, -38.6, 146.3, -37.3),
+                )
+
+        self.assertEqual(paths, [target])
+        client.retrieve.assert_not_called()
+
     def test_hourly_values_are_converted_to_daily_controls(self):
         times = pd.date_range("2025-01-02", periods=24, freq="h")
         shape = (24, 1, 1)

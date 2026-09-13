@@ -9,7 +9,7 @@ class MigrationFileTests(unittest.TestCase):
     def test_migrations_are_numbered_and_ordered(self):
         self.assertEqual(
             [version for version, _ in migration_files()],
-            list(range(1, 42)),
+            list(range(1, 43)),
         )
 
     def test_include_is_expanded(self):
@@ -41,6 +41,15 @@ class MigrationFileTests(unittest.TestCase):
         self.assertIn("not property-scale canopy", sql)
         self.assertIn("USING GIST(observation_geometry)", sql)
         self.assertIn("USING GIST(observation_location)", sql)
+
+    def test_superseded_era5_partition_cleanup_requires_identical_rows(self):
+        migration = next(path for version, path in migration_files() if version == 42)
+        sql = expanded_sql(migration)
+        self.assertIn("NOT EXISTS", sql)
+        self.assertIn("IS NOT DISTINCT FROM", sql)
+        self.assertIn("DELETE FROM era5_land_daily_observation", sql)
+        self.assertIn("publication_status = 'retired'", sql)
+        self.assertIn("superseded_partial_period", sql)
 
     def test_cumulative_schema_expands_metropolitan_tree_contract(self):
         schema = pathlib.Path(__file__).resolve().parents[1] / "greenchanger_sql/schema.sql"
