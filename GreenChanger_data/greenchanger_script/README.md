@@ -78,6 +78,8 @@ python greenchanger_script/ingestion.py yarra-trees --confirm-shared
 python greenchanger_script/ingestion.py casey-trees --confirm-shared
 python greenchanger_script/ingestion.py hobsons-bay-trees --confirm-shared
 python greenchanger_script/ingestion.py wyndham-trees --confirm-shared
+python greenchanger_script/ingestion.py port-phillip-trees --confirm-shared
+python greenchanger_script/ingestion.py manningham-trees --confirm-shared
 
 # Load the four City of Melbourne polygon snapshots. Each run preserves and
 # checksums a separate official API extraction.

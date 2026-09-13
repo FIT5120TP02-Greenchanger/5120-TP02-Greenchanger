@@ -6,6 +6,21 @@
       {"code": "ANALYSIS_AREA_CODE_UNIQUE", "type": "unique", "fields": ["source_area_code", "source_year"]},
       {"code": "ANALYSIS_AREA_SIZE_POSITIVE", "type": "range", "field": "area_m2", "minimum": 0, "inclusive_minimum": false}
     ],
+    "local_government_area": [
+      {"code": "LGA_REQUIRED", "type": "required", "fields": ["source_feature_id", "lga_code", "lga_name", "lga_official_name", "geometry_wkt"]},
+      {"code": "LGA_CODE_UNIQUE", "type": "unique", "fields": ["lga_code"]}
+    ],
+    "council_species_guidance": [
+      {"code": "COUNCIL_GUIDANCE_REQUIRED", "type": "required", "fields": ["source_name", "publisher", "lga_code", "mature_size_class", "guidance_status", "effective_from", "source_url", "licence", "limitation"]},
+      {"code": "COUNCIL_GUIDANCE_ROW_UNIQUE", "type": "unique", "fields": ["source_row_number"]},
+      {"code": "COUNCIL_GUIDANCE_STATUS_ALLOWED", "type": "allowed", "field": "guidance_status", "values": ["approved", "recommended", "conditional", "approval_required", "not_recommended"]},
+      {"code": "COUNCIL_GUIDANCE_SIZE_ALLOWED", "type": "allowed", "field": "mature_size_class", "values": ["small", "medium", "large"]},
+      {"code": "COUNCIL_GUIDANCE_HEIGHT_MIN_POSITIVE", "type": "range", "field": "mature_height_min_m", "minimum": 0, "inclusive_minimum": false, "allow_blank": true},
+      {"code": "COUNCIL_GUIDANCE_HEIGHT_MAX_POSITIVE", "type": "range", "field": "mature_height_max_m", "minimum": 0, "inclusive_minimum": false, "allow_blank": true},
+      {"code": "COUNCIL_GUIDANCE_CANOPY_MIN_POSITIVE", "type": "range", "field": "mature_canopy_width_min_m", "minimum": 0, "inclusive_minimum": false, "allow_blank": true},
+      {"code": "COUNCIL_GUIDANCE_CANOPY_MAX_POSITIVE", "type": "range", "field": "mature_canopy_width_max_m", "minimum": 0, "inclusive_minimum": false, "allow_blank": true},
+      {"code": "COUNCIL_GUIDANCE_PLANTING_AREA_POSITIVE", "type": "range", "field": "minimum_planting_area_m2", "minimum": 0, "inclusive_minimum": false, "allow_blank": true}
+    ],
     "address": [
       {"code": "ADDRESS_REQUIRED", "type": "required", "fields": ["source_address_id", "full_address", "geometry_wkt"]},
       {"code": "ADDRESS_UNIQUE", "type": "unique", "fields": ["source_address_id"]}

@@ -58,6 +58,7 @@ from greenchanger_data.council_tree_inventories import (
     feature_count as council_tree_feature_count,
     iter_normalised as iter_council_tree_rows,
 )
+from greenchanger_data.council_species_guidance import read_rows as read_guidance_rows
 from greenchanger_data.dea_land_cover import (
     aggregate_land_cover,
     continental_cog_url,
@@ -101,6 +102,16 @@ from greenchanger_data.research_tree_data import (
 )
 from greenchanger_data.sources import load_source_registry, sha256_file
 from greenchanger_data.vicmap_features import extract_to_jsonl, read_jsonl
+from greenchanger_data.vicmap_lga import (
+    LGA_LAYER_URL,
+    PUBLISHER as LGA_PUBLISHER,
+    SOURCE_NAME as LGA_SOURCE_NAME,
+    fetch_document as fetch_lga_document,
+    rows_from_document as lga_rows_from_document,
+    rows_from_file as lga_rows_from_file,
+    save_raw as save_lga_raw,
+    source_checksum as lga_source_checksum,
+)
 
 
 BATCH_SIZE = 2_000
@@ -529,6 +540,262 @@ def ingest_boundary(connection, _args: argparse.Namespace) -> dict[str, Any]:
         "area_sqkm": row["source_area_sqkm"],
         "raw_extract": str(raw_path),
         "message": "Official ABS ASGS 2026 Melbourne boundary integrated",
+    }
+
+
+def ingest_lga_boundaries(connection, args: argparse.Namespace) -> dict[str, Any]:
+    """Integrate the current authoritative Vicmap property-aligned LGA layer."""
+
+    if args.lga_file:
+        if not args.lga_file.exists():
+            raise FileNotFoundError(args.lga_file)
+        rows = list(lga_rows_from_file(args.lga_file))
+        raw_path = args.lga_file
+        checksum = lga_source_checksum(args.lga_file)
+        media_type = "application/vnd.esri.shapefile"
+    else:
+        document = fetch_lga_document()
+        rows = lga_rows_from_document(document)
+        stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+        raw_path = ROOT / "data" / "raw" / "vicmap_admin" / f"lga_polygon_{stamp}.geojson"
+        save_lga_raw(document, raw_path)
+        checksum = sha256_file(raw_path)
+        media_type = "application/geo+json"
+
+    registered_source_id = source_id(connection, LGA_SOURCE_NAME, LGA_PUBLISHER)
+    version_id = create_dataset_version(
+        connection,
+        registered_source_id=registered_source_id,
+        row_count=len(rows),
+        checksum=checksum,
+    )
+    register_spatial_assets(connection, version_id, [{
+        "asset_role": "authoritative_lga_boundaries",
+        "source_scene_id": "VICMAP_ADMIN_LGA_POLYGON",
+        "source_href": f"{LGA_LAYER_URL}/query",
+        "local_path": str(raw_path.resolve()),
+        "media_type": media_type,
+        "source_crs": "source declared; normalised to EPSG:7855",
+        "checksum": checksum,
+        "acquired_at": datetime.now(timezone.utc).isoformat(),
+        "metadata": {
+            "layer": "LGA_POLYGON",
+            "alignment": "Vicmap Property",
+            "licence": "Creative Commons Attribution 4.0 International",
+        },
+    }])
+    rules, threshold = quality_configuration("local_government_area")
+    report = validate_records(
+        "local_government_area", rows, rules, threshold_pct=threshold
+    )
+    record_quality_run(connection, version_id, report)
+    if not report.passed_gate:
+        connection.commit()
+        return {
+            "rows_in": len(rows), "rows_written": 0,
+            "rows_rejected": report.failing_records,
+            "quality_pass_rate": report.pass_rate,
+            "dataset_version_id": str(version_id),
+            "message": "Vicmap LGA boundaries failed the quality gate; nothing integrated",
+        }
+
+    rejected = set(report.failed_indices)
+    accepted = [row for index, row in enumerate(rows) if index not in rejected]
+    values = [(
+        version_id, row["source_feature_id"], row["lga_code"], row["lga_name"],
+        row["lga_official_name"], row["abs_lga_code"],
+        row["gazettal_registration"], row["geometry_wkt"], row["source_srid"],
+        row["geometry_repaired"],
+    ) for row in accepted]
+    written = write_batches(
+        connection,
+        f"""INSERT INTO local_government_area (
+                dataset_version_id, source_feature_id, lga_code, lga_name,
+                lga_official_name, abs_lga_code, gazettal_registration,
+                boundary_geometry, area_m2, geometry_repaired, quality_status
+            ) VALUES (
+                %s, %s, %s, %s, %s, %s, %s,
+                ST_Multi(ST_Transform(ST_GeomFromText(%s::text, %s::integer), {TARGET_SRID})),
+                ST_Area(ST_Transform(ST_GeomFromText(%s::text, %s::integer), {TARGET_SRID})),
+                %s, 'passed'
+            )""",
+        [value[:9] + (value[7], value[8], value[9]) for value in values],
+    )
+    with connection.cursor() as cursor:
+        cursor.execute(
+            """UPDATE dataset_version
+               SET integration_status = 'integrated',
+                   publication_status = 'application_ready',
+                   derivation_method = 'official_vicmap_lga_polygon_to_epsg7855_v1'
+               WHERE dataset_version_id = %s""",
+            (version_id,),
+        )
+        cursor.execute(
+            """INSERT INTO data_limitation (
+                   dataset_version_id, limitation_type, description,
+                   affected_area, analytical_impact, mitigation
+               ) VALUES (%s, 'administrative_boundary_only', %s, 'Victoria', %s, %s)""",
+            (
+                version_id,
+                "LGA membership does not establish whether a species is permitted or suitable for a particular property.",
+                "The boundary can select a council but cannot supply planting approval.",
+                "Join only to separately sourced, effective council species guidance.",
+            ),
+        )
+    return {
+        "rows_in": len(rows), "rows_written": written,
+        "rows_rejected": report.failing_records,
+        "quality_pass_rate": report.pass_rate,
+        "dataset_version_id": str(version_id),
+        "raw_extract": str(raw_path),
+        "message": f"{written} authoritative Victorian LGA polygons integrated",
+    }
+
+
+def ingest_council_species_guidance(connection, args: argparse.Namespace) -> dict[str, Any]:
+    """Load one authoritative council guidance source from the CSV contract."""
+
+    path = args.council_guidance_file
+    if path is None:
+        raise ValueError("council-guidance requires --council-guidance-file")
+    if not path.exists():
+        raise FileNotFoundError(path)
+    rows = read_guidance_rows(path)
+    if not rows:
+        raise ValueError("Council guidance file contains no rows")
+    sources = {
+        (row["source_name"], row["publisher"], row["source_url"], row["licence"])
+        for row in rows
+    }
+    if len(sources) != 1 or any(not value for value in next(iter(sources))):
+        raise ValueError(
+            "Each guidance file must contain one complete source_name, publisher, "
+            "source_url and licence combination"
+        )
+    source_name, publisher, source_url, licence = next(iter(sources))
+    licence_key = licence.casefold()
+    licence_status = (
+        "open_confirmed"
+        if "creative commons attribution" in licence_key or "cc by" in licence_key
+        else "review_required"
+    )
+    with connection.cursor() as cursor:
+        cursor.execute(
+            """INSERT INTO dataset_source (
+                   source_name, publisher, source_url, licence, licence_status,
+                   source_category, geographic_coverage, access_method, update_frequency
+               ) VALUES (%s, %s, %s, %s, %s, 'council_species_guidance',
+                         %s, 'source-controlled CSV transcription', 'source controlled')
+               ON CONFLICT (source_name, publisher) DO UPDATE SET
+                   source_url = EXCLUDED.source_url,
+                   licence = EXCLUDED.licence,
+                   licence_status = EXCLUDED.licence_status,
+                   source_category = EXCLUDED.source_category
+               RETURNING source_id""",
+            (
+                source_name, publisher, source_url, licence, licence_status,
+                ", ".join(sorted({row["lga_name"] or row["lga_code"] for row in rows})),
+            ),
+        )
+        registered_source_id = cursor.fetchone()["source_id"]
+    version_id = create_dataset_version(
+        connection,
+        registered_source_id=registered_source_id,
+        row_count=len(rows),
+        checksum=sha256_file(path),
+        observed_from=min(row["effective_from"] for row in rows),
+        observed_to=max(row["effective_to"] or row["effective_from"] for row in rows),
+    )
+    rules, threshold = quality_configuration("council_species_guidance")
+    report = validate_records(
+        "council_species_guidance", rows, rules, threshold_pct=threshold
+    )
+    record_quality_run(connection, version_id, report)
+    if not report.passed_gate:
+        connection.commit()
+        return {
+            "rows_in": len(rows), "rows_written": 0,
+            "rows_rejected": report.failing_records,
+            "quality_pass_rate": report.pass_rate,
+            "dataset_version_id": str(version_id),
+            "message": "Council species guidance failed the quality gate; nothing integrated",
+        }
+    accepted = [
+        row for index, row in enumerate(rows) if index not in set(report.failed_indices)
+    ]
+    with connection.cursor() as cursor:
+        cursor.execute(
+            """SELECT ARRAY_AGG(DISTINCT lga_code) AS codes
+               FROM latest_victorian_lga_boundary
+               WHERE lga_code = ANY(%s)""",
+            ([row["lga_code"] for row in accepted],),
+        )
+        found_codes = set(cursor.fetchone()["codes"] or [])
+        missing_codes = sorted({row["lga_code"] for row in accepted} - found_codes)
+        if missing_codes:
+            raise ValueError(
+                f"Guidance contains unknown LGA codes: {', '.join(missing_codes)}. "
+                "Load current LGA boundaries first."
+            )
+        species = {
+            row["scientific_name"]: row["common_name"]
+            for row in accepted if row["scientific_name"]
+        }
+        cursor.executemany(
+            """INSERT INTO species_profile (
+                   scientific_name, common_name, source_reference
+               ) VALUES (%s, %s, %s)
+               ON CONFLICT (scientific_name) DO UPDATE SET
+                   common_name = COALESCE(species_profile.common_name, EXCLUDED.common_name),
+                   source_reference = COALESCE(
+                       species_profile.source_reference, EXCLUDED.source_reference
+                   )""",
+            [(name, common_name, source_name) for name, common_name in species.items()],
+        )
+    written = write_batches(
+        connection,
+        """INSERT INTO council_species_guidance (
+               dataset_version_id, source_row_number, lga_code, species_id,
+               scientific_name, common_name, mature_size_class,
+               mature_height_min_m, mature_height_max_m,
+               mature_canopy_width_min_m, mature_canopy_width_max_m,
+               minimum_planting_area_m2, sunlight_requirement, water_need_class,
+               root_risk_class, site_requirements, guidance_status,
+               effective_from, effective_to, source_url, licence, limitation
+           ) VALUES (
+               %s, %s, %s,
+               (SELECT species_id FROM species_profile WHERE scientific_name = %s),
+               %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s,
+               %s, %s, %s, %s, %s
+           )""",
+        [(
+            version_id, row["source_row_number"], row["lga_code"],
+            row["scientific_name"], row["scientific_name"], row["common_name"],
+            row["mature_size_class"], row["mature_height_min_m"],
+            row["mature_height_max_m"], row["mature_canopy_width_min_m"],
+            row["mature_canopy_width_max_m"], row["minimum_planting_area_m2"],
+            row["sunlight_requirement"], row["water_need_class"],
+            row["root_risk_class"], row["site_requirements"],
+            row["guidance_status"], row["effective_from"], row["effective_to"],
+            row["source_url"], row["licence"], row["limitation"],
+        ) for row in accepted],
+    )
+    with connection.cursor() as cursor:
+        cursor.execute(
+            """UPDATE dataset_version
+               SET integration_status = 'integrated',
+                   publication_status = 'application_ready',
+                   derivation_method = 'source_guidance_csv_v1'
+               WHERE dataset_version_id = %s""",
+            (version_id,),
+        )
+    return {
+        "rows_in": len(rows), "rows_written": written,
+        "rows_rejected": report.failing_records,
+        "quality_pass_rate": report.pass_rate,
+        "dataset_version_id": str(version_id),
+        "source": source_name,
+        "message": f"{written} authoritative council guidance rows integrated",
     }
 
 
@@ -2895,6 +3162,8 @@ Job = Callable[[Any, argparse.Namespace], dict[str, Any]]
 JOBS: dict[str, Job] = {
     "sources": sync_sources,
     "boundary": ingest_boundary,
+    "lga-boundaries": ingest_lga_boundaries,
+    "council-guidance": ingest_council_species_guidance,
     "bom": ingest_bom,
     "costs": ingest_costs,
     "canopy": ingest_canopy,
@@ -2914,6 +3183,8 @@ JOBS: dict[str, Job] = {
     "casey-trees": _council_job("casey"),
     "hobsons-bay-trees": _council_job("hobsons_bay"),
     "wyndham-trees": _council_job("wyndham"),
+    "port-phillip-trees": _council_job("port_phillip"),
+    "manningham-trees": _council_job("manningham"),
 }
 
 
@@ -2931,6 +3202,14 @@ def parse_args() -> argparse.Namespace:
         help="Versioned Melbourne BOM station registry.",
     )
     parser.add_argument("--cost-file", type=Path, default=DEFAULT_COST_FILE)
+    parser.add_argument(
+        "--lga-file", type=Path,
+        help="Optional official Vicmap LGA SHP/GDB; otherwise use the REST API.",
+    )
+    parser.add_argument(
+        "--council-guidance-file", type=Path,
+        help="Authoritative council guidance CSV using the reference template.",
+    )
     parser.add_argument("--canopy-file", type=Path)
     parser.add_argument(
         "--city-canopy-year", type=int, choices=(2008, 2015, 2016, 2021),

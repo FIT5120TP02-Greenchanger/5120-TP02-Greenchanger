@@ -101,6 +101,39 @@ class CouncilTreeInventoryTests(unittest.TestCase):
         self.assertEqual(row["canopy_width_m"], 7.0)
         self.assertEqual(row["source_observed_on"], "2025-03-04")
 
+    def test_port_phillip_preserves_species_planting_year_and_crown_width(self):
+        row = normalise_feature(
+            SOURCES["port_phillip"],
+            feature(ref=1, species="Platanus X acerifolia",
+                    common="London Plane", dbh="35", crown=8,
+                    crown_min=7, crown_max=9, height="7",
+                    location="street", planted="1970-01-01",
+                    updated="2015-06-12"),
+        )
+        self.assertEqual(row["source_tree_id"], "port_phillip:1")
+        self.assertEqual(row["scientific_name"], "Platanus X acerifolia")
+        self.assertEqual(row["canopy_width_m"], 8.0)
+        self.assertEqual(row["canopy_width_min_m"], 7.0)
+        self.assertEqual(row["canopy_width_max_m"], 9.0)
+        self.assertEqual(row["year_planted"], 1970)
+        self.assertEqual(row["source_observed_on"], "2015-06-12")
+
+    def test_manningham_converts_dimension_ranges_and_builds_address(self):
+        row = normalise_feature(
+            SOURCES["manningham"],
+            feature(date1="2010-07-28", house="2-4", street="Pine",
+                    str_type="Av", suburb="PARK ORCHARDS", pcode="3114",
+                    species="Pinus radiata", height="15+m",
+                    dbh="500 - 1000mm", treearea="Area 6"),
+        )
+        self.assertEqual(row["scientific_name"], "Pinus radiata")
+        self.assertEqual(row["height_min_m"], 15.0)
+        self.assertEqual(row["height_max_m"], 15.0)
+        self.assertEqual(row["dbh_min_cm"], 50.0)
+        self.assertEqual(row["dbh_max_cm"], 100.0)
+        self.assertEqual(row["address"], "2-4 Pine Av PARK ORCHARDS 3114")
+        self.assertEqual(row["source_observed_on"], "2010-07-28")
+
     def test_three_dimensional_source_point_is_cleaned_to_database_2d(self):
         source_feature = {
             "properties": {"tree_id": "W2", "tree_common": "Spotted Gum"},

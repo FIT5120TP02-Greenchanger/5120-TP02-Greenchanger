@@ -66,9 +66,17 @@ python greenchanger_script/migrate.py --confirm-shared
 python greenchanger_script/ingestion.py sources --confirm-shared
 python greenchanger_script/ingestion.py boundary --confirm-shared
 
-# 3. Load current Vicmap Address and Property data
+# 3. Load current Vicmap Address, Property and authoritative LGA boundaries
 python greenchanger_script/ingestion.py address --confirm-shared
 python greenchanger_script/ingestion.py property --confirm-shared
+python greenchanger_script/ingestion.py lga-boundaries --confirm-shared
+
+# Load one source-controlled council planting guide at a time. Start from
+# data/reference/council_species_guidance_template.csv and retain its source,
+# licence, effective dates and limitation text.
+python greenchanger_script/ingestion.py council-guidance \
+  --council-guidance-file /path/to/official_council_guidance.csv \
+  --confirm-shared
 
 # 4. Load weather, Landsat surface heat and Vicmap canopy
 python greenchanger_script/ingestion.py bom --confirm-shared
@@ -101,7 +109,8 @@ python greenchanger_script/ingestion.py dea-land-cover \
 python greenchanger_script/ingestion.py era5-land \
   --era5-start 2014-01-01 --era5-end 2018-12-31 --confirm-shared
 python greenchanger_script/ingestion.py brimbank-trees yarra-trees casey-trees \
-  hobsons-bay-trees wyndham-trees --confirm-shared
+  hobsons-bay-trees wyndham-trees port-phillip-trees manningham-trees \
+  --confirm-shared
 
 # Reuse a completed API extract without redownloading it
 python greenchanger_script/ingestion.py trees \
@@ -273,7 +282,7 @@ conversion; their 500 m source resolution is unchanged.
 
 | Output | Current result | Quality/status |
 | --- | ---: | --- |
-| Repository migrations | 001–037 | Migration 037 extends named public-tree coverage across five additional Melbourne councils |
+| Repository migrations | 001–043 | Migration 043 adds authoritative Victorian LGA lookup and versioned council species guidance |
 | Automated tests | Fast unit suite + opt-in PostGIS integration suite | Use the validation commands below and in `PR_DATA_CONTRACT.md` |
 | Melbourne Address records | 3,007,474 | 100% boundary membership |
 | Melbourne Property records | 3,001,053 | 100% boundary membership |
@@ -282,14 +291,14 @@ conversion; their 500 m source resolution is unchanged.
 | Application-ready canopy baseline | 37,146 unique 500 m cells | All baseline checks passed |
 | BOM weather observations | 1,557 from 10 stations | 100% source quality pass rate; version `greater-melbourne-bom-stations-v1` |
 | Vicmap Tree Urban | 10,473,773 Melbourne points | 100% record-quality and boundary-membership pass rates |
-| Source-labelled council trees | 457,200 current rows across Melbourne, Yarra, Brimbank, Casey, Hobsons Bay and Wyndham | Every latest eligible-record version passes the ≥95% gate; coverage and fields vary by council |
+| Source-labelled council trees | 570,093 current rows across eight councils | Every latest eligible-record version passes the ≥95% gate; coverage and fields vary by council |
 | Cost estimates | 8 in AWS | 100% quality pass; 0 rejected, 0 missing source URLs and 0 expired |
 | Representative residential simulations | 3 properties × 4 actions | 12/12 output checks passed; overall WARN from retained baseline caveats |
 | Validated scenario measure results | 0 | Prototype model is deliberately blocked from application output |
 
 ### Named council-tree inventory results
 
-Migration 037 and `council_tree_inventories.py` add five inventories without
+Migration 037 and `council_tree_inventories.py` support seven additional council inventories without
 pretending they describe the same physical objects as Vicmap Tree Urban. Raw
 placeholders become null, removed Brimbank records are excluded, coordinates
 are transformed to EPSG:7855 and clipped to `2GMEL`, Wyndham Z coordinates are
@@ -303,6 +312,8 @@ municipality, source, licence and available dimensions.
 | City of Casey | 205,614 | 151,204 | 100% | 73.54% | 141,640 | 1,952 non-zero values |
 | Hobsons Bay | 82,100 | 72,409 | 99.96% | 88.23% | Not supplied | Not supplied |
 | Wyndham | 44,859 | 44,841 | 99.99% | 99.97% | 34,257 | 34,260 |
+| City of Port Phillip | 46,000 | 45,989 | 100% | 100% | 42,501 | 43,490 |
+| Manningham City Council | 66,904 | 66,904 | 100% | 100% | 66,904 ranges | Not supplied |
 
 The quality percentage is calculated only over active records with a usable
 name; the separate name-coverage percentage prevents that gate from hiding
@@ -315,6 +326,17 @@ Application lookup:
 ```sql
 SELECT *
 FROM get_metropolitan_named_tree_context(144.998, -37.805, 500, 100);
+```
+
+Council-specific planting options are resolved from an address. Only explicit
+`approved` or `recommended` guidance appears as `available_now`; conditional,
+unlisted and locally observed species appear as `council_approval_required`:
+
+```sql
+SELECT *
+FROM get_council_species_options_by_address(
+    '251A BELMORE ROAD BALWYN NORTH 3104', NULL, 100
+);
 ```
 
 The lookup uses the latest application-ready version per source, an indexed
@@ -545,7 +567,7 @@ The Tree Urban raw extract was obtained from the official Vicmap ArcGIS Feature 
 | Vicmap Address | Address search, coordinates and Property join key |
 | Vicmap Property | Property polygons, identifiers and area |
 | Vicmap Vegetation – Tree Urban Point | Mapped individual-tree context, radius and height |
-| Six source-labelled council tree inventories | Public-tree names and available measured height, crown spread, DBH, maturity and health; fields differ by council |
+| Eight supported source-labelled council tree inventories | Public-tree names and available measured height, crown spread, DBH, maturity, health and planting dates; fields differ by council and each source is loaded separately |
 | Vicmap Vegetation – Tree Extent | Melbourne neighbourhood canopy baseline |
 | USGS Landsat Collection 2 Surface Temperature | Spatial land-surface-temperature baseline |
 | [BOM Melbourne observations](https://www.bom.gov.au/vic/observations/melbourne.shtml) | Recent multi-station air-temperature context; exact official feeds are versioned in `config/bom_stations.json` |
@@ -577,6 +599,8 @@ All source versions retain extraction time, observation period, checksum, source
 - They are independent source records and are not assigned to nearby Vicmap Tree Urban points by proximity.
 - Brimbank and Hobsons Bay source files date from 2019; they are not current field surveys even where catalogue metadata was refreshed later.
 - Wyndham provides common names but not botanical names. Hobsons Bay supplies DBH ranges but no height or crown width; Yarra supplies height but no crown width. Casey crown-width fields are mostly zero and are treated as missing, not measured zero.
+- Port Phillip supplies species, planting date, DBH, height and crown-width fields for public street trees. It excludes private trees and source update dates vary by record.
+- Manningham supplies street-tree species, height and DBH ranges, address and survey date. The published extract has no crown-width or planting-year field.
 - A missing name or dimension returns `Unavailable`; it is never inferred from another council or from a nearby mapped point.
 
 ### Heat and weather

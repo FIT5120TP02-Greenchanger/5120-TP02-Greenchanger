@@ -57,6 +57,12 @@ class IngestionHelperTests(unittest.TestCase):
         self.assertIn("dea-land-cover", JOBS)
         self.assertIn("era5-land", JOBS)
 
+    def test_council_boundary_and_guidance_jobs_are_registered(self):
+        self.assertIn("lga-boundaries", JOBS)
+        self.assertIn("council-guidance", JOBS)
+        self.assertIn("port-phillip-trees", JOBS)
+        self.assertIn("manningham-trees", JOBS)
+
     def test_era5_download_is_prepared_before_ingestion_connection(self):
         source = inspect.getsource(main)
         self.assertLess(

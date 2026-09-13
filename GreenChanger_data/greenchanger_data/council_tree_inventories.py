@@ -66,6 +66,18 @@ SOURCES = {
         "https://data.gov.au/data/dataset/0254dee0-5b26-484f-a5ae-5ca3cab46601/resource/fb06e7c8-d037-489b-a963-b747271f2e54/download/trees.json",
         ".geojson", 28355,
     ),
+    "port_phillip": CouncilTreeSource(
+        "port_phillip", "City of Port Phillip Trees", "City of Port Phillip",
+        "City of Port Phillip",
+        "https://data.gov.au/data/dataset/6b72d22b-d824-4281-bd08-ab62e3c38415/resource/9b0d7d55-5267-464b-85d7-3d141d779bab/download/city-of-port-phillip-trees.geojson",
+        ".geojson",
+    ),
+    "manningham": CouncilTreeSource(
+        "manningham", "Manningham Street Trees", "Manningham City Council",
+        "Manningham City Council",
+        "https://data.gov.au/data/dataset/1aef5123-24ff-4084-a0f1-a52ca71e9e99/resource/a23017ce-d75e-4e4c-9d66-750601c0f4e7/download/manningham_street_trees.zip",
+        ".zip",
+    ),
 }
 
 
@@ -151,6 +163,8 @@ def iter_features(source: CouncilTreeSource, path: Path, *, batch_size: int = 25
     dataset_path = str(path)
     if source.key == "brimbank" and path.suffix.lower() == ".zip":
         dataset_path = f"zip://{path}!Brimbank Street Trees.shp"
+    elif source.key == "manningham" and path.suffix.lower() == ".zip":
+        dataset_path = f"zip://{path}"
     info = pyogrio.read_info(dataset_path)
     total = int(info["features"])
     for offset in range(0, total, batch_size):
@@ -173,6 +187,8 @@ def feature_count(source_key: str, path: Path) -> int:
     dataset_path = str(path)
     if source.key == "brimbank" and path.suffix.lower() == ".zip":
         dataset_path = f"zip://{path}!Brimbank Street Trees.shp"
+    elif source.key == "manningham" and path.suffix.lower() == ".zip":
+        dataset_path = f"zip://{path}"
     return int(pyogrio.read_info(dataset_path)["features"])
 
 
@@ -327,6 +343,57 @@ def normalise_feature(source: CouncilTreeSource, feature: dict[str, Any]) -> dic
             useful_life_expectancy=clean(p.get("useful_life_expectancy")),
             health_status=clean(p.get("health")), structure_status=clean(p.get("structure")),
             source_observed_on=iso_date(p.get("inspection_date")),
+        )
+    elif source.key == "port_phillip":
+        common = clean(p.get("common"))
+        botanical = clean(p.get("species"))
+        planted = iso_date(p.get("planted"))
+        row.update(
+            source_tree_id=(
+                f"port_phillip:{clean(p.get('ref'))}"
+                if clean(p.get("ref"))
+                else stable_id(source.key, lon, lat, common, botanical)
+            ),
+            common_name=common,
+            scientific_name=botanical,
+            display_name=common or botanical,
+            genus=botanical.split()[0] if botanical else None,
+            taxonomic_precision="species" if botanical else (
+                "common_name" if common else None
+            ),
+            diameter_breast_height_cm=positive_float(p.get("dbh")),
+            height_m=positive_float(p.get("height")),
+            canopy_width_m=positive_float(p.get("crown")),
+            canopy_width_min_m=positive_float(p.get("crown_min")),
+            canopy_width_max_m=positive_float(p.get("crown_max")),
+            year_planted=int(planted[:4]) if planted else None,
+            date_planted=planted,
+            located_in=clean(p.get("location")),
+            source_observed_on=iso_date(p.get("updated")),
+        )
+    elif source.key == "manningham":
+        botanical = clean(p.get("species"))
+        height_min, height_max = numeric_range(p.get("height"))
+        dbh_min, dbh_max = numeric_range(p.get("dbh"), scale=0.1)
+        address = " ".join(filter(None, (
+            clean(p.get("house")), clean(p.get("street")),
+            clean(p.get("str_type")), clean(p.get("suburb")),
+            clean(p.get("pcode")),
+        ))) or None
+        row.update(
+            source_tree_id=stable_id(source.key, lon, lat, botanical, address),
+            scientific_name=botanical,
+            display_name=botanical,
+            genus=botanical.split()[0] if botanical else None,
+            taxonomic_precision="species" if botanical else None,
+            dbh_min_cm=dbh_min,
+            dbh_max_cm=dbh_max,
+            height_min_m=height_min,
+            height_max_m=height_max,
+            precinct=clean(p.get("treearea")),
+            located_in="street",
+            address=address,
+            source_observed_on=iso_date(p.get("date1")),
         )
     else:
         raise ValueError(f"Unsupported council tree source: {source.key}")

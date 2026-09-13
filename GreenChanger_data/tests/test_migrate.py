@@ -9,7 +9,7 @@ class MigrationFileTests(unittest.TestCase):
     def test_migrations_are_numbered_and_ordered(self):
         self.assertEqual(
             [version for version, _ in migration_files()],
-            list(range(1, 43)),
+            list(range(1, 44)),
         )
 
     def test_include_is_expanded(self):
@@ -50,6 +50,17 @@ class MigrationFileTests(unittest.TestCase):
         self.assertIn("DELETE FROM era5_land_daily_observation", sql)
         self.assertIn("publication_status = 'retired'", sql)
         self.assertIn("superseded_partial_period", sql)
+
+    def test_council_guidance_separates_verified_and_unverified_species(self):
+        migration = next(path for version, path in migration_files() if version == 43)
+        sql = expanded_sql(migration)
+        self.assertIn("CREATE TABLE local_government_area", sql)
+        self.assertIn("CREATE TABLE council_species_guidance", sql)
+        self.assertIn("latest_victorian_lga_boundary", sql)
+        self.assertIn("get_council_species_options_by_address", sql)
+        self.assertIn("'available_now'", sql)
+        self.assertIn("'council_approval_required'", sql)
+        self.assertIn("occurrence is not planting permission", sql)
 
     def test_cumulative_schema_expands_metropolitan_tree_contract(self):
         schema = pathlib.Path(__file__).resolve().parents[1] / "greenchanger_sql/schema.sql"

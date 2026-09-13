@@ -3103,3 +3103,4 @@ COMMIT;
 -- include: migrations/040_open_tree_research_evidence.sql
 -- include: migrations/041_dea_land_cover_and_era5_land.sql
 -- include: migrations/042_retire_superseded_era5_partition.sql
+-- include: migrations/043_council_species_guidance.sql

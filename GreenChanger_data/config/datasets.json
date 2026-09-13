@@ -43,6 +43,20 @@
       "target_entities": ["address", "site"]
     },
     {
+      "key": "vicmap_lga_polygon",
+      "name": "Vicmap Admin - Local Government Area Polygon Aligned to Property",
+      "publisher": "Department of Transport and Planning",
+      "url": "https://discover.data.vic.gov.au/dataset/vicmap-admin-local-government-area-lga-polygon-aligned-to-property",
+      "category": "administrative_boundary",
+      "coverage": "Victoria",
+      "observation_period": "continuously maintained",
+      "access_method": "Official Vicmap Admin ArcGIS REST API or spatial download",
+      "licence": "Creative Commons Attribution 4.0 International",
+      "licence_status": "open_confirmed",
+      "update_frequency": "weekly REST service",
+      "target_entities": ["local_government_area"]
+    },
+    {
       "key": "vicmap_tree_urban",
       "name": "Vicmap Vegetation - Tree Urban Point",
       "publisher": "Victorian Government",
@@ -259,6 +273,34 @@
       "observation_period": "latest inspection supplied with each record; source includes historical inspections",
       "access_method": "GeoJSON, CSV and WFS",
       "licence": "Creative Commons Attribution 2.5 Australia",
+      "licence_status": "open_confirmed",
+      "update_frequency": "source controlled",
+      "target_entities": ["named_tree_inventory", "species_profile"]
+    },
+    {
+      "key": "port_phillip_tree_inventory",
+      "name": "City of Port Phillip Trees",
+      "publisher": "City of Port Phillip",
+      "url": "https://data.gov.au/data/dataset/city-of-port-phillip-trees",
+      "category": "tree_inventory",
+      "coverage": "City of Port Phillip",
+      "observation_period": "planting and update dates supplied per record; catalogue updated 2023",
+      "access_method": "GeoJSON and CSV download using the OpenCouncilData trees schema",
+      "licence": "Creative Commons Attribution 2.5 Australia",
+      "licence_status": "open_confirmed",
+      "update_frequency": "source controlled",
+      "target_entities": ["named_tree_inventory", "species_profile"]
+    },
+    {
+      "key": "manningham_tree_inventory",
+      "name": "Manningham Street Trees",
+      "publisher": "Manningham City Council",
+      "url": "https://data.gov.au/data/dataset/1aef5123-24ff-4084-a0f1-a52ca71e9e99",
+      "category": "tree_inventory",
+      "coverage": "Manningham City Council",
+      "observation_period": "source survey dates supplied per record; source file created 2019",
+      "access_method": "Zipped Shapefile plus CSV, WFS and GeoJSON",
+      "licence": "Creative Commons Attribution 3.0 Australia",
       "licence_status": "open_confirmed",
       "update_frequency": "source controlled",
       "target_entities": ["named_tree_inventory", "species_profile"]

@@ -59,6 +59,7 @@ greenchanger_sql/
 | `migrations/008_heat_baseline_mosaic.sql` | Creates the deduplicated 500 m Landsat heat baseline structure and current view. |
 | `migrations/009_canopy_baseline.sql` | Creates the aligned 500 m canopy baseline structure and current view. |
 | `migrations/025_current_dataset_sources.sql` | Registers the current multi-station Melbourne BOM source without changing the checksum of historical migration 002. |
+| `migrations/043_council_species_guidance.sql` | Adds authoritative Victorian LGA polygons, versioned council species guidance and address-based verified/approval-required species lists. |
 | `migrations/010_property_baseline_lookup.sql` | Adds model validation gates and the application-facing property baseline lookup. |
 | `migrations/011_tree_urban_quality_scope.sql` | Adds Tree Urban record quality status and the dataset-version index required by API ingestion. |
 | `migrations/012_property_tree_limitations.sql` | Restricts property tree lookup to the current `2GMEL` version and always returns the machine-derived-data warning. |
@@ -219,6 +220,8 @@ historical values.
   `latest_greater_melbourne_canopy_baseline` view exposes the current version.
 - `vegetation_observation`, `canopy_patch`, `urban_tree`: canopy and greenery.
 - `named_tree_inventory`: City of Melbourne council inventory records with common/scientific names, taxonomy, DBH and planting metadata; deliberately separate from unnamed Vicmap points.
+- `local_government_area`: current versioned Vicmap property-aligned LGA polygons used to resolve an address to its council.
+- `council_species_guidance`: effective-dated, source- and licence-backed council planting guidance; explicit approval/recommendation remains separate from local inventory occurrence.
 - `species_profile`, `greening_option`: available intervention definitions.
 - `cost_estimate`: dated, source-backed indicative cost ranges, including named tree type and botanical name where applicable.
 - `application_ready_cost_estimate`: current cost contexts joined to greening-option labels with tree type, confidence, inclusions and the mandatory not-a-quote disclaimer.

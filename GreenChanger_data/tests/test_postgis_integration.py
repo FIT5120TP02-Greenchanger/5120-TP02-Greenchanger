@@ -320,6 +320,136 @@ class PostgisEnvironmentContextIntegrationTests(unittest.TestCase):
             ))
             self.assertIn("not every private tree", rows[0][6])
 
+    def test_address_species_options_separate_verified_from_approval_required(self):
+        with self.connection.cursor() as cursor:
+            cursor.execute(
+                """SELECT source_id FROM dataset_source
+                   WHERE source_name =
+                     'Vicmap Admin - Local Government Area Polygon Aligned to Property'
+                     AND publisher = 'Department of Transport and Planning'"""
+            )
+            lga_source_id = cursor.fetchone()[0]
+            cursor.execute(
+                """INSERT INTO dataset_version (
+                       source_id, quality_status, integration_status,
+                       publication_status, derivation_method
+                   ) VALUES (%s, 'passed', 'integrated', 'application_ready',
+                             'integration_fixture')
+                   RETURNING dataset_version_id""",
+                (lga_source_id,),
+            )
+            lga_version_id = cursor.fetchone()[0]
+            cursor.execute(
+                """INSERT INTO local_government_area (
+                       dataset_version_id, source_feature_id, lga_code, lga_name,
+                       lga_official_name, boundary_geometry, area_m2
+                   ) VALUES (
+                       %s, 'fixture-lga', '999', 'TEST COUNCIL', 'TEST CITY COUNCIL',
+                       ST_Multi(ST_Buffer(ST_Transform(ST_SetSRID(
+                           ST_MakePoint(144.96, -37.81), 4326
+                       ), 7855), 1000)),
+                       ST_Area(ST_Buffer(ST_Transform(ST_SetSRID(
+                           ST_MakePoint(144.96, -37.81), 4326
+                       ), 7855), 1000))
+                   )""",
+                (lga_version_id,),
+            )
+            cursor.execute(
+                """INSERT INTO dataset_source (
+                       source_name, publisher, source_url, licence, licence_status,
+                       source_category, geographic_coverage, access_method
+                   ) VALUES (
+                       'Official test planting guide', 'Test City Council',
+                       'https://example.invalid/official-guide',
+                       'Creative Commons Attribution 4.0 International',
+                       'open_confirmed', 'council_species_guidance',
+                       'Test City Council', 'integration fixture'
+                   ) RETURNING source_id"""
+            )
+            guidance_source_id = cursor.fetchone()[0]
+            cursor.execute(
+                """INSERT INTO dataset_version (
+                       source_id, quality_status, integration_status,
+                       publication_status, source_observed_from
+                   ) VALUES (%s, 'passed', 'integrated', 'application_ready',
+                             DATE '2026-01-01')
+                   RETURNING dataset_version_id""",
+                (guidance_source_id,),
+            )
+            guidance_version_id = cursor.fetchone()[0]
+            cursor.execute(
+                """INSERT INTO council_species_guidance (
+                       dataset_version_id, source_row_number, lga_code, species_id,
+                       scientific_name, common_name, mature_size_class,
+                       mature_height_min_m, mature_height_max_m,
+                       mature_canopy_width_min_m, mature_canopy_width_max_m,
+                       guidance_status, effective_from, source_url, licence, limitation
+                   ) SELECT
+                       %s, 2, '999', species_id, scientific_name, common_name,
+                       'large', 15, 30, 12, 25, 'recommended', DATE '2026-01-01',
+                       'https://example.invalid/official-guide',
+                       'Creative Commons Attribution 4.0 International',
+                       'Confirm services and property-specific site conditions.'
+                   FROM species_profile
+                   WHERE scientific_name = 'Eucalyptus camaldulensis'""",
+                (guidance_version_id,),
+            )
+            cursor.execute(
+                """SELECT dataset_version_id
+                   FROM latest_metropolitan_named_tree_inventory
+                   WHERE scientific_name = 'Eucalyptus camaldulensis'
+                   LIMIT 1"""
+            )
+            named_version_id = cursor.fetchone()[0]
+            cursor.execute(
+                """INSERT INTO species_profile (
+                       scientific_name, common_name, source_reference
+                   ) VALUES ('Acacia fixture', 'Fixture Wattle', 'integration fixture')
+                   RETURNING species_id"""
+            )
+            unlisted_species_id = cursor.fetchone()[0]
+            cursor.execute(
+                """INSERT INTO named_tree_inventory (
+                       dataset_version_id, source_tree_id, species_id,
+                       inventory_source_key, municipality, common_name,
+                       scientific_name, display_name, taxonomic_precision,
+                       tree_location, quality_status
+                   ) VALUES (
+                       %s, 'UNLISTED-FIXTURE-1', %s, 'brimbank',
+                       'City of Brimbank', 'Fixture Wattle', 'Acacia fixture',
+                       'Fixture Wattle', 'species', ST_Transform(ST_SetSRID(
+                           ST_MakePoint(144.9602, -37.81), 4326
+                       ), 7855), 'passed'
+                   )""",
+                (named_version_id, unlisted_species_id),
+            )
+            cursor.execute(
+                """SELECT list_category, scientific_name, guidance_status,
+                          council_code, council_name
+                   FROM get_council_species_options_by_address(
+                       '10 TEST STREET MELBOURNE 3000', NULL, 20
+                   )
+                   ORDER BY list_category, scientific_name"""
+            )
+            rows = cursor.fetchall()
+            self.assertIn(
+                (
+                    "available_now", "Eucalyptus camaldulensis", "recommended",
+                    "999", "TEST CITY COUNCIL",
+                ),
+                rows,
+            )
+            self.assertIn(
+                (
+                    "council_approval_required", "Acacia fixture",
+                    "approval_required", "999", "TEST CITY COUNCIL",
+                ),
+                rows,
+            )
+            cursor.execute(
+                "DELETE FROM named_tree_inventory WHERE source_tree_id = 'UNLISTED-FIXTURE-1'"
+            )
+
     def test_cost_business_key_separates_tree_types_and_deduplicates_null(self):
         with self.connection.cursor() as cursor:
             cursor.execute(
