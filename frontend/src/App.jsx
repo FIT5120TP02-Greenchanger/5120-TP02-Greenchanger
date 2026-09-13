@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import LandingPage from './pages/LandingPage.jsx'
 import MapView from './pages/MapView.jsx'
+import ChatbotWidget from './components/ChatbotWidget.jsx'
 // import PlantTreePage from './pages/PlantTreePage.jsx'; // planting now happens inside MapView (2026-09-03)
 
 
@@ -12,6 +13,8 @@ function App() {
   // const [planTarget, setplanTarget] = useState(null)
   const [simulatedTrees, setSimulatedTrees] = useState(null);
 
+  const [propertyStats, setPropertyStats] = useState(null);
+  const [canopyStats, setCanopyStats] = useState(null);
   // const goToPlant = (target) => {
   //   setplanTarget(target);
   //   setPage('plant')
@@ -22,13 +25,16 @@ function App() {
   //   setPage('map');
   // }
 
-  if (page === 'landing') {
-      return <LandingPage onNavigate={setPage} selectedLocation={selectedLocation} setSelectedLocation={setSelectedLocation} />;
-    }
+  // if (page === 'landing') {
+  //     return <LandingPage onNavigate={setPage} selectedLocation={selectedLocation} setSelectedLocation={setSelectedLocation} />;
+  //   }
     // if (page === 'plant') {
       // return <PlantTreePage planTarget={planTarget} onDone={finishPlanting} />;
     // }
-    return (
+  return (
+    <>
+      {page === 'landing' && <LandingPage onNavigate={setPage} selectedLocation={selectedLocation} setSelectedLocation={setSelectedLocation} />}
+      {page !== 'landing' && 
       <MapView
         selectedLocation={selectedLocation}
         setSelectedLocation={setSelectedLocation}
@@ -37,8 +43,12 @@ function App() {
         setSimulatedTrees={setSimulatedTrees} // in-map planting writes the scenario here (2026-09-03)
         // Home button on the map page needs a way back to the landing page
         onNavigate={setPage}
-      />
-    );
+        onPropertyStatsChange={setPropertyStats}
+        onCanopyStatsChange={setCanopyStats}
+      />}
+      <ChatbotWidget context={page === 'map' ? { propertyStats, canopyStats } : null} />
+    </>
+  );
 }
 
 export default App

@@ -112,7 +112,8 @@ export default function MapView({ selectedLocation, setSelectedLocation, simulat
     // shows only the planting / comparison panels, like the old PlantTreePage sidebar did.
     const [scenarioOpen, setScenarioOpen] = useState(false);
     
-
+    useEffect(() => { onPropertyStatsChange?.(propertySelected.stats); }, [propertySelected.stats]);
+    useEffect(() => { onCanopyStatsChange?.(trees); }, [trees.pct, trees.canopyM2]);
 
     const transitCoordinates = useCallback((longitude, latitude) => {
         mapRef.current?.flyTo({
