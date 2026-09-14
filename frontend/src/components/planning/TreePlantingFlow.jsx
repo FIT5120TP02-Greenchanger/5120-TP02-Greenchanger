@@ -5,7 +5,7 @@ import SpeciesDetail from './steps/SpeciesDetail'
 import Impact from './steps/Impact'
 import Benefits from './steps/Benefits'
 import Guidance from './steps/Guidance'
-import { calculatePlantingImpact } from '../../utils/plantingImpact'
+import {calculatePlantingImpact} from '../../utils/plantingImpact'
 import { TREE_SPECIES } from '../../data/treeSpecies'
 
 const STEPS = { INTRO: 'intro', LIST: 'list', DETAIL: 'detail', IMPACT: 'impact', BENEFITS: 'benefits', GUIDANCE: 'guidance' }

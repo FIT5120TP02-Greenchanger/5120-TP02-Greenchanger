@@ -6,7 +6,7 @@ export default function SpeciesDetail({ species, size, onSizeChange, onApply, on
     return (
         <div className={styles['species-detail']}>
             <span>CHOOSE A SIZE</span>
-            <h3>{species.commonName}</h3>
+            <h3>{species.commonName} selected</h3>
             <div className={styles['tree-options-container']}>
                 {Object.entries(TREE_SIZES).map(([label, { heightLabel, price }]) => (
                     <div key={label} className={size === label ? styles.selected : ''} onClick={() => onSizeChange(label)}>

@@ -12,7 +12,7 @@ export default function Impact({ scenario, onBack, onViewBenefits, onExit }) {
             </ul>
             <button className={styles['back-button']} onClick={onBack}>Back</button>
             <button className={styles['benefits-button']} onClick={onViewBenefits}>View benefits</button>
-            <button className={styles['exit-button']} onClick={onExit}>Exit</button>
+            <button className={styles['exit-button']} onClick={onExit}>Done</button>
         </div>
     );
 }
