@@ -1,0 +1,5 @@
+.venv/
+.ipynb_checkpoints/
+__pycache__/
+training_rows.csv
+tree_canopy_growth_model.pkl
