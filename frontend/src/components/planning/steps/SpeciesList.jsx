@@ -7,8 +7,9 @@ export default function SpeciesList({ species, onSelect, onBack, onExit, onViewD
             <ul>
                 {species.map((s) => (
                     <li key={s.id} onClick={() => onSelect(s)}>
-                        <img src={s.image} alt={s.commonName} />
+                        <img src={s.image} alt={s.commonName} width={120} height={120} />
                         <span>{s.commonName}</span>
+                        <p>{s.description}</p>
                     </li>
                 ))}
             </ul>
