@@ -12,7 +12,7 @@ export default function Benefits({ scenario, onBack, onViewGuidance, onExit }) {
             </ul>
             <button className={styles['back-button']} onClick={ onBack }>Back</button>
             <button className={styles['guidance-button']} onClick={ onViewGuidance }>View guidance</button>
-            <button className={styles['exit-button']} onClick={ onExit }>Exit</button>
+            <button className={styles['exit-button']} onClick={ onExit }>Done</button>
         </div>
     );
 }

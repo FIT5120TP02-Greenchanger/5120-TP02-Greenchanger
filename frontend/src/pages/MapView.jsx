@@ -106,6 +106,7 @@ export default function MapView({ selectedLocation, setSelectedLocation, simulat
     const [treeSize, setTreeSize] = useState("Medium");
     // Clicking tree to update
     const [selectedTreeId, setSelectedTreeId] = useState(null);
+    const [plantedTreeId, setPlantedTreeId] = useState(null); // Track id of tree planted during current placement session
     const [updatePos, setUpdatePos] = useState(false); // for updating the position of an existing tree
     const [choosingSpecies, setChoosingSpecies] = useState(false);
 
@@ -256,6 +257,7 @@ export default function MapView({ selectedLocation, setSelectedLocation, simulat
         setPendingPos(null);
         setHoverPos(null);
         setPlacing(true);
+        setPlantedTreeId(null);
         setChoosingSpecies(false);
         setScenarioOpen(true);
 
@@ -288,19 +290,24 @@ export default function MapView({ selectedLocation, setSelectedLocation, simulat
     const closeScenario = useCallback(() => {
         setScenarioOpen(false);
         setPlacing(false);
+        setChoosingSpecies(false);
         setPendingPos(null);
         setHoverPos(null);
         setSimulating(false);
+        setPlantedTreeId(null)
         resetCursor();
     }, []);
     // Cancel while placing: back to the comparison if trees exist, otherwise leave scenario mode
     const cancelPlacing = useCallback(() => {
         setPlacing(false);
+        setChoosingSpecies(false);   // add this
         setPendingPos(null);
         setHoverPos(null);
         setSelectedTreeId(null);
+        setUpdatePos(false);
+        setPlantedTreeId(null);
         resetCursor();
-        setSimulating(false); // the lot card has no meaning inside a scenario; keeps Escape from flying home later
+        setSimulating(false);
         if (!simulatedTrees?.length) setScenarioOpen(false);
     }, [simulatedTrees]);
     const confirmPlacing = useCallback(() => {
@@ -322,8 +329,27 @@ export default function MapView({ selectedLocation, setSelectedLocation, simulat
         setChoosingSpecies(true);
     }, [pendingPos, treeSize, setSimulatedTrees, selectedTreeId]);
     const handleApplyScenario = useCallback((scenario) => {
+        console.log('[MapView] simulatedTrees =', simulatedTrees);
+        console.log(
+            '[MapView] simulatedTreeIds =',
+            simulatedTrees?.map(t => t.id)
+        );
+        console.log('[MapView] handleApplyScenario, plantedTreeId =', plantedTreeId);
         if (!scenario || !pendingPos) return;
         const radiusM = TREE_SIZES[scenario.size]?.radiusM ?? TREE_SIZES.Medium.radiusM;
+
+        if (plantedTreeId) {
+            // Re-applying within the same session (via "Start Again") — update the
+            // tree already placed instead of stacking a duplicate on top of it.
+            setSimulatedTrees((prev) =>
+                prev.map((t) => t.id === plantedTreeId
+                    ? { ...t, radiusM, size: scenario.size, species: scenario.species?.id }
+                    : t
+                )
+            );
+            return;
+        }
+
         const tree = {
             id: crypto.randomUUID(),
             lng: pendingPos.lng,
@@ -333,7 +359,8 @@ export default function MapView({ selectedLocation, setSelectedLocation, simulat
             species: scenario.species?.id,
         };
         setSimulatedTrees((prev) => [...(prev || []), tree]);
-    }, [pendingPos, setSimulatedTrees]);
+        setPlantedTreeId(tree.id)
+    }, [pendingPos, setSimulatedTrees, plantedTreeId, setPlantedTreeId]);
 
 
     // Remove / Reset inside the comparison panel behave like the old page: with no trees left,

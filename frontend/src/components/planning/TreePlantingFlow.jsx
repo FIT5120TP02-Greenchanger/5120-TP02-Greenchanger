@@ -33,6 +33,7 @@ export default function TreePlantingFlow({ lot, position, onApply, onExit, nTree
 
     // The moment the tree actually gets planted — position was already fixed in step 3.
     function handleApply() {
+        console.log('[TreePlantingFlow] handleApply fired');
         const impact = calculatePlantingImpact({ species: selectedSpecies, size: selectedSize, lot })
         const scenario = { species: selectedSpecies, size: selectedSize, impact, position }
         setAppliedScenario(scenario)
