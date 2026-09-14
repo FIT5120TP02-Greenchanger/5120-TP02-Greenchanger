@@ -1,46 +1,84 @@
 import math
 import pickle
+from functools import cache
 from pathlib import Path
 
-import numpy as np
+# load the trained model from the config directory, relative to this file
+MODEL_PATH = Path(__file__).parent / "config" / "tree_canopy_growth_model.pkl"
 
-# model trained in ml/train.ipynb, loaded once at import
-with open(Path(__file__).parent / "config" / "tree_canopy_growth_model.pkl", "rb") as f:
-    MODEL = pickle.load(f)
+# years of head start for each nursery size: a product assumption, not learned from data
+# (keep in step with the S / M / L sizes in frontend/src/hooks/simulation.js)
+SIZE_OFFSET_YEARS = {"S": 0, "M": 5, "L": 10}
+
+
+# model trained in ml/train.ipynb (Port Phillip inventory), loaded on first call
+# so a missing or bad file only breaks this feature, not the whole API
+@cache
+def load_model():
+    with open(MODEL_PATH, "rb") as f:
+        return pickle.load(f)
+
+
+def _range(lines, target, x):
+    # p10 and p90 of one target at x = ln(age + 1); None when this species has no line for it
+    if target not in lines:
+        return None, None
+    (a10, b10), (a90, b90) = lines[target]["p10"], lines[target]["p90"]
+    return math.exp(a10 + b10 * x), math.exp(a90 + b90 * x)
+
+
+def _round(value):
+    return None if value is None else round(value, 1)
 
 
 def predict_canopy(species, years, size=None, start_width_m=None):
-    fits = MODEL["models"].get(species.lower())
+    model = load_model()
+    lines = model["models"].get(species.strip().lower())
 
-    # check if the input parameters are valid
-    if fits is None:
+    # check if the input parameters are valid ("not >=" also rejects NaN)
+    if lines is None:
         raise ValueError("unsupported species")
-    if years < 0:
+    if not years >= 0:
         raise ValueError("years must be >= 0")
     if (size is None) == (start_width_m is None):
         raise ValueError("give exactly one of size or start_width_m")
 
+    # each line is ln(value) = a + b * ln(age + 1), trusted up to this species' oldest training tree
+    max_age = lines["max_age"]
     if size is not None:
-        if size not in MODEL["size_offset_years"]:
+        size = str(size).upper()
+        if size not in SIZE_OFFSET_YEARS:
             raise ValueError("size must be S, M or L")
-        age0 = float(MODEL["size_offset_years"][size])
+        age0 = float(SIZE_OFFSET_YEARS[size])
     else:
-        if start_width_m <= 0:
+        if not start_width_m > 0:
             raise ValueError("start_width_m must be > 0")
-        a50, b50 = fits["p50"].params
-        start_area = math.pi * (start_width_m / 2) ** 2
-        age0 = max(0.0, (math.log(start_area) - a50) / b50)
+        # invert the median crown line in log space, so extreme widths cannot overflow
+        a50, b50 = lines["canopy_m2"]["p50"]
+        t = (math.log(math.pi / 4) + 2 * math.log(start_width_m) - a50) / b50
+        if t > math.log1p(max_age):
+            raise ValueError(f"start_width_m is past the training range (max age {max_age})")
+        age0 = max(0.0, math.expm1(t))
 
     age = age0 + years
-    X = np.array([[1.0, age]])
-    lo = float(np.exp(fits["p10"].predict(X))[0])
-    hi = float(np.exp(fits["p90"].predict(X))[0])
-    lo, hi = min(lo, hi), max(lo, hi)
+    if age > max_age:
+        raise ValueError(f"equivalent age {age:.4g} is past the training range (max {max_age})")
 
-    min_age, max_age = MODEL["valid_age_range"]
+    # training kept only lines where p10 stays below p90 at every age, so min never exceeds max
+    x = math.log1p(age)
+    area = _range(lines, "canopy_m2", x)
+    height = _range(lines, "height_m", x)
+    dbh = _range(lines, "dbh_cm", x)
+    # crown width is the diameter of a circle with that area
+    width = [2 * math.sqrt(a / math.pi) for a in area]
     return {
-        "canopy_m2_min": round(lo, 1),
-        "canopy_m2_max": round(hi, 1),
+        "canopy_m2_min": _round(area[0]),
+        "canopy_m2_max": _round(area[1]),
+        "crown_width_m_min": _round(width[0]),
+        "crown_width_m_max": _round(width[1]),
+        "height_m_min": _round(height[0]),
+        "height_m_max": _round(height[1]),
+        "dbh_cm_min": _round(dbh[0]),
+        "dbh_cm_max": _round(dbh[1]),
         "equivalent_age_years": round(age, 1),
-        "outside_training_range": not (min_age <= age <= max_age),
     }
