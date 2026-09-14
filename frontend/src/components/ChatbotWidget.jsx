@@ -27,7 +27,12 @@ function persistMessages(messages) {
 // rather than assuming the exact shape of propertyStats/canopyStats.
 function hasUsableContext(context) {
     if (!context) return false
-    return Object.values(context).some(value => value !== null && value !== undefined)
+    return Object.values(context).some(value => {
+        if (value === null || value === undefined) return false
+        if (Array.isArray(value)) return value.length > 0
+        if (typeof value === 'object') return Object.keys(value).length > 0
+        return true
+    })
 }
 
 export default function ChatbotWidget({ context }) {
@@ -68,8 +73,12 @@ export default function ChatbotWidget({ context }) {
             const response = await fetch('/api/chat', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ message: textToSend, history: messages, context: context || null })
+                body: JSON.stringify({ message: textToSend, history: messages.sliace(-18), context: context || null })
             })
+            if (!response.ok) {
+                const errBody = await response.json().catch(() => ({}));
+                throw new Error(errBody.detail || `Request failed ${response.status}`)
+            }
             const data = await response.json()
 
             setMessages(prev =>

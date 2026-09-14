@@ -15,6 +15,7 @@ function App() {
 
   const [propertyStats, setPropertyStats] = useState(null);
   const [canopyStats, setCanopyStats] = useState(null);
+  const [currentScenario, setCurrentScenario] = useState(null);
   // const goToPlant = (target) => {
   //   setplanTarget(target);
   //   setPage('plant')
@@ -45,8 +46,20 @@ function App() {
         onNavigate={setPage}
         onPropertyStatsChange={setPropertyStats}
         onCanopyStatsChange={setCanopyStats}
+        onScenarioChange={setCurrentScenario}
       />}
-      <ChatbotWidget context={page === 'map' ? { propertyStats, canopyStats } : null} />
+      <ChatbotWidget
+          context={
+              page === 'map'
+                  ? {
+                      propertyStats,
+                      canopyStats,
+                      simulatedTrees,
+                      currentScenario
+                  }
+                  : null
+          }
+      />
     </>
   );
 }

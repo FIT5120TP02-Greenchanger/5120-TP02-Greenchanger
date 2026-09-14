@@ -13,6 +13,9 @@ export default defineConfig({
         target: 'https://greenchanger.me',
         changeOrigin: true,
       },
+      '/api/chat': {
+        target: 'http://localhost:8000', changeOrigin: true,
+      }
     },
   },
 });

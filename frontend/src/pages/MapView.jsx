@@ -113,6 +113,7 @@ export default function MapView({ selectedLocation, setSelectedLocation, simulat
     // Scenario mode (2026-09-03): from "Plant a tree here" until Done. While open, the side panel
     // shows only the planting / comparison panels, like the old PlantTreePage sidebar did.
     const [scenarioOpen, setScenarioOpen] = useState(false);
+    const [currentScenario, setCurrentScenario] = useState(null);
     
     useEffect(() => { onPropertyStatsChange?.(propertySelected.stats); }, [propertySelected.stats]);
     useEffect(() => { onCanopyStatsChange?.(trees); }, [trees.pct, trees.canopyM2]);
@@ -335,6 +336,7 @@ export default function MapView({ selectedLocation, setSelectedLocation, simulat
             simulatedTrees?.map(t => t.id)
         );
         console.log('[MapView] handleApplyScenario, plantedTreeId =', plantedTreeId);
+        setCurrentScenario(scenario);
         if (!scenario || !pendingPos) return;
         const radiusM = TREE_SIZES[scenario.size]?.radiusM ?? TREE_SIZES.Medium.radiusM;
 
