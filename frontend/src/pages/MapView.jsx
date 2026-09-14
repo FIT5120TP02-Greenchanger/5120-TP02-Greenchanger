@@ -330,12 +330,6 @@ export default function MapView({ selectedLocation, setSelectedLocation, simulat
         setChoosingSpecies(true);
     }, [pendingPos, treeSize, setSimulatedTrees, selectedTreeId]);
     const handleApplyScenario = useCallback((scenario) => {
-        console.log('[MapView] simulatedTrees =', simulatedTrees);
-        console.log(
-            '[MapView] simulatedTreeIds =',
-            simulatedTrees?.map(t => t.id)
-        );
-        console.log('[MapView] handleApplyScenario, plantedTreeId =', plantedTreeId);
         setCurrentScenario(scenario);
         if (!scenario || !pendingPos) return;
         const radiusM = TREE_SIZES[scenario.size]?.radiusM ?? TREE_SIZES.Medium.radiusM;
@@ -359,6 +353,7 @@ export default function MapView({ selectedLocation, setSelectedLocation, simulat
             radiusM,
             size: scenario.size,
             species: scenario.species?.id,
+            speciesName: scenario.species?.commonName,
         };
         setSimulatedTrees((prev) => [...(prev || []), tree]);
         setPlantedTreeId(tree.id)

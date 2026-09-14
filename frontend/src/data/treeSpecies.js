@@ -1,37 +1,43 @@
 // Species catalogue for the planting flow. `benefitFactor` is a placeholder multiplier
 // reflecting relative canopy density/type — swap for GreenShift's sourced per-species
 // coefficients when available (see the TREE_SIZES radiusM note in hooks/simulation.js).
-import eucalyptus from './images/species/eucalyptus.jpg'
-import acacia from './images/species/acacia.jpg'
-import melaleuca from './images/species/melaleuca.webp'
-import london_plane from './images/species/plane-tree.jpg'
+import water_gum from './images/species/Water-Gum.webp'
+import lemon_scented_gum from './images/species/lemon_scented_gum.webp'
+import crepe_myrtle from './images/species/crepe_myrtle.webp'
 export const TREE_SPECIES = [
     {
-        id: 'eucalyptus',
-        commonName: 'Eucalyptus',
-        image: eucalyptus,
-        description: 'Fast-growing native with a broad, dense canopy — strong shading and stormwater benefits.',
+        id: 'water_gum',
+        commonName: 'Water Gum',
+        scienceName: 'Tristaniopsis laurina',
+        image: water_gum,
+        price: {
+            Small: 45,
+            Medium: 90,
+            Large: 160
+        },
         benefitFactor: 1.15,
     },
     {
-        id: 'acacia',
-        commonName: 'Acacia (Wattle)',
-        image: acacia,
-        description: 'Compact native suited to smaller lots, with a lighter canopy.',
+        id: 'lemon_scented gum',
+        commonName: 'Lemon-scented Gum',
+        scienceName: 'Corymbia citriodora',
+        image: lemon_scented_gum,
+        price: {
+            Small: 55, 
+            Medium: 105, 
+            Large: 190
+        },
         benefitFactor: 0.85,
     },
     {
-        id: 'plane-tree',
-        commonName: 'London Plane',
-        image: london_plane,
-        description: 'Large deciduous shade tree common in Melbourne streetscapes.',
+        id: 'crepe_myrtle',
+        commonName: 'Crepe Myrtle',
+        image: crepe_myrtle,
+        price: {
+            Small: 60, 
+            Medium: 115, 
+            Large: 210
+        },
         benefitFactor: 1.3,
-    },
-    {
-        id: 'melaleuca',
-        commonName: 'Melaleuca (Paperbark)',
-        image: melaleuca,
-        description: 'Hardy native tolerant of wet or compacted soils, moderate canopy.',
-        benefitFactor: 1.0,
     },
 ];
