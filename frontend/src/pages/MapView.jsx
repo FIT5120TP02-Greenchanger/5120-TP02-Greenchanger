@@ -73,7 +73,7 @@ function sameAddress(a, b) {
 // onNavigate added (2026-09-03) so the home button below can go back to the landing page
 // export default function MapView({ selectedLocation, setSelectedLocation, simulatedTrees, onPlantTree, onNavigate }) {
 // setSimulatedTrees replaces onPlantTree (2026-09-03): planting happens here, App only stores the trees
-export default function MapView({ selectedLocation, setSelectedLocation, simulatedTrees, setSimulatedTrees, onNavigate }) {
+export default function MapView({ selectedLocation, setSelectedLocation, simulatedTrees, setSimulatedTrees, onNavigate, onPropertyStatsChange, onCanopyStatsChange }) {
     const mapRef = useRef(null);
     const hoverId = useRef(null);
     const debounceRef = useRef(null);
@@ -107,6 +107,7 @@ export default function MapView({ selectedLocation, setSelectedLocation, simulat
     // Clicking tree to update
     const [selectedTreeId, setSelectedTreeId] = useState(null);
     const [updatePos, setUpdatePos] = useState(false); // for updating the position of an existing tree
+    const [choosingSpecies, setChoosingSpecies] = useState(false);
 
     // Scenario mode (2026-09-03): from "Plant a tree here" until Done. While open, the side panel
     // shows only the planting / comparison panels, like the old PlantTreePage sidebar did.
@@ -255,6 +256,7 @@ export default function MapView({ selectedLocation, setSelectedLocation, simulat
         setPendingPos(null);
         setHoverPos(null);
         setPlacing(true);
+        setChoosingSpecies(false);
         setScenarioOpen(true);
 
         const map = mapRef.current?.getMap();
@@ -308,20 +310,30 @@ export default function MapView({ selectedLocation, setSelectedLocation, simulat
                 prev.map((t) => t.id === selectedTreeId ? {...t, lng: pendingPos.lng, lat: pendingPos.lat, size: treeSize, radiusM: TREE_SIZES[treeSize].radiusM} : t)
             );
             setSelectedTreeId(null);
-        } else {
-            const tree = { 
-                id: crypto.randomUUID(), 
-                lng: pendingPos.lng, lat: pendingPos.lat, 
-                radiusM: TREE_SIZES[treeSize].radiusM, size: treeSize };
-            setSimulatedTrees((prev) => [...(prev || []), tree]);
+            setUpdatePos(false);
+            setPlacing(false);
+            setPendingPos(null);
+            setHoverPos(null);
+            setSimulating(false);
+            resetCursor();
+            return;
         }
-        setUpdatePos(false);
         setPlacing(false);
-        setPendingPos(null);
-        setHoverPos(null);
-        setSimulating(false);
-        resetCursor();
+        setChoosingSpecies(true);
     }, [pendingPos, treeSize, setSimulatedTrees, selectedTreeId]);
+    const handleApplyScenario = useCallback((scenario) => {
+        if (!scenario || !pendingPos) return;
+        const radiusM = TREE_SIZES[scenario.size]?.radiusM ?? TREE_SIZES.Medium.radiusM;
+        const tree = {
+            id: crypto.randomUUID(),
+            lng: pendingPos.lng,
+            lat: pendingPos.lat,
+            radiusM,
+            size: scenario.size,
+            species: scenario.species?.id,
+        };
+        setSimulatedTrees((prev) => [...(prev || []), tree]);
+    }, [pendingPos, setSimulatedTrees]);
 
 
     // Remove / Reset inside the comparison panel behave like the old page: with no trees left,
@@ -649,6 +661,10 @@ export default function MapView({ selectedLocation, setSelectedLocation, simulat
                 onSimulate={startSimulating}
                 onBackHome={backToHome}
                 placing={placing}
+                choosingSpecies={choosingSpecies}
+                pendingPos={pendingPos}
+                onApplyScenario={handleApplyScenario}
+                onExitPlanting={cancelPlacing}
                 placement={{
                     size: treeSize,
                     onSizeChange: setTreeSize,

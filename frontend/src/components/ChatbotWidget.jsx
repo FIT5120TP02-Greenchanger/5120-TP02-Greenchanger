@@ -116,7 +116,7 @@ export default function ChatbotWidget({ context }) {
                             {contextAvailable && (
                                 <span
                                     className={styles.contextDot}
-                                    title="Sprout can see the current map data"
+                                    title="GreenBot can see the current map data"
                                     aria-label="Live map data connected"
                                 />
                             )}

@@ -2,6 +2,7 @@ import CanopyPanel from "./CanopyPanel";
 import HeatPanel from "./HeatPanel";
 // In-map planting (2026-09-03): the placement and scenario panels render inside the side panel
 import TreePlacementPanel from "./TreePlacementPanel";
+import TreePlantingFlow from "./planning/TreePlantingFlow";
 import ComparisonPanel from "./ComparisonPanel";
 import styles from './Panel.module.css'
 
@@ -25,12 +26,29 @@ import styles from './Panel.module.css'
 // Done it is the normal panel again, with the placed trees counted in and a Reset button.
 export default function SidePanel({
     stats, trees, simulating, isHomeSelected, onSimulate, onBackHome,
-    placing, placement, scenario, scenarioOpen, simulatedCount, onResetScenario,
+    placing, choosingSpecies, pendingPos, onApplyScenario, onExitPlanting,
+    placement, scenario, scenarioOpen, simulatedCount, onResetScenario,
 }) {
     if (scenarioOpen) {
         return (
             <aside className={styles['side-panel']}>
-                {placing ? <TreePlacementPanel {...placement} /> : scenario ? <ComparisonPanel {...scenario} /> : null}
+                {placing
+                ? <TreePlacementPanel {...placement} />
+                : choosingSpecies
+                    ? (
+                        <TreePlantingFlow
+                            lot={stats}
+                            position={pendingPos}
+                            onApply={onApplyScenario}
+                            onExit={onExitPlanting}
+                            nTrees={trees.nTrees}
+                            canopyM2={trees.canopyM2}
+                            viewM2={trees.viewM2}
+                        />
+                    )
+                    : scenario
+                        ? <ComparisonPanel {...scenario} />
+                        : null}
             </aside>
         );
     }
