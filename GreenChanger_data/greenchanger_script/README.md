@@ -269,18 +269,19 @@ checksum and limitations in `melbourne_tree_extent_manifest.json`. The VRT is a
 catalogue of unchanged native GeoTIFFs, not a resampled image; all referenced
 raw tiles must remain available. On the development Mac, the first exact 500 m
 whole-mosaic pass was terminated after 4,117.70 seconds (68.6 minutes) without
-an output. The analytical aggregation must therefore be redesigned as a
-tile-wise resumable offline batch before database publication.
+an output. The replacement tile-wise resumable pipeline completed all
+3,001,053 parcels, published 2,984,934 available canopy results and retained
+16,119 as `Unavailable` rather than exhausting memory or treating missing
+coverage as zero.
 
 `build_canopy_baseline.py` retains zero-canopy cells, verifies percentages,
 geometry, uniqueness, Melbourne coverage and exact matching of every
 current heat-baseline cell. Its `coverage_confidence_pct` means complete raster
 coverage only; it is not classification or positional accuracy. The current
 official rendered-tile proxy is labelled `api_tile_proxy` and is appropriate
-for 500 m summaries, not property-level tree-crown decisions. The analytical
-source is locally prepared, but it must not replace the proxy in the database
-until ingestion, clipping, quality validation and a newly versioned baseline
-all complete successfully.
+for 500 m summaries, not property-level tree-crown decisions. Property-level
+results come only from the registered native analytical raster and remain
+separate from the 500 m neighbourhood baseline.
 
 Migration 010 provides `get_property_baseline(text, integer)` for the prototype.
 It performs a prefix address search, joins Vicmap Address to Vicmap Property by
@@ -377,6 +378,21 @@ This command is read-only and does not train or publish a model. Use repeated
 `--available-dataset KEY` arguments only after the corresponding aligned
 training table has passed data-quality checks.
 
+After migration 044, verify an address-based council species-frequency ranking
+without changing data:
+
+```sql
+SELECT popularity_rank, display_name, recorded_tree_count,
+       recorded_tree_percentage, list_category, guidance_status
+FROM get_council_tree_species_popularity_by_address(
+    '251A BELMORE ROAD BALWYN NORTH 3104', 20
+);
+```
+
+The ranking uses latest named council inventories only. It does not include
+unnamed Vicmap points or historical inventory versions, and “most common” does
+not mean approved or suitable to plant.
+
 Persist the complete case report and promote the range model only after all
 tests pass:
 
@@ -433,6 +449,8 @@ unpublished delivery, difficult-access, excavation, soil, staking and aftercare 
 | Multi-station BOM quality below 95% | Inspect failures by station. A wind-only or partially populated feed must not be treated as an air-temperature station; replace it with the correct official temperature feed rather than weakening `WEATHER_REQUIRED`. |
 | Landsat TIFF is HTML/unsupported | Do not reuse it. Current code signs Planetary Computer URLs and validates downloaded raster content. |
 | Canopy source value is ambiguous | Run `inspect_canopy.py`; never infer the tree class from display colours. |
+| ERA5-Land returns `required licences not accepted` | Sign in to Copernicus CDS, accept the ERA5-Land terms, configure `~/.cdsapirc`, then retry or reuse downloaded NetCDF files with `--era5-file`. |
+| Council inventory has no full reusable row-level source | Record it in the 31-council audit; do not load a partial register or assume permission. |
 
 ## Safety
 

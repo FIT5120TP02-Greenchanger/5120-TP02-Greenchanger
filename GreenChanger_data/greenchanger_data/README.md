@@ -15,7 +15,7 @@ functions and perform database writes.
 | `canopy.py` | Inspect and aggregate a binary tree-extent raster into Melbourne grid summaries. |
 | `canopy_baseline.py` | Define versioned baseline and source-provenance rules, including analytical-versus-proxy classification. |
 | `city_melbourne_trees.py` | Download, preserve and normalise the City of Melbourne tree inventory, including common/scientific names, taxonomy, DBH, planting information and coordinates. |
-| `council_tree_inventories.py` | Download and batch-normalise Brimbank, Yarra, Casey, Hobsons Bay and Wyndham council tree inventories into one source-labelled contract while preserving source-specific fields and limitations. |
+| `council_tree_inventories.py` | Download and batch-normalise Brimbank, Yarra, Casey, Hobsons Bay, Wyndham, Port Phillip, Manningham and Glen Eira inventories into one source-labelled contract while preserving municipality, source-specific fields and limitations. |
 | `dea_land_cover.py` | Stream the official public annual DEA Level-3 COG, read only the Melbourne bounding window and aggregate the six 30 m classes into percentage covariates on aligned modelling cells. |
 | `era5_land.py` | Request monthly Melbourne subsets through the official CDS API and convert hourly NetCDF temperature, rainfall, soil-water, solar-radiation and wind variables into daily grid controls with explicit units. |
 | `classification.py` | Apply fixed 27°C/30°C temperature display bands, evidence-backed 15.3%/30% canopy progress bands and separate historical helpers, with explicit missing-data handling. |
@@ -78,6 +78,11 @@ API mosaic cannot satisfy this contract.
 When available, the parcel result populates `property_canopy_percentage` and
 uses scope `property_raster_clip`; it does not replace or reclassify the 500 m
 neighbourhood canopy baseline.
+
+The completed analytical run assessed 3,001,053 parcels and published
+2,984,934 available results (99.46%). The remaining 16,119 records retain
+`Unavailable` where raster coverage or safe processing eligibility was
+insufficient; they are not interpreted as zero canopy.
 
 ## Environmental classification logic
 
@@ -279,3 +284,14 @@ The tests cover normalisation, cross-record uniqueness, the unrounded quality
 gate, geometry conversion, BOM extraction, raster checks, migration history,
 classification boundaries/missing/non-finite values, scenario-input constraints,
 real-property scenario output checks and analytical calculations.
+
+Council coverage is also validated against
+`data/reference/council_tree_inventory_coverage.csv`: all 31 metropolitan
+councils appear exactly once, while only nine currently have a suitable
+integrated row-level inventory.
+
+Species popularity is deliberately calculated in PostGIS rather than this
+package because the query must resolve a searched address to its current LGA
+and aggregate only current application-ready council versions. It excludes
+unnamed Vicmap points and never converts observed frequency into planting
+approval or property suitability.

@@ -110,6 +110,7 @@ python greenchanger_script/ingestion.py era5-land \
   --era5-start 2014-01-01 --era5-end 2018-12-31 --confirm-shared
 python greenchanger_script/ingestion.py brimbank-trees yarra-trees casey-trees \
   hobsons-bay-trees wyndham-trees port-phillip-trees manningham-trees \
+  glen-eira-trees \
   --confirm-shared
 
 # Reuse a completed API extract without redownloading it
@@ -292,6 +293,7 @@ conversion; their 500 m source resolution is unchanged.
 | BOM weather observations | 1,557 from 10 stations | 100% source quality pass rate; version `greater-melbourne-bom-stations-v1` |
 | Vicmap Tree Urban | 10,473,773 Melbourne points | 100% record-quality and boundary-membership pass rates |
 | Source-labelled council trees | 629,322 current rows across nine councils | Every latest eligible-record version passes the ≥95% gate; coverage and fields vary by council |
+| Property-level analytical canopy | 3,001,053 parcels assessed; 2,984,934 available | 99.46% available; 16,119 safely return `Unavailable` rather than an assumed 0% |
 | Cost estimates | 8 in AWS | 100% quality pass; 0 rejected, 0 missing source URLs and 0 expired |
 | Representative residential simulations | 3 properties × 4 actions | 12/12 output checks passed; overall WARN from retained baseline caveats |
 | Validated scenario measure results | 0 | Prototype model is deliberately blocked from application output |
@@ -348,6 +350,28 @@ FROM get_council_species_options_by_address(
     '251A BELMORE ROAD BALWYN NORTH 3104', NULL, 100
 );
 ```
+
+Rank the most commonly recorded public-tree species inside the address council:
+
+```sql
+SELECT popularity_rank, display_name, recorded_tree_count,
+       recorded_tree_percentage, list_category, guidance_status, limitation
+FROM get_council_tree_species_popularity_by_address(
+    '251A BELMORE ROAD BALWYN NORTH 3104', 20
+);
+```
+
+This ranking combines the authoritative LGA lookup with only the latest
+application-ready named council inventories and requires the record's source
+municipality to match the address LGA. Historical versions are not
+double-counted and unnamed Vicmap Tree Urban points are excluded. It may join
+loaded council guidance for recommendation status, but frequency is labelled as
+an observed public-tree inventory statistic—not resident preference, planting
+approval, nursery availability or property suitability. Councils without an
+integrated inventory receive a clearly labelled warning plus at most the ten
+most frequently recorded species across all integrated Melbourne council
+inventories. This fallback is not council-specific evidence, planting approval,
+nursery availability or property-suitability advice.
 
 The lookup uses the latest application-ready version per source, an indexed
 metre-based radius and a bounded result limit. It returns source and licence
@@ -577,7 +601,9 @@ The Tree Urban raw extract was obtained from the official Vicmap ArcGIS Feature 
 | Vicmap Address | Address search, coordinates and Property join key |
 | Vicmap Property | Property polygons, identifiers and area |
 | Vicmap Vegetation – Tree Urban Point | Mapped individual-tree context, radius and height |
-| Eight supported source-labelled council tree inventories | Public-tree names and available measured height, crown spread, DBH, maturity, health and planting dates; fields differ by council and each source is loaded separately |
+| Nine supported source-labelled council tree inventories | Public-tree names and available measured height, crown spread, DBH, maturity, health and planting dates; fields differ by council and each source is loaded separately |
+| ERA5-Land daily controls | Historical temperature, rainfall, soil-water, solar-radiation and wind covariates for modelling; approximately 9 km and not property observations |
+| DEA Land Cover | Annual 30 m categorical land cover aggregated to aligned 500 m modelling cells; not parcel canopy |
 | Vicmap Vegetation – Tree Extent | Melbourne neighbourhood canopy baseline |
 | USGS Landsat Collection 2 Surface Temperature | Spatial land-surface-temperature baseline |
 | [BOM Melbourne observations](https://www.bom.gov.au/vic/observations/melbourne.shtml) | Recent multi-station air-temperature context; exact official feeds are versioned in `config/bom_stations.json` |
@@ -613,6 +639,10 @@ All source versions retain extraction time, observation period, checksum, source
 - Manningham supplies street-tree species, height and DBH ranges, address and survey date. The published extract has no crown-width or planting-year field.
 - Glen Eira supplies botanical and common names, DBH, height, crown spread and location type. The source has no observation or planting date, so it supports cross-sectional dimension modelling but not age-based growth by itself.
 - A missing name or dimension returns `Unavailable`; it is never inferred from another council or from a nearby mapped point.
+- “Most common” is calculated only from the latest application-ready public-tree
+  inventory records spatially inside the selected LGA. It must not be presented
+  as “best to plant”; council guidance and property-specific conditions remain
+  separate decisions.
 
 ### Heat and weather
 
@@ -738,10 +768,10 @@ staking, irrigation, permits and aftercare remain excluded unless explicitly sta
 - API extraction uses a reproducible bounding box, while application-ready spatial data are filtered to the official ABS 2026 `2GMEL` boundary.
 - Address–Property joins use Vicmap Address `property_pfi` to Vicmap Property `prop_pfi`; unmatched records remain documented rather than silently removed.
 
-## Iteration 1 readiness and next data work
+## Pre-deployment readiness and next data work
 
 The data component can support Local Heat & Greenery Understanding and the baseline parts of
-Residential Greening Scenario Simulation: address/parcel context, Melbourne boundary membership, relative heat and
+Residential Greening Scenario Simulation: address/parcel context, Melbourne boundary membership, fixed heat and
 canopy classifications, mapped-tree context, recent weather when available and
 source-backed indicative cost ranges. The environmental and weather values are
 application-ready only with the limitations and labels documented above.
@@ -750,15 +780,18 @@ The next data-science work, in recommended order, is:
 
 1. Review `residential-greening-simulation-inputs-v1` with the team/mentor, then connect the
    approved contract to scenario persistence and the application data handoff.
-2. Update any remaining legacy Clayton-only acceptance criteria, fixtures or
-   presentation text to the official Melbourne `2GMEL` scope.
-3. Run the prepared analytical Tree Extent VRT as an offline ingestion batch,
-   rebuild the Melbourne canopy baseline, and publish a newly versioned
-   classification scheme after quality and imagery checks. Do not silently
-   replace the current proxy-derived v1.
-4. Add 10 m and 25 m buffered mapped-tree counts so property context does not
+2. Review the 16,119 parcel-canopy records that safely return `Unavailable` due
+   to insufficient raster coverage or processing eligibility; do not convert
+   them to zero canopy.
+3. Reconcile historical canopy, vegetation-change, DEA and ERA5-Land data onto
+   explicit training grains before fitting any predictive model. Keep every
+   model output suppressed until spatial/temporal held-out validation passes.
+4. Request full inventories and compatible reuse permission from additional
+   councils. The 31-council audit currently has nine integrated sources; a
+   partial register or unlicensed download must not be treated as complete.
+5. Add 10 m and 25 m buffered mapped-tree counts so property context does not
    rely only on parcel intersection.
-5. Refresh BOM observations before demonstrations, rerun the six Melbourne
+6. Refresh BOM observations before demonstrations, rerun the six Melbourne
    sanity scenarios, investigate every warning, and retain the generated
    quality/validation evidence.
 

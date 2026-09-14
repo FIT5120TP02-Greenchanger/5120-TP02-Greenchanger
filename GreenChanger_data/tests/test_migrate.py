@@ -9,7 +9,7 @@ class MigrationFileTests(unittest.TestCase):
     def test_migrations_are_numbered_and_ordered(self):
         self.assertEqual(
             [version for version, _ in migration_files()],
-            list(range(1, 44)),
+            list(range(1, 49)),
         )
 
     def test_include_is_expanded(self):
@@ -61,6 +61,50 @@ class MigrationFileTests(unittest.TestCase):
         self.assertIn("'available_now'", sql)
         self.assertIn("'council_approval_required'", sql)
         self.assertIn("occurrence is not planting permission", sql)
+
+    def test_council_species_popularity_is_current_ranked_and_not_approval(self):
+        migration = next(path for version, path in migration_files() if version == 44)
+        sql = expanded_sql(migration)
+        self.assertIn("get_council_tree_species_popularity_by_address", sql)
+        self.assertIn("latest_metropolitan_named_tree_inventory", sql)
+        self.assertIn("latest_council_species_guidance", sql)
+        self.assertIn("ROW_NUMBER() OVER", sql)
+        self.assertIn("recorded_tree_percentage", sql)
+        self.assertIn("unavailable_no_integrated_council_inventory", sql)
+        self.assertIn("frequency never implies planting approval", sql)
+        self.assertNotIn("Vicmap Vegetation - Tree Urban Point", sql)
+
+    def test_council_species_popularity_status_alias_is_forward_fixed(self):
+        migration = next(path for version, path in migration_files() if version == 45)
+        sql = expanded_sql(migration)
+        self.assertIn("pg_get_functiondef", sql)
+        self.assertIn("matched.status", sql)
+        self.assertIn("ORDER BY 3 NULLS LAST", sql)
+        self.assertIn("expected the migration 044 unqualified status expression", sql)
+
+    def test_council_species_popularity_requires_source_and_spatial_council(self):
+        migration = next(path for version, path in migration_files() if version == 46)
+        sql = expanded_sql(migration)
+        self.assertIn("normalize_greenchanger_council_name", sql)
+        self.assertIn("tree.municipality", sql)
+        self.assertIn("v_lga.lga_official_name", sql)
+        self.assertIn("source municipality and authoritative address LGA match", sql)
+
+    def test_missing_council_inventory_falls_back_to_top_ten_overall(self):
+        migration = next(path for version, path in migration_files() if version == 47)
+        sql = expanded_sql(migration)
+        self.assertIn("v_has_council_inventory", sql)
+        self.assertIn("LEAST(p_result_limit, 10)", sql)
+        self.assertIn("fallback_overall_observed_public_tree_frequency", sql)
+        self.assertIn("Warning: no latest application-ready named public-tree inventory", sql)
+        self.assertIn("all integrated Melbourne council inventories", sql)
+
+    def test_council_inventory_availability_check_is_not_recursive(self):
+        migration = next(path for version, path in migration_files() if version == 48)
+        sql = expanded_sql(migration)
+        self.assertIn("v_broken_check", sql)
+        self.assertIn("v_correct_check", sql)
+        self.assertIn("matching source municipality", sql)
 
     def test_cumulative_schema_expands_metropolitan_tree_contract(self):
         schema = pathlib.Path(__file__).resolve().parents[1] / "greenchanger_sql/schema.sql"

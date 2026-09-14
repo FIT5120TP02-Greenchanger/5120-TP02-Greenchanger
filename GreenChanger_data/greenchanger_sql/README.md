@@ -37,6 +37,12 @@ greenchanger_sql/
 │   ├── 040_open_tree_research_evidence.sql
 │   ├── 041_dea_land_cover_and_era5_land.sql
 │   ├── 042_retire_superseded_era5_partition.sql
+│   ├── 043_council_species_guidance.sql
+│   ├── 044_council_tree_species_popularity.sql
+│   ├── 045_fix_council_species_popularity_status.sql
+│   ├── 046_require_source_council_for_popularity.sql
+│   ├── 047_fallback_to_metropolitan_tree_popularity.sql
+│   ├── 048_fix_council_inventory_availability_check.sql
 │   ├── 035_cost_estimate_tree_type_business_key.sql
 │   ├── 036_named_tree_inventory.sql
 │   └── 037_metropolitan_named_tree_inventories.sql
@@ -60,6 +66,11 @@ greenchanger_sql/
 | `migrations/009_canopy_baseline.sql` | Creates the aligned 500 m canopy baseline structure and current view. |
 | `migrations/025_current_dataset_sources.sql` | Registers the current multi-station Melbourne BOM source without changing the checksum of historical migration 002. |
 | `migrations/043_council_species_guidance.sql` | Adds authoritative Victorian LGA polygons, versioned council species guidance and address-based verified/approval-required species lists. |
+| `migrations/044_council_tree_species_popularity.sql` | Resolves an address to its LGA, ranks species in the latest named public-tree inventories, attaches separate guidance status and returns explicit unavailability where no inventory exists. |
+| `migrations/045_fix_council_species_popularity_status.sql` | Qualifies the popularity function's internal status alias and positional final ordering so PostgreSQL cannot confuse them with output-column variables. |
+| `migrations/046_require_source_council_for_popularity.sql` | Requires both source-municipality identity and spatial LGA membership, preventing a neighbouring council's boundary-edge record from creating false coverage. |
+| `migrations/047_fallback_to_metropolitan_tree_popularity.sql` | When an address council has no integrated inventory, returns at most the top ten species across all integrated Melbourne council inventories with an explicit warning and approval limitation. |
+| `migrations/048_fix_council_inventory_availability_check.sql` | Corrects the fallback availability test so it independently detects matching spatial and source-municipality inventory coverage. |
 | `migrations/010_property_baseline_lookup.sql` | Adds model validation gates and the application-facing property baseline lookup. |
 | `migrations/011_tree_urban_quality_scope.sql` | Adds Tree Urban record quality status and the dataset-version index required by API ingestion. |
 | `migrations/012_property_tree_limitations.sql` | Restricts property tree lookup to the current `2GMEL` version and always returns the machine-derived-data warning. |
@@ -163,6 +174,20 @@ resolve coordinates, accepts a unique result or one exact full-address match,
 and rejects missing, unmatched or ambiguous searches. It then delegates radius,
 layer, boundary and result-limit enforcement to migration 018 rather than
 duplicating spatial-query logic.
+
+Migrations 044–048 expose and harden
+`get_council_tree_species_popularity_by_address(address, result_limit)`. It
+spatially assigns the searched address and current named-tree records to the
+same authoritative LGA and also requires the inventory's source municipality to
+match that LGA. It groups case-normalised scientific names (falling back to
+common names), ranks their frequency and reports their share of identifiable
+inventory records. It aggregates only the latest application-ready version of
+each council source. Recommendation status is joined separately from current
+council guidance; an inventory count never becomes planting approval.
+If the address council has no integrated named-tree inventory, migration 047
+returns at most ten overall Melbourne inventory-frequency results. Every such
+row has status `fallback_overall_observed_public_tree_frequency` and warning
+text stating that it is not council-specific evidence or planting approval.
 
 Migration 022 adds case/whitespace normalisation and expands unambiguous
 Australian street types including `RD`, `AVE`, `BLVD`, `CRES`, `CT`, `DR`,
@@ -272,7 +297,7 @@ To add a schema change:
 5. Run `python -m unittest discover -v`.
 6. Check status before applying to shared Aurora.
 
-The next migration number is `041`. Never modify an applied migration; its
+The next migration number is `047`. Never modify an applied migration; its
 checksum is part of the migration audit trail.
 
 ## Data preparation and database integration
@@ -304,6 +329,11 @@ For address/property ingestion:
 - Unique constraints prevent duplicate source keys within one version.
 - Applied-migration checksum mismatches stop deployment rather than silently
   changing history.
+- Property-canopy rows with inadequate raster coverage or processing
+  eligibility remain `Unavailable`; database views never reinterpret them as
+  zero canopy.
+- Council inventory records remain source-labelled and municipality-specific;
+  a partial significant-tree register is not promoted as a complete inventory.
 - Shared destructive reset is blocked in `migrate.py`; use a local sandbox for
   rebuild testing.
 
@@ -368,5 +398,12 @@ FROM get_environment_context_by_address(
     500,
     ARRAY['trees', 'heat'],
     1000
+);
+
+-- Most commonly recorded public-tree species in the selected address council
+SELECT popularity_rank, display_name, recorded_tree_count,
+       recorded_tree_percentage, list_category, guidance_status, limitation
+FROM get_council_tree_species_popularity_by_address(
+    '1 COLLINS STREET MELBOURNE 3000', 20
 );
 ```

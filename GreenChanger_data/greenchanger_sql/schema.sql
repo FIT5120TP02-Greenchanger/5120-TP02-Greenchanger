@@ -3104,3 +3104,8 @@ COMMIT;
 -- include: migrations/041_dea_land_cover_and_era5_land.sql
 -- include: migrations/042_retire_superseded_era5_partition.sql
 -- include: migrations/043_council_species_guidance.sql
+-- include: migrations/044_council_tree_species_popularity.sql
+-- include: migrations/045_fix_council_species_popularity_status.sql
+-- include: migrations/046_require_source_council_for_popularity.sql
+-- include: migrations/047_fallback_to_metropolitan_tree_popularity.sql
+-- include: migrations/048_fix_council_inventory_availability_check.sql

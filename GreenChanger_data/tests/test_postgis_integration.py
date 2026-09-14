@@ -344,7 +344,7 @@ class PostgisEnvironmentContextIntegrationTests(unittest.TestCase):
                        dataset_version_id, source_feature_id, lga_code, lga_name,
                        lga_official_name, boundary_geometry, area_m2
                    ) VALUES (
-                       %s, 'fixture-lga', '999', 'TEST COUNCIL', 'TEST CITY COUNCIL',
+                       %s, 'fixture-lga', '999', 'BRIMBANK', 'BRIMBANK CITY',
                        ST_Multi(ST_Buffer(ST_Transform(ST_SetSRID(
                            ST_MakePoint(144.96, -37.81), 4326
                        ), 7855), 1000)),
@@ -435,19 +435,114 @@ class PostgisEnvironmentContextIntegrationTests(unittest.TestCase):
             self.assertIn(
                 (
                     "available_now", "Eucalyptus camaldulensis", "recommended",
-                    "999", "TEST CITY COUNCIL",
+                    "999", "BRIMBANK CITY",
                 ),
                 rows,
             )
             self.assertIn(
                 (
                     "council_approval_required", "Acacia fixture",
-                    "approval_required", "999", "TEST CITY COUNCIL",
+                    "approval_required", "999", "BRIMBANK CITY",
                 ),
                 rows,
             )
             cursor.execute(
-                "DELETE FROM named_tree_inventory WHERE source_tree_id = 'UNLISTED-FIXTURE-1'"
+                """INSERT INTO named_tree_inventory (
+                       dataset_version_id, source_tree_id, species_id,
+                       inventory_source_key, municipality, common_name,
+                       scientific_name, display_name, genus, taxonomic_precision,
+                       height_m, canopy_width_m, tree_location, quality_status
+                   ) VALUES (
+                       %s, 'BRIMBANK-FIXTURE-2',
+                       (SELECT species_id FROM species_profile
+                        WHERE scientific_name = 'Eucalyptus camaldulensis'),
+                       'brimbank', 'City of Brimbank', 'River Red Gum',
+                       'Eucalyptus camaldulensis', 'River Red Gum',
+                       'Eucalyptus', 'species', 14, 10,
+                       ST_Transform(ST_SetSRID(
+                           ST_MakePoint(144.9603, -37.81), 4326
+                       ), 7855), 'passed'
+                   )""",
+                (named_version_id,),
+            )
+            cursor.execute(
+                """SELECT popularity_rank, scientific_name,
+                          recorded_tree_count, recorded_tree_percentage,
+                          list_category, guidance_status, status, limitation
+                   FROM get_council_tree_species_popularity_by_address(
+                       '10 TEST STREET MELBOURNE 3000', 20
+                   )
+                   ORDER BY popularity_rank"""
+            )
+            popularity_rows = cursor.fetchall()
+            self.assertEqual(popularity_rows[0][:6], (
+                1, "Eucalyptus camaldulensis", 2, Decimal("66.67"),
+                "available_now", "recommended",
+            ))
+            self.assertEqual(popularity_rows[1][:6], (
+                2, "Acacia fixture", 1, Decimal("33.33"),
+                "council_approval_required", "not_in_loaded_guidance",
+            ))
+            self.assertTrue(all(
+                row[6] == "observed_public_tree_frequency"
+                for row in popularity_rows
+            ))
+            self.assertIn("not resident preference", popularity_rows[0][7])
+
+            cursor.execute(
+                """INSERT INTO local_government_area (
+                       dataset_version_id, source_feature_id, lga_code, lga_name,
+                       lga_official_name, boundary_geometry, area_m2
+                   ) VALUES (
+                       %s, 'fixture-lga-without-inventory', '888', 'BOROONDARA',
+                       'BOROONDARA CITY', ST_Multi(ST_Buffer(ST_Transform(
+                           ST_SetSRID(ST_MakePoint(145.10, -37.81), 4326), 7855
+                       ), 1000)), ST_Area(ST_Buffer(ST_Transform(
+                           ST_SetSRID(ST_MakePoint(145.10, -37.81), 4326), 7855
+                       ), 1000))
+                   )""",
+                (lga_version_id,),
+            )
+            cursor.execute(
+                """INSERT INTO address (
+                       dataset_version_id, source_address_id, source_property_id,
+                       full_address, locality_name, postcode, is_primary,
+                       address_location
+                   ) SELECT dataset_version_id, 'ADDRESS-FALLBACK', NULL,
+                       '20 FALLBACK ROAD BALWYN 3103', 'BALWYN', '3103', 'Y',
+                       ST_Transform(ST_SetSRID(
+                           ST_MakePoint(145.10, -37.81), 4326
+                       ), 7855)
+                   FROM address
+                   WHERE source_address_id = 'ADDRESS-A'
+                   LIMIT 1"""
+            )
+            cursor.execute(
+                """SELECT council_name, popularity_rank, scientific_name,
+                          recorded_tree_count, list_category, guidance_status,
+                          status, limitation
+                   FROM get_council_tree_species_popularity_by_address(
+                       '20 FALLBACK RD BALWYN 3103', 20
+                   )
+                   ORDER BY popularity_rank"""
+            )
+            fallback_rows = cursor.fetchall()
+            self.assertEqual(len(fallback_rows), 2)
+            self.assertEqual(fallback_rows[0][:6], (
+                "BOROONDARA CITY", 1, "Eucalyptus camaldulensis", 2,
+                "council_approval_required", "not_in_loaded_guidance",
+            ))
+            self.assertTrue(all(
+                row[6] == "fallback_overall_observed_public_tree_frequency"
+                for row in fallback_rows
+            ))
+            self.assertIn("Warning: no latest", fallback_rows[0][7])
+            self.assertIn("all integrated Melbourne", fallback_rows[0][7])
+            cursor.execute(
+                """DELETE FROM named_tree_inventory
+                   WHERE source_tree_id IN (
+                       'UNLISTED-FIXTURE-1', 'BRIMBANK-FIXTURE-2'
+                   )"""
             )
 
     def test_cost_business_key_separates_tree_types_and_deduplicates_null(self):
