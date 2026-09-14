@@ -7,3 +7,9 @@ fastapi==0.141.1
 uvicorn[standard]==0.52.4
 psycopg[binary,pool]==3.3.4
 boto3==1.43.82
+
+numpy==2.5.3
+pandas==3.0.5
+scipy==1.18.1
+patsy==1.0.3
+statsmodels==0.15.0
