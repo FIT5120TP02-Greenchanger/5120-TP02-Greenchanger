@@ -80,6 +80,7 @@ python greenchanger_script/ingestion.py hobsons-bay-trees --confirm-shared
 python greenchanger_script/ingestion.py wyndham-trees --confirm-shared
 python greenchanger_script/ingestion.py port-phillip-trees --confirm-shared
 python greenchanger_script/ingestion.py manningham-trees --confirm-shared
+python greenchanger_script/ingestion.py glen-eira-trees --confirm-shared
 
 # Load the four City of Melbourne polygon snapshots. Each run preserves and
 # checksums a separate official API extraction.
@@ -217,7 +218,7 @@ python greenchanger_script/ingestion.py named-trees \
   --confirm-shared
 
 # Reuse a downloaded council file instead of downloading it again. Select
-# exactly one of the five council jobs when this override is supplied.
+# exactly one council-tree job when this override is supplied.
 python greenchanger_script/ingestion.py yarra-trees \
   --council-tree-file data/raw/council_trees/yarra/TIMESTAMP/yarra_trees.geojson \
   --confirm-shared

@@ -1,4 +1,6 @@
 import unittest
+import csv
+from pathlib import Path
 
 from shapely.geometry import Point
 
@@ -133,6 +135,34 @@ class CouncilTreeInventoryTests(unittest.TestCase):
         self.assertEqual(row["dbh_max_cm"], 100.0)
         self.assertEqual(row["address"], "2-4 Pine Av PARK ORCHARDS 3114")
         self.assertEqual(row["source_observed_on"], "2010-07-28")
+
+    def test_glen_eira_preserves_species_and_measured_dimensions(self):
+        row = normalise_feature(
+            SOURCES["glen_eira"],
+            feature(feature_id="TS56201", Botanical="Corymbia ficifolia",
+                    Common_Name="Red Flowering Gum", DBH=12, Height=4,
+                    Spread=2, LocationType="Street Tree"),
+        )
+        self.assertEqual(row["source_tree_id"], "glen_eira:TS56201")
+        self.assertEqual(row["scientific_name"], "Corymbia ficifolia")
+        self.assertEqual(row["common_name"], "Red Flowering Gum")
+        self.assertEqual(row["diameter_breast_height_cm"], 12.0)
+        self.assertEqual(row["height_m"], 4.0)
+        self.assertEqual(row["canopy_width_m"], 2.0)
+        self.assertEqual(row["located_in"], "Street Tree")
+
+    def test_metropolitan_coverage_register_lists_all_31_councils(self):
+        path = Path(__file__).parents[1] / "data" / "reference" / \
+            "council_tree_inventory_coverage.csv"
+        with path.open(newline="", encoding="utf-8") as source:
+            rows = list(csv.DictReader(source))
+        self.assertEqual(len(rows), 31)
+        self.assertEqual(len({row["council"] for row in rows}), 31)
+        self.assertTrue(all(row["status"] for row in rows))
+        integrated = {row["council"] for row in rows
+                      if row["status"] == "integrated"}
+        self.assertIn("Glen Eira City Council", integrated)
+        self.assertIn("Melbourne City Council", integrated)
 
     def test_three_dimensional_source_point_is_cleaned_to_database_2d(self):
         source_feature = {

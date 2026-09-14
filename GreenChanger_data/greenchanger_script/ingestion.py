@@ -3185,6 +3185,7 @@ JOBS: dict[str, Job] = {
     "wyndham-trees": _council_job("wyndham"),
     "port-phillip-trees": _council_job("port_phillip"),
     "manningham-trees": _council_job("manningham"),
+    "glen-eira-trees": _council_job("glen_eira"),
 }
 
 

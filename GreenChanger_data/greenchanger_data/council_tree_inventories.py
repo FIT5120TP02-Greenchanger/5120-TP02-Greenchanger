@@ -78,6 +78,12 @@ SOURCES = {
         "https://data.gov.au/data/dataset/1aef5123-24ff-4084-a0f1-a52ca71e9e99/resource/a23017ce-d75e-4e4c-9d66-750601c0f4e7/download/manningham_street_trees.zip",
         ".zip",
     ),
+    "glen_eira": CouncilTreeSource(
+        "glen_eira", "Park and Street Trees", "Glen Eira City Council",
+        "City of Glen Eira",
+        "https://data.gov.au/data/dataset/ed15e3ea-48dc-47d2-afa6-518e6f5276e1/resource/85c2d44c-8ccf-4a32-9881-872f1a511ef7/download/streetandparktrees.json",
+        ".geojson",
+    ),
 }
 
 
@@ -394,6 +400,27 @@ def normalise_feature(source: CouncilTreeSource, feature: dict[str, Any]) -> dic
             located_in="street",
             address=address,
             source_observed_on=iso_date(p.get("date1")),
+        )
+    elif source.key == "glen_eira":
+        common = clean(p.get("Common_Name"))
+        botanical = clean(p.get("Botanical"))
+        row.update(
+            source_tree_id=(
+                f"glen_eira:{clean(p.get('feature_id'))}"
+                if clean(p.get("feature_id"))
+                else stable_id(source.key, lon, lat, common, botanical)
+            ),
+            common_name=common,
+            scientific_name=botanical,
+            display_name=common or botanical,
+            genus=botanical.split()[0] if botanical else None,
+            taxonomic_precision="species" if botanical else (
+                "common_name" if common else None
+            ),
+            diameter_breast_height_cm=positive_float(p.get("DBH")),
+            height_m=positive_float(p.get("Height")),
+            canopy_width_m=positive_float(p.get("Spread")),
+            located_in=clean(p.get("LocationType")),
         )
     else:
         raise ValueError(f"Unsupported council tree source: {source.key}")

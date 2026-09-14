@@ -62,6 +62,7 @@ class IngestionHelperTests(unittest.TestCase):
         self.assertIn("council-guidance", JOBS)
         self.assertIn("port-phillip-trees", JOBS)
         self.assertIn("manningham-trees", JOBS)
+        self.assertIn("glen-eira-trees", JOBS)
 
     def test_era5_download_is_prepared_before_ingestion_connection(self):
         source = inspect.getsource(main)

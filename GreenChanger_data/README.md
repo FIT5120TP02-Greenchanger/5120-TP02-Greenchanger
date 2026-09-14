@@ -291,14 +291,14 @@ conversion; their 500 m source resolution is unchanged.
 | Application-ready canopy baseline | 37,146 unique 500 m cells | All baseline checks passed |
 | BOM weather observations | 1,557 from 10 stations | 100% source quality pass rate; version `greater-melbourne-bom-stations-v1` |
 | Vicmap Tree Urban | 10,473,773 Melbourne points | 100% record-quality and boundary-membership pass rates |
-| Source-labelled council trees | 570,093 current rows across eight councils | Every latest eligible-record version passes the ≥95% gate; coverage and fields vary by council |
+| Source-labelled council trees | 629,322 current rows across nine councils | Every latest eligible-record version passes the ≥95% gate; coverage and fields vary by council |
 | Cost estimates | 8 in AWS | 100% quality pass; 0 rejected, 0 missing source URLs and 0 expired |
 | Representative residential simulations | 3 properties × 4 actions | 12/12 output checks passed; overall WARN from retained baseline caveats |
 | Validated scenario measure results | 0 | Prototype model is deliberately blocked from application output |
 
 ### Named council-tree inventory results
 
-Migration 037 and `council_tree_inventories.py` support seven additional council inventories without
+Migration 037 and `council_tree_inventories.py` support eight additional council inventories without
 pretending they describe the same physical objects as Vicmap Tree Urban. Raw
 placeholders become null, removed Brimbank records are excluded, coordinates
 are transformed to EPSG:7855 and clipped to `2GMEL`, Wyndham Z coordinates are
@@ -314,12 +314,22 @@ municipality, source, licence and available dimensions.
 | Wyndham | 44,859 | 44,841 | 99.99% | 99.97% | 34,257 | 34,260 |
 | City of Port Phillip | 46,000 | 45,989 | 100% | 100% | 42,501 | 43,490 |
 | Manningham City Council | 66,904 | 66,904 | 100% | 100% | 66,904 ranges | Not supplied |
+| Glen Eira Park and Street Trees | 59,259 | 59,229 | 99.99% | 99.96% | 59,071 | 56,365 |
 
 The quality percentage is calculated only over active records with a usable
 name; the separate name-coverage percentage prevents that gate from hiding
 source incompleteness. Brimbank's 1,378 rejected eligible rows failed only the
-identifier-uniqueness rule. A missing council record never means that a private
+identifier-uniqueness rule. Glen Eira's six rejected rows are the members of
+three duplicated source identifiers. A missing council record never means that a private
 or backyard tree does not exist.
+
+`data/reference/council_tree_inventory_coverage.csv` records the review of all
+31 metropolitan councils. Nine councils currently have an integrated source.
+The remaining 22 are deliberately not added where no official openly licensed
+row-level download was verified, the only source was a partial significant-tree
+register, or reuse restrictions were incompatible with the open-data contract.
+"Not added" means no suitable source was verified during the recorded review;
+it does not claim that the council has no internal inventory.
 
 Application lookup:
 
@@ -601,6 +611,7 @@ All source versions retain extraction time, observation period, checksum, source
 - Wyndham provides common names but not botanical names. Hobsons Bay supplies DBH ranges but no height or crown width; Yarra supplies height but no crown width. Casey crown-width fields are mostly zero and are treated as missing, not measured zero.
 - Port Phillip supplies species, planting date, DBH, height and crown-width fields for public street trees. It excludes private trees and source update dates vary by record.
 - Manningham supplies street-tree species, height and DBH ranges, address and survey date. The published extract has no crown-width or planting-year field.
+- Glen Eira supplies botanical and common names, DBH, height, crown spread and location type. The source has no observation or planting date, so it supports cross-sectional dimension modelling but not age-based growth by itself.
 - A missing name or dimension returns `Unavailable`; it is never inferred from another council or from a nearby mapped point.
 
 ### Heat and weather

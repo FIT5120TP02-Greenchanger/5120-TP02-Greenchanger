@@ -306,6 +306,20 @@
       "target_entities": ["named_tree_inventory", "species_profile"]
     },
     {
+      "key": "glen_eira_tree_inventory",
+      "name": "Park and Street Trees",
+      "publisher": "Glen Eira City Council",
+      "url": "https://data.gov.au/data/dataset/ed15e3ea-48dc-47d2-afa6-518e6f5276e1",
+      "category": "tree_inventory",
+      "coverage": "City of Glen Eira",
+      "observation_period": "undated council asset snapshot; catalogue updated 2023",
+      "access_method": "GeoJSON download",
+      "licence": "Creative Commons Attribution 2.5 Australia",
+      "licence_status": "open_confirmed",
+      "update_frequency": "source controlled",
+      "target_entities": ["named_tree_inventory", "species_profile"]
+    },
+    {
       "key": "melbourne_vegetation_change_2014_2018",
       "name": "Change in Vegetation Cover in Metropolitan Melbourne between 2014 and 2018",
       "publisher": "Victorian Government Department of Transport and Planning",
