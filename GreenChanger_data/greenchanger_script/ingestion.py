@@ -306,6 +306,7 @@ def sync_sources(connection, _args: argparse.Namespace) -> dict[str, Any]:
             source["publisher"],
             source["url"],
             source.get("licence"),
+            source.get("licence_status", "review_required"),
             source["category"],
             source["coverage"],
             source.get("access_method"),
@@ -317,13 +318,14 @@ def sync_sources(connection, _args: argparse.Namespace) -> dict[str, Any]:
         connection,
         """
         INSERT INTO dataset_source (
-            source_name, publisher, source_url, licence, source_category,
+            source_name, publisher, source_url, licence, licence_status, source_category,
             geographic_coverage, access_method, update_frequency
         )
-        VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
         ON CONFLICT (source_name, publisher) DO UPDATE SET
             source_url = EXCLUDED.source_url,
             licence = EXCLUDED.licence,
+            licence_status = EXCLUDED.licence_status,
             source_category = EXCLUDED.source_category,
             geographic_coverage = EXCLUDED.geographic_coverage,
             access_method = EXCLUDED.access_method,
@@ -646,6 +648,7 @@ def ingest_costs(connection, args: argparse.Namespace) -> dict[str, Any]:
         (
             row["cost_context"], row["cost_basis"], row["tree_size_category"] or None,
             row["planting_method"] or None, row["stock_size"] or None,
+            row["tree_type"] or None, row["botanical_name"] or None,
             float(row["minimum_cost"]), float(row["maximum_cost"]),
             optional_float(row["material_min_cost"]), optional_float(row["material_max_cost"]),
             optional_float(row["installation_min_cost"]), optional_float(row["installation_max_cost"]),
@@ -664,7 +667,8 @@ def ingest_costs(connection, args: argparse.Namespace) -> dict[str, Any]:
         """
         INSERT INTO cost_estimate (
             greening_option_id, cost_context, cost_basis, tree_size_category,
-            planting_method, stock_size, minimum_cost, maximum_cost,
+            planting_method, stock_size, tree_type, botanical_name,
+            minimum_cost, maximum_cost,
             material_min_cost, material_max_cost, installation_min_cost,
             installation_max_cost, delivery_min_cost, delivery_max_cost,
             setup_min_cost, setup_max_cost, currency, gst_included,
@@ -675,12 +679,12 @@ def ingest_costs(connection, args: argparse.Namespace) -> dict[str, Any]:
         SELECT
             go.greening_option_id, %s, %s, %s, %s, %s, %s, %s, %s, %s,
             %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s,
-            %s, %s, %s
+            %s, %s, %s, %s, %s
         FROM greening_option AS go
         WHERE go.option_code = %s
         ON CONFLICT (
-            greening_option_id, cost_context, cost_basis, source_name,
-            valid_from, source_reference
+            greening_option_id, cost_context, cost_basis, tree_type,
+            source_name, valid_from, source_reference
         ) DO UPDATE SET
             minimum_cost = EXCLUDED.minimum_cost,
             maximum_cost = EXCLUDED.maximum_cost,
@@ -692,6 +696,7 @@ def ingest_costs(connection, args: argparse.Namespace) -> dict[str, Any]:
             delivery_max_cost = EXCLUDED.delivery_max_cost,
             setup_min_cost = EXCLUDED.setup_min_cost,
             setup_max_cost = EXCLUDED.setup_max_cost,
+            botanical_name = EXCLUDED.botanical_name,
             valid_to = EXCLUDED.valid_to,
             last_verified_at = EXCLUDED.last_verified_at,
             confidence_level = EXCLUDED.confidence_level

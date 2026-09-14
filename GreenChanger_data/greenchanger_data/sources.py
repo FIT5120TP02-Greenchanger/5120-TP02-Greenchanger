@@ -16,7 +16,13 @@ def load_source_registry(path: Path) -> dict[str, Any]:
     if not isinstance(datasets, list) or not datasets:
         raise ValueError("source registry must contain a non-empty datasets list")
 
-    required = {"key", "name", "publisher", "url", "category", "coverage"}
+    required = {
+        "key", "name", "publisher", "url", "category", "coverage",
+        "licence", "licence_status",
+    }
+    allowed_licence_statuses = {
+        "open_confirmed", "public_domain", "review_required", "restricted"
+    }
     seen: set[str] = set()
     for dataset in datasets:
         missing = required - dataset.keys()
@@ -26,6 +32,11 @@ def load_source_registry(path: Path) -> dict[str, Any]:
             )
         if dataset["key"] in seen:
             raise ValueError(f"duplicate dataset key: {dataset['key']}")
+        if dataset["licence_status"] not in allowed_licence_statuses:
+            raise ValueError(
+                f"dataset {dataset['key']} has unsupported licence_status: "
+                f"{dataset['licence_status']}"
+            )
         seen.add(dataset["key"])
 
     return registry

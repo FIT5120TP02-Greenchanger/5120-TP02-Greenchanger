@@ -4,6 +4,7 @@ from greenchanger_data.classification import (
     classify_canopy_benchmark,
     classify_environmental_value,
     classify_melbourne_daily_mean_air_temperature,
+    classify_temperature_band,
 )
 
 
@@ -91,6 +92,25 @@ class MelbourneDailyMeanAirTemperatureTests(unittest.TestCase):
             self.assertEqual(result["classification"], "Unavailable")
             self.assertIsNone(result["daily_mean_c"])
             self.assertEqual(result["status"], "historical_context")
+
+
+class TemperatureDisplayBandTests(unittest.TestCase):
+    def test_requested_boundaries(self):
+        self.assertEqual(classify_temperature_band(0), "Low")
+        self.assertEqual(classify_temperature_band(13.6), "Low")
+        self.assertEqual(classify_temperature_band(27), "Low")
+        self.assertEqual(classify_temperature_band(27.01), "Medium")
+        self.assertEqual(classify_temperature_band(30), "Medium")
+        self.assertEqual(classify_temperature_band(30.01), "High")
+
+    def test_missing_and_non_finite_are_unavailable(self):
+        for value in (None, float("nan"), float("inf"), float("-inf")):
+            with self.subTest(value=value):
+                self.assertEqual(classify_temperature_band(value), "Unavailable")
+
+    def test_non_numeric_is_rejected(self):
+        with self.assertRaises(TypeError):
+            classify_temperature_band("28")
 
 
 class CanopyBenchmarkTests(unittest.TestCase):

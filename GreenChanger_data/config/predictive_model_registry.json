@@ -1,0 +1,104 @@
+{
+  "registry_version": "separate-environmental-models-v1",
+  "reviewed_at": "2026-09-05",
+  "policy": {
+    "general_model_prohibited": true,
+    "production_requires_open_licence": true,
+    "production_requires_held_out_validation": true,
+    "untrained_output_status": "unavailable_model_not_trained",
+    "precise_after_temperature_prohibited": true
+  },
+  "models": {
+    "tree_canopy_growth": {
+      "name": "Tree canopy growth model",
+      "status": "training_data_not_prepared",
+      "target": "future_canopy_area_m2",
+      "output": "expected_canopy_range_m2",
+      "grain": "individual tree at an explicit future horizon",
+      "features": [
+        "tree_age_years",
+        "species",
+        "current_canopy_area_m2",
+        "height_m",
+        "diameter_cm",
+        "site_context",
+        "maturity_horizon_years"
+      ],
+      "datasets": [
+        {"key": "city_melbourne_tree_inventory", "role": "tree attributes and planting year", "required": true},
+        {"key": "melbourne_canopy_2021", "role": "observed canopy target", "required": true},
+        {"key": "vicmap_property", "role": "parcel and site context", "required": false}
+      ],
+      "validation": "Group spatial hold-out by precinct and temporal hold-out by observation year; report MAE and empirical interval coverage by species.",
+      "limitations": "City of Melbourne training coverage is not representative of all residential Melbourne. Do not extrapolate unsupported species or horizons."
+    },
+    "melbourne_canopy_change": {
+      "name": "Melbourne-wide canopy change model",
+      "status": "training_data_not_prepared",
+      "target": "vegetation_cover_change_percentage_points_2014_2018",
+      "output": "expected_canopy_change_range_percentage_points",
+      "grain": "ABS 2016 Mesh Block or consistently aligned analysis cell",
+      "features": [
+        "baseline_tree_cover_pct",
+        "land_use_class",
+        "parcel_area_summary",
+        "impervious_cover_pct",
+        "weather_summary",
+        "location"
+      ],
+      "datasets": [
+        {"key": "melbourne_vegetation_change_2014_2018", "role": "Melbourne-wide change target", "required": true},
+        {"key": "vicmap_property", "role": "parcel characteristics", "required": true},
+        {"key": "dea_land_cover", "role": "land-cover covariates and longer-term context", "required": false},
+        {"key": "era5_land", "role": "openly licensed historical weather controls", "required": true}
+      ],
+      "validation": "Spatial block cross-validation with complete suburbs or LGAs held out; report MAE and interval coverage, including growth-area error slices.",
+      "limitations": "The target records net vegetation change, not the causal effect of a particular planting action."
+    },
+    "cooling_association": {
+      "name": "Vegetation and surface-cooling association model",
+      "status": "training_data_not_prepared",
+      "target": "landsat_land_surface_temperature_c",
+      "output": "conditional_land_surface_temperature_range_c",
+      "grain": "spatial cell and Landsat acquisition time",
+      "features": [
+        "tree_cover_pct",
+        "vegetation_cover_change_pct",
+        "land_cover_class",
+        "air_temperature_control_c",
+        "rainfall_control_mm",
+        "solar_radiation_control",
+        "cloud_quality",
+        "acquisition_time"
+      ],
+      "datasets": [
+        {"key": "landsat_surface_temperature", "role": "land-surface-temperature target", "required": true},
+        {"key": "melbourne_vegetation_change_2014_2018", "role": "vegetation predictors", "required": true},
+        {"key": "era5_land", "role": "openly licensed historical weather controls", "required": true},
+        {"key": "bom_greater_melbourne_stations", "role": "optional observation cross-check subject to feed-specific licence", "required": false}
+      ],
+      "validation": "Hold out complete spatial blocks and acquisition dates; compare against a weather-only baseline and report MAE, bias and interval coverage.",
+      "limitations": "This is an association model for Landsat land-surface temperature, not causal intervention cooling and not resident-level air temperature."
+    },
+    "garden_cooling": {
+      "name": "Irrigated garden cooling model",
+      "status": "blocked_licence_review",
+      "target": "irrigated_minus_unirrigated_surface_energy_and_microclimate_response",
+      "output": "experimental_garden_cooling_range",
+      "grain": "Burnley experimental plot and hour",
+      "features": [
+        "irrigation_mm_per_day",
+        "soil_moisture",
+        "background_air_temperature_c",
+        "solar_radiation",
+        "wind",
+        "hour"
+      ],
+      "datasets": [
+        {"key": "burnley_irrigation_experiment", "role": "paired irrigated and unirrigated experimental observations", "required": true}
+      ],
+      "validation": "Train on the 2021 experiment and hold out the 2022 experiment; report treatment-effect range and uncertainty by weather condition.",
+      "limitations": "The experiment concerns irrigated turf in Burnley. It does not directly estimate trees, garden beds, potted plants or all Melbourne properties. The dataset must not be trained on until its record-level licence is confirmed."
+    }
+  }
+}

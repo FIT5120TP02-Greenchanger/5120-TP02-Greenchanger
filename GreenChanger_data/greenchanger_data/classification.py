@@ -41,6 +41,13 @@ HISTORICAL_HEAT_LIMITATION = (
 CANOPY_MEDIUM_BENCHMARK_PCT = 15.3
 CANOPY_HIGH_BENCHMARK_PCT = 30.0
 
+# Product-defined display bands for a single temperature value. These are not
+# BOM heatwave triggers or health-risk thresholds and must retain the source
+# measurement type (for example Landsat land-surface temperature or BOM air
+# temperature) wherever they are displayed.
+TEMPERATURE_LOW_MAX_C = 27.0
+TEMPERATURE_MEDIUM_MAX_C = 30.0
+
 
 def classify_environmental_value(
     value: Real | None,
@@ -71,6 +78,27 @@ def classify_environmental_value(
     if value <= lower_threshold:
         return "Low"
     if value <= upper_threshold:
+        return "Medium"
+    return "High"
+
+
+def classify_temperature_band(temperature_c: Real | None) -> str:
+    """Return the GreenChanger temperature display band.
+
+    Low is at or below 27 C, Medium is above 27 C and at or below 30 C,
+    and High is above 30 C. Missing and non-finite values are Unavailable.
+    The result is a product display band, not a health or heatwave warning.
+    """
+
+    if temperature_c is None:
+        return "Unavailable"
+    if not isinstance(temperature_c, Real):
+        raise TypeError("temperature must be numeric or None")
+    if not isfinite(temperature_c):
+        return "Unavailable"
+    if temperature_c <= TEMPERATURE_LOW_MAX_C:
+        return "Low"
+    if temperature_c <= TEMPERATURE_MEDIUM_MAX_C:
         return "Medium"
     return "High"
 

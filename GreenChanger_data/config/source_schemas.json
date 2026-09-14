@@ -30,8 +30,8 @@
     "required_fields": ["observed_on", "geometry_wkt", "source_srid"]
   },
   "cost_estimate": {
-    "grain": "one greening option, context, unit and validity period",
-    "business_key": ["option_code", "cost_context", "cost_basis", "valid_from", "source_name"],
+    "grain": "one greening option, tree type where applicable, context, unit and validity period",
+    "business_key": ["option_code", "tree_type", "cost_context", "cost_basis", "valid_from", "source_name"],
     "required_fields": ["option_code", "cost_context", "cost_basis", "minimum_cost", "maximum_cost", "source_name", "valid_from", "last_verified_at"]
   }
 }
