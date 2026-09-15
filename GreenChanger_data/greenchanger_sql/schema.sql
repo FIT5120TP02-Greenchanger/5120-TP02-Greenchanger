@@ -1403,8 +1403,11 @@ SELECT
 FROM cost_estimate AS ce
 JOIN greening_option AS go USING (greening_option_id)
 WHERE go.active
-  AND ce.valid_from <= CURRENT_DATE
-  AND ce.valid_to >= CURRENT_DATE;
+  AND ce.valid_from <= (CURRENT_TIMESTAMP AT TIME ZONE 'Australia/Melbourne')::DATE
+  AND (
+      ce.valid_to IS NULL
+      OR ce.valid_to >= (CURRENT_TIMESTAMP AT TIME ZONE 'Australia/Melbourne')::DATE
+  );
 
 COMMENT ON VIEW application_ready_cost_estimate IS
     'Current source-backed greening cost contexts with option labels, confidence and mandatory indicative-estimate disclaimer.';
@@ -3109,3 +3112,9 @@ COMMIT;
 -- include: migrations/046_require_source_council_for_popularity.sql
 -- include: migrations/047_fallback_to_metropolitan_tree_popularity.sql
 -- include: migrations/048_fix_council_inventory_availability_check.sql
+-- include: migrations/049_align_current_tree_costs.sql
+-- include: migrations/050_address_tree_catalog_with_images.sql
+-- include: migrations/051_fix_tree_catalog_currency_type.sql
+-- include: migrations/052_complete_tree_catalog_enrichment.sql
+-- include: migrations/053_complete_address_tree_catalog.sql
+-- include: migrations/054_align_gbif_supported_image_licences.sql

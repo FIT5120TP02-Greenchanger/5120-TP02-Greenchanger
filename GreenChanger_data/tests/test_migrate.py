@@ -9,8 +9,63 @@ class MigrationFileTests(unittest.TestCase):
     def test_migrations_are_numbered_and_ordered(self):
         self.assertEqual(
             [version for version, _ in migration_files()],
-            list(range(1, 49)),
+            list(range(1, 55)),
         )
+
+    def test_current_costs_use_melbourne_date_and_retire_anonymous_trees(self):
+        migration = next(path for version, path in migration_files() if version == 49)
+        sql = expanded_sql(migration)
+        self.assertIn("AT TIME ZONE 'Australia/Melbourne'", sql)
+        self.assertIn("ce.tree_type IS NULL", sql)
+        self.assertIn("'backyard_tree_diy'", sql)
+        self.assertIn("CREATE OR REPLACE VIEW application_ready_cost_estimate", sql)
+
+    def test_address_tree_catalog_includes_cost_images_and_council_status(self):
+        migration = next(path for version, path in migration_files() if version == 50)
+        sql = expanded_sql(migration)
+        self.assertIn("CREATE TABLE tree_species_image", sql)
+        self.assertIn("CREATE OR REPLACE VIEW application_ready_tree_species_image", sql)
+        self.assertIn("get_tree_planting_catalog_by_address", sql)
+        self.assertIn("supply_min_cost_aud", sql)
+        self.assertIn("installed_min_cost_aud", sql)
+        self.assertIn("image_attribution", sql)
+        self.assertIn("'Public domain'", sql)
+        self.assertIn("'available_now'", sql)
+        self.assertIn("'council_approval_required'", sql)
+        self.assertIn("not proof of site suitability", sql)
+
+    def test_address_tree_catalog_returns_currency_as_text(self):
+        migration = next(path for version, path in migration_files() if version == 51)
+        sql = expanded_sql(migration)
+        self.assertIn("pg_get_functiondef", sql)
+        self.assertIn("MIN(estimate.currency)::TEXT AS currency", sql)
+        self.assertIn("Currency is returned as text", sql)
+
+    def test_complete_catalog_preserves_missing_and_generic_statuses(self):
+        migration = next(path for version, path in migration_files() if version == 52)
+        sql = expanded_sql(migration)
+        self.assertIn("CREATE TABLE tree_species_image_enrichment", sql)
+        self.assertIn("CREATE OR REPLACE VIEW complete_tree_species_catalog", sql)
+        self.assertIn("verified_open_image", sql)
+        self.assertIn("taxon_unresolved", sql)
+        self.assertIn("generic_current_catalogue_range_not_species_quote", sql)
+        self.assertIn("must not be represented as this species price", sql)
+        self.assertIn("Do not substitute an unverified image", sql)
+
+    def test_address_catalog_combines_exact_stock_and_local_popularity(self):
+        migration = next(path for version, path in migration_files() if version == 53)
+        sql = expanded_sql(migration)
+        self.assertIn("get_council_tree_species_popularity_by_address", sql)
+        self.assertIn("complete_tree_species_catalog", sql)
+        self.assertIn("species_specific_current_source_range", sql)
+        self.assertIn("council_approval_required", sql)
+        self.assertIn("distinguishes species-specific from generic cost", sql)
+
+    def test_gbif_source_uses_supported_open_licence_filters(self):
+        migration = next(path for version, path in migration_files() if version == 54)
+        sql = expanded_sql(migration)
+        self.assertIn("Record-level CC0 or CC BY 4.0 only", sql)
+        self.assertIn("GBIF-supported CC0 or CC BY 4.0", sql)
 
     def test_include_is_expanded(self):
         with tempfile.TemporaryDirectory() as directory:

@@ -627,6 +627,88 @@ class PostgisEnvironmentContextIntegrationTests(unittest.TestCase):
             )
             self.assertEqual(cursor.fetchone(), (1, Decimal("25")))
 
+    def test_address_tree_catalog_returns_cost_and_licensed_image(self):
+        with self.connection.cursor() as cursor:
+            cursor.execute(
+                """INSERT INTO cost_estimate (
+                       greening_option_id, cost_context, cost_basis,
+                       tree_type, botanical_name, minimum_cost, maximum_cost,
+                       currency, includes_installation, source_name,
+                       source_reference, source_url, valid_from, valid_to,
+                       last_verified_at, confidence_level
+                   )
+                   SELECT greening_option_id,
+                          CASE option_code
+                              WHEN 'backyard_tree_diy'
+                                  THEN 'catalogue_integration_supply'
+                              ELSE 'catalogue_integration_installed'
+                          END,
+                          'per_tree', 'Water Gum', 'Tristaniopsis laurina',
+                          CASE option_code WHEN 'backyard_tree_diy' THEN 25 ELSE 109 END,
+                          CASE option_code WHEN 'backyard_tree_diy' THEN 100 ELSE 184 END,
+                          'AUD', option_code = 'backyard_tree_installed',
+                          'Catalogue integration source',
+                          'catalogue-integration-water-gum',
+                          'https://example.invalid/catalogue-integration',
+                          CURRENT_DATE, CURRENT_DATE + 30,
+                          CURRENT_TIMESTAMP, 'high'
+                   FROM greening_option
+                   WHERE option_code IN (
+                       'backyard_tree_diy', 'backyard_tree_installed'
+                   )"""
+            )
+            try:
+                cursor.execute(
+                    """SELECT council_name, tree_type, scientific_name,
+                              supply_min_cost_aud, supply_max_cost_aud,
+                              installed_min_cost_aud, installed_max_cost_aud,
+                              image_licence, image_creator, image_url,
+                              cost_status, image_status
+                       FROM get_tree_planting_catalog_by_address(
+                           '10 TEST STREET MELBOURNE 3000', 20
+                       )
+                       WHERE tree_type = 'Water Gum'"""
+                )
+                row = cursor.fetchone()
+                self.assertIsNotNone(row)
+                self.assertEqual(row[:3], (
+                    "BRIMBANK CITY", "Water Gum", "Tristaniopsis laurina",
+                ))
+                self.assertEqual(row[3:7], (
+                    Decimal("25"), Decimal("100"),
+                    Decimal("109"), Decimal("184"),
+                ))
+                self.assertEqual(row[7:9], ("Public domain", "Eug"))
+                self.assertTrue(row[9].startswith("https://"))
+                self.assertEqual(row[10:], (
+                    "species_specific_current_source_range",
+                    "curated_reference_image",
+                ))
+                cursor.execute(
+                    """SELECT cost_status, image_status, image_url,
+                              supply_min_cost_aud, installed_max_cost_aud
+                       FROM get_tree_planting_catalog_by_address(
+                           '10 TEST STREET MELBOURNE 3000', 20
+                       )
+                       WHERE scientific_name = 'Eucalyptus camaldulensis'"""
+                )
+                generic = cursor.fetchone()
+                self.assertIsNotNone(generic)
+                self.assertEqual(
+                    generic[:3],
+                    (
+                        "generic_current_catalogue_range_not_species_quote",
+                        "image_enrichment_not_run",
+                        None,
+                    ),
+                )
+                self.assertEqual(generic[3:], (Decimal("25"), Decimal("184")))
+            finally:
+                cursor.execute(
+                    """DELETE FROM cost_estimate
+                       WHERE source_name = 'Catalogue integration source'"""
+                )
+
     @classmethod
     def _seed_spatial_contract(cls):
         with cls.connection.cursor() as cursor:

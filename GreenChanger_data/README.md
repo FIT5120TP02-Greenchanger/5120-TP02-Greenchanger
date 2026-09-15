@@ -373,6 +373,47 @@ most frequently recorded species across all integrated Melbourne council
 inventories. This fallback is not council-specific evidence, planting approval,
 nursery availability or property-suitability advice.
 
+Return the complete Iteration 2 planting catalogue for an address, including
+the council guidance status, current supply-only and installed AUD ranges, and
+a licensed reference image with attribution:
+
+```sql
+SELECT tree_type, scientific_name, list_category, guidance_status,
+       supply_min_cost_aud, supply_max_cost_aud,
+       installed_min_cost_aud, installed_max_cost_aud,
+       image_url, image_alt_text, image_attribution, guidance_limitation
+FROM get_tree_planting_catalog_by_address(
+    '251A BELMORE ROAD BALWYN NORTH 3104', 20
+);
+```
+
+The function always includes exact-priced catalogue stock, then adds the most
+frequently recorded species for the address council (or the documented
+metropolitan fallback). `available_now` means the loaded council source
+explicitly uses `approved` or `recommended`; every other row is labelled
+`council_approval_required`. Missing species prices use the explicitly labelled
+generic catalogue range, and missing verified images remain unavailable.
+Images are illustrative reference photographs, not the exact nursery stock;
+the returned attribution and limitation must be retained with every image.
+
+The complete named-species catalogue is exposed through
+`complete_tree_species_catalog`. Every distinct scientific name is retained.
+Species-specific prices use `species_specific_current_source_range`; all other
+rows use `generic_current_catalogue_range_not_species_quote`. GBIF enrichment
+publishes only exact Plantae matches with confidence at least 95 and record-level
+CC0 or CC BY 4.0 media. Unresolved names and missing open images
+remain explicit unavailable states rather than receiving a substitute image.
+
+```bash
+python greenchanger_script/enrich_tree_catalog.py \
+  --workers 12 \
+  --confirm-shared
+```
+
+The command is resumable through
+`data/interim/tree_catalog/gbif_species_images.jsonl`; rerunning it skips names
+already present in the checkpoint unless `--refresh` is supplied.
+
 The lookup uses the latest application-ready version per source, an indexed
 metre-based radius and a bounded result limit. It returns source and licence
 metadata plus the public-tree/private-tree limitation with every row.
@@ -725,8 +766,8 @@ mean local causal validation or permission to display a precise after-temperatur
 - No suitable government dataset provides current Melbourne residential greening prices.
 - The version-controlled file `data/reference/cost_estimates.csv` uses current advertised supplier prices and clearly labelled composite scenarios.
 - Exact advertised retail prices are high confidence; transparent multi-source calculations are medium confidence; broad installed-market guidance is low confidence.
-- The current coverage includes DIY and installed backyard trees by named type, a container tree, potted plants, an installed garden bed, DIY and installed green walls, and an installed advanced/community tree context.
-- Named residential tree costs currently cover Ficus Hillii Flash, Mandarin Emperor Dwarf, Lemon Lisbon Dwarf, Mediterranean Sweet Orange Dwarf, Chinese Elm and Chinese Pistache. `tree_type` and `botanical_name` are retained in the CSV, database and application-ready view.
+- The current coverage includes DIY and installed backyard trees by named type, potted plants, an installed garden bed, DIY and installed green walls, and an installed advanced/community tree context. The earlier container-tree estimate is retained only as expired history.
+- Named residential tree costs now match the Iteration 2 planting flow: Water Gum, Lemon-scented Gum and Crepe Myrtle. Earlier Ficus, citrus, elm and pistache estimates remain in the CSV as expired history and are excluded from current application results. `tree_type` and `botanical_name` are retained in the CSV, database and application-ready view.
 - Green-roof and unsupported annual-maintenance values remain absent rather than being invented.
 - Every record includes its source, assumptions, validity window, verification timestamp, inclusions and confidence level.
 - Outputs are indicative estimates, not quotations, and should be rechecked approximately every three months.
@@ -734,20 +775,16 @@ mean local causal validation or permission to display a precise after-temperatur
 
 #### Cost sources and assumptions
 
-The prices below were verified on 26 August 2026 and have a review date of
-26 November 2026. Full component fields and source notes are stored in
+The tree prices below were verified on 15 September 2026 and have a review date
+of 14 December 2026. Other greening options retain their own row-level validity
+windows. Full component fields and source notes are stored in
 `data/reference/cost_estimates.csv`.
 
 | Greening option | Indicative range | Source-backed assumption | Confidence |
 | --- | ---: | --- | --- |
-| DIY small backyard tree | $25–$85 per tree | [Plants Melbourne Nursery](https://plantsmelb.com/store/page/2/) advertised 200–300 mm Ficus stock; delivery, soil, stakes and labour are excluded. | High |
-| Professionally planted small tree | $109–$169 per tree | $25–$85 plant plus one $84 advertised landscaping hour from [Landscaping for Melbourne](https://landscapingformelbourne.com/pricing/); assumes a prepared and accessible site. | Medium |
-| Mandarin Emperor Dwarf | $59 supply only; $143 with one planting hour | [Diaco's Garden Nursery](https://diacos.com.au/product/mandarin-emperor-dwarf/) advertised the tree at $59; the installed scenario adds one published $84 Melbourne landscaping hour. | High supply / medium installed |
-| Lemon Lisbon Dwarf | $59 supply only; $143 with one planting hour | [Diaco's fruit-tree catalogue](https://diacos.com.au/fruit-trees/) advertised the tree at $59; the installed scenario adds one published $84 Melbourne landscaping hour. | High supply / medium installed |
-| Mediterranean Sweet Orange Dwarf | $59 supply only; $143 with one planting hour | [Diaco's fruit-tree catalogue](https://diacos.com.au/fruit-trees/) advertised the tree at $59; the installed scenario adds one published $84 Melbourne landscaping hour. | High supply / medium installed |
-| Chinese Elm | $41.95–$169.95 supply only; $125.95–$253.95 with one planting hour | [Diaco's ornamental-tree catalogue](https://diacos.com.au/product-category/plants/ornamental-trees/) advertised variant-dependent stock; the source describes this as a large tree for larger gardens. | High supply / medium installed |
-| Chinese Pistache | $49.95–$179.95 supply only; $133.95–$263.95 with one planting hour | [Diaco's ornamental-tree catalogue](https://diacos.com.au/product-category/plants/ornamental-trees/) advertised variant-dependent stock; the installed scenario adds one published $84 Melbourne landscaping hour. | High supply / medium installed |
-| Container tree | $67.99–$185.68 per tree | [Diaco's Lemon Eureka](https://diacos.com.au/product/lemon-eureka/) at $49–$139 plus a 400 mm pot from [Ladybird Nursery](https://ladybirdnursery.com.au/products/plastic-pot-400mm-pick-up-only) or [Bunnings](https://www.bunnings.com.au/elho-40cm-terracotta-vibia-outdoor-plant-pot_p0366936) at $18.99–$46.68; potting mix, delivery and labour are excluded. | Medium |
+| Water Gum | $24.95–$99.95 supply only; $108.95–$183.95 with one planting hour | [Diaco's Garden Nursery](https://diacos.com.au/product/water-gum/) lists variant-dependent Water Gum stock; installed cost adds one published $84 Melbourne landscaping hour. | High supply / medium installed |
+| Lemon-scented Gum | $15.95–$259.95 supply only; $99.95–$343.95 with one planting hour | [Plant Nest](https://www.plantnest.com.au/products/lemon-scented-gum-corymbia-citriodora-scentuous) lists an exact-species starting price and a 30 cm `Scentuous` cultivar; variants must be confirmed before purchase. | Medium |
+| Crepe Myrtle | $35–$179.95 supply only; $119–$263.95 with one planting hour | [Diaco's Garden Nursery](https://diacos.com.au/product/crape-mrytle/) lists colour- and pot-size-dependent Crepe Myrtle stock; installed cost adds one published $84 Melbourne landscaping hour. | High supply / medium installed |
 | Potted plants | $49–$175 per pot | Melbourne-accessible plants with decorative pots or multi-planters from [The Indoor Plant Co](https://www.theindoorplantco.com.au/collections/all-plants); delivery and ongoing care are excluded. | High |
 | Installed garden bed | $105–$190 per m² | Published Melbourne installed garden-construction range from [Landscaping for Melbourne](https://landscapingformelbourne.com/pricing/); the final price depends on site conditions and inclusions. | Medium |
 | DIY living green-wall kit | $94.95 per m² | [Vertical Gardens Direct](https://www.verticalgardensdirect.com.au/products/wallgarden-original-vertical-garden-wall-planter-kit-5-pots-1-square-meter) five-pot kit covering 1 m²; plants, growing media, irrigation, fixings and shipping are excluded. | High |
