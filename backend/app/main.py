@@ -6,6 +6,7 @@ running: localhost:8000/api/health
 import itertools
 import os
 from contextlib import asynccontextmanager
+from functools import lru_cache
 from typing import Any
 
 from fastapi import Depends, FastAPI, HTTPException, Query
@@ -15,6 +16,7 @@ from pydantic import BaseModel
 
 from app.db import get_db, jsonable_row, pool
 from app.greening_model.scenario_inputs import calculate_simulated_action, load_input_contract
+from app.greening_model.tree_growth import load_model as load_growth_model
 from app.greening_model.tree_growth import predict_canopy
 
 # Read once at import time -- avoid re-parsing the JSON contract off disk on
@@ -237,6 +239,56 @@ def get_tree_costs(
             f"SELECT * FROM application_ready_cost_estimate {where} ORDER BY option_code", params
         )
         return [jsonable_row(row) for row in cur.fetchall()]
+
+
+@lru_cache(maxsize=1)
+def _popular_species() -> list[dict]:
+    """Top 10 species by raw tree count across the councils currently covered
+    by named_tree_inventory (9 of Victoria's 87 LGAs -- whichever have
+    published open tree-inventory data). Computed on first request, then
+    cached for the life of the process; not scoped by address yet.
+    """
+    with pool.connection() as conn, conn.cursor() as cur:
+        cur.execute(
+            """
+            SELECT lower(scientific_name) AS species_key,
+                   MIN(scientific_name) AS scientific_name,
+                   MIN(common_name) AS common_name,
+                   COUNT(*) AS tree_count
+            FROM named_tree_inventory
+            WHERE scientific_name IS NOT NULL
+            GROUP BY lower(scientific_name)
+            ORDER BY tree_count DESC
+            LIMIT 10
+            """
+        )
+        rows = [jsonable_row(row) for row in cur.fetchall()]
+
+    model_species = set(load_growth_model()["models"].keys())
+    for row in rows:
+        row["has_growth_model"] = row["species_key"] in model_species
+    return rows
+
+
+@app.get("/api/trees/species")
+def get_popular_species(
+    address: str = Query(
+        ..., min_length=3, description="Reserved for future per-area scoping; not used yet"
+    ),
+) -> dict:
+    """Same top-10 most-recorded species for every address right now --
+    named_tree_inventory only covers 9 of Victoria's 87 councils, so this
+    isn't a real "near you" ranking yet. See `limitations`.
+    """
+    return {
+        "species": _popular_species(),
+        "limitations": (
+            "Based on raw tree counts from named_tree_inventory, which currently "
+            "covers only 9 of Victoria's 87 local government areas (whichever have "
+            "published open tree-inventory data). Not scoped to the address given "
+            "and not representative of all of Greater Melbourne."
+        ),
+    }
 
 
 class ScenarioSimulateRequest(BaseModel):
