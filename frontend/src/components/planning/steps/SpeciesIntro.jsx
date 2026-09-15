@@ -18,7 +18,7 @@ export default function SpeciesIntro({ onExplore, onExit, nTrees, canopyM2, view
                 </dl>
             </div>
 
-            <button className={styles['explore-button']} onClick={onExplore}>Explore species</button>
+            <button className={styles['explore-button']} onClick={onExplore} disabled={!canExplore}>Explore species</button>
             {!canExplore && (
                 <p className={styles['placement-hint']}>Click on the map to choose a spot first.</p>
             )}
