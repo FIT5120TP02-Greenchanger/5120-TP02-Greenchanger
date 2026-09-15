@@ -16,22 +16,7 @@ function App() {
   const [propertyStats, setPropertyStats] = useState(null);
   const [canopyStats, setCanopyStats] = useState(null);
   const [currentScenario, setCurrentScenario] = useState(null);
-  // const goToPlant = (target) => {
-  //   setplanTarget(target);
-  //   setPage('plant')
-  // }
 
-  // const finishPlanting = (trees) => {
-  //   setSimulatedTrees(trees || []);
-  //   setPage('map');
-  // }
-
-  // if (page === 'landing') {
-  //     return <LandingPage onNavigate={setPage} selectedLocation={selectedLocation} setSelectedLocation={setSelectedLocation} />;
-  //   }
-    // if (page === 'plant') {
-      // return <PlantTreePage planTarget={planTarget} onDone={finishPlanting} />;
-    // }
   return (
     <>
       {page === 'landing' && <LandingPage onNavigate={setPage} selectedLocation={selectedLocation} setSelectedLocation={setSelectedLocation} />}

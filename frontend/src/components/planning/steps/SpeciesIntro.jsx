@@ -1,6 +1,6 @@
 import styles from '../TreePlantingFlow.module.css';
 
-export default function SpeciesIntro({ onExplore, onExit, nTrees, canopyM2, viewM2 }) {
+export default function SpeciesIntro({ onExplore, onExit, nTrees, canopyM2, viewM2, canExplore }) {
     return (
         <div className={styles['species-intro']}>
             <span>CHOOSE A TREE SPECIES</span>
@@ -19,6 +19,9 @@ export default function SpeciesIntro({ onExplore, onExit, nTrees, canopyM2, view
             </div>
 
             <button className={styles['explore-button']} onClick={onExplore}>Explore species</button>
+            {!canExplore && (
+                <p className={styles['placement-hint']}>Click on the map to choose a spot first.</p>
+            )}
             <p>Information is illustrative, not professional planting advice. Check local council guidance.</p>
             <button className={styles['exit-button']} onClick={onExit}>Exit</button>
         </div>

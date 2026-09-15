@@ -13,6 +13,9 @@ import { TREE_SIZES } from '../hooks/simulation'; // canopy radius per size for 
 import { useTreeCanopy } from '../hooks/canopy';
 import { START_PITCH, START_BEARING } from '../config/mapConfig';
 
+import PlantModeChooser from '../components/PlantModeChooser'
+import TreePlantingFlow from '../components/planning/TreePlantingFlow';
+
 // Planting map (2026-09-03): same paint as MapView so the existing canopy and the selected lot
 // look like the map the user came from.
 const canopyLayer = {
@@ -48,6 +51,7 @@ export default function PlantTreePage({ planTarget, onDone }) {
     const [treePos, setTreePos] = useState(null);   // where the user clicked
     const [hoverPos, setHoverPos] = useState(null); // cursor position before the first click
     const [hint, setHint] = useState(null);
+    const [mode, setMode] = useState(null);
 
     const refreshTrees = useCallback(() => {
         const map = mapRef.current?.getMap();
@@ -235,27 +239,36 @@ export default function PlantTreePage({ planTarget, onDone }) {
                 </div>
 
                 <aside className={styles['plant-sidebar']}>
-                    {simulation.trees.length > 0 && projected && !simulation.active ? (
-                        <ComparisonPanel
-                            baseline={{ pct: trees.pct }}
-                            projected={projected}
-                            trees={simulation.trees}
-                            onAdd={simulation.startPlanting}
-                            onReset={simulation.removeAllTree}
-                            onRemoveTree={handleRemoveTree}
-                            onFocusTree={handleFocusTree}
-                            onFinish={handleFinish}
-                        />
-                    ) : (
-                        <TreePlacementPanel
-                            size={simulation.size}
-                            onSizeChange={simulation.setSize}
-                            onConfirm={handleConfirm}
+                    {mode === null && (
+                        <PlantModeChooser
+                            onQuickSimulation={() => setMode('quick')}
+                            onExploreSpecies={() => setMode('species')}
                             onCancel={handleDiscard}
-                            hasPosition={simulation.trees.length > 0}
-                            hasUpdatePos={!!simulation.selectedId}
-                            canPlant={!!treePos}
                         />
+                    )}
+                    {mode === 'quick' && (
+                        simulation.trees.length > 0 && !simulation.active && projected ? (
+                            <ScenarioComparisonPanel
+                                baseline={{ pct: trees.pct }}
+                                projected={projected}
+                                trees={simulation.trees}
+                                onAdd={simulation.startPlanting}
+                                onReset={simulation.removeAllTree}
+                                onRemoveTree={simulation.removeTreeAt}
+                                onFinish={handleFinish}
+                            />
+                        ) : (
+                            <TreePlacementPanel
+                                size={simulation.size}
+                                onSizeChange={simulation.setSize}
+                                onConfirm={handleConfirm}
+                                onCancel={handleDiscard}
+                                hasPosition={simulation.trees.length > 0}
+                            />
+                        )
+                    )}
+                    {mode === 'species' && (
+                        <TreePlantingFlow lot={lot} onApply={handleSpeciesApply} onExit={() => setMode(null)} />
                     )}
                 </aside>
             </div>

@@ -42,7 +42,7 @@ export default function TreePlantingFlow({ lot, position, onApply, onExit, nTree
 
     switch (step) {
         case STEPS.INTRO:
-            return <SpeciesIntro onExplore={() => setStep(STEPS.LIST)} onExit={onExit} nTrees={nTrees} canopyM2={canopyM2} viewM2={viewM2} />
+            return <SpeciesIntro onExplore={() => setStep(STEPS.LIST)} onExit={onExit} nTrees={nTrees} canopyM2={canopyM2} viewM2={viewM2} canExplore={!!position} />
         case STEPS.LIST:
             return <SpeciesList species={TREE_SPECIES} onSelect={handleSelectSpecies} onBack={goBack} onExit={onExit} />
         case STEPS.DETAIL:
