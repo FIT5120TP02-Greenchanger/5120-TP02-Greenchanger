@@ -255,6 +255,8 @@ def simulate_scenario(payload: ScenarioSimulateRequest) -> dict:
     inputs = dict(payload.inputs)
     if payload.action_type == "tree" and "species" in inputs and "size" in inputs:
         species = inputs.pop("species")
+        if not isinstance(species, str) or not species.strip():
+            raise HTTPException(status_code=422, detail="species must be a non-empty string")
         size = _normalize_size(str(inputs.pop("size")))
         horizon = inputs.get("maturity_horizon_years")
         if not isinstance(horizon, (int, float)) or isinstance(horizon, bool) or horizon < 0:

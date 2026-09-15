@@ -1,3 +1,4 @@
+import pytest
 from fastapi.testclient import TestClient
 
 from app.main import app
@@ -63,6 +64,15 @@ def test_simulate_accepts_full_word_size():
 
 def test_simulate_rejects_unsupported_species():
     inputs = {**TREE_WITH_SPECIES, "species": "not a real tree"}
+    response = TestClient(app).post(
+        "/api/scenario/simulate", json={"action_type": "tree", "inputs": inputs}
+    )
+    assert response.status_code == 422
+
+
+@pytest.mark.parametrize("species", [None, 42, ["a"], {"a": 1}, "", "   "])
+def test_simulate_rejects_non_string_or_blank_species_with_422_not_500(species):
+    inputs = {**TREE_WITH_SPECIES, "species": species}
     response = TestClient(app).post(
         "/api/scenario/simulate", json={"action_type": "tree", "inputs": inputs}
     )
