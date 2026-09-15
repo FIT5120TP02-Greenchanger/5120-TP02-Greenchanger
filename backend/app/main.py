@@ -15,6 +15,7 @@ from pydantic import BaseModel
 
 from app.db import get_db, jsonable_row, pool
 from app.greening_model.scenario_inputs import calculate_simulated_action, load_input_contract
+from app.greening_model.tree_growth import predict_canopy
 
 # Read once at import time -- avoid re-parsing the JSON contract off disk on
 # every /simulate and /meta/assumptions request.
@@ -90,6 +91,18 @@ STREET_TYPE_ABBREVIATIONS = {
     "WY": "WAY",
 }
 MAX_PREFIX_CANDIDATES = 8
+
+# The frontend's size selector shows full words; predict_canopy() only knows the
+# single-letter codes its training data was bucketed into. Accept both spellings
+# and either case here so this mapping lives in exactly one place.
+SIZE_ALIASES = {"S": "S", "SMALL": "S", "M": "M", "MEDIUM": "M", "L": "L", "LARGE": "L"}
+
+
+def _normalize_size(size: str) -> str:
+    normalized = SIZE_ALIASES.get(size.strip().upper())
+    if normalized is None:
+        raise HTTPException(status_code=422, detail="size must be S, M, L (or Small/Medium/Large)")
+    return normalized
 
 
 def _prefix_candidates(text: str) -> list[str]:
@@ -177,6 +190,55 @@ def get_property_baseline_view(
     return jsonable_row(row)
 
 
+@app.get("/api/trees/growth")
+def get_tree_growth(
+    species: str = Query(
+        ..., min_length=1, description="Scientific name, e.g. 'Platanus x acerifolia'"
+    ),
+    size: str = Query(..., description="Nursery stock size: S, M, L (or Small/Medium/Large)"),
+    years: float = Query(..., ge=0, description="Years of growth after planting"),
+) -> dict:
+    """Predicted canopy/height/DBH range for one species at a given age. No DB access."""
+    try:
+        return predict_canopy(species, years, size=_normalize_size(size))
+    except ValueError as error:
+        raise HTTPException(status_code=422, detail=str(error)) from error
+
+
+@app.get("/api/trees/costs")
+def get_tree_costs(
+    option_code: str | None = Query(
+        None, description="Filter to one option category, e.g. 'container_tree'"
+    ),
+    tree_type: str | None = Query(
+        None, description="Filter to one species/common name, e.g. 'Crepe Myrtle'"
+    ),
+    db: Connection = Depends(get_db),
+) -> list[dict]:
+    """Source-backed indicative cost ranges. Always carries display_disclaimer -- these are
+    estimates, not quotes, per application_ready_cost_estimate's own contract.
+
+    option_code is the greening-option category (container/backyard/community/...);
+    tree_type is the specific species or common name within that category -- they are
+    different columns and neither is a substitute for the other.
+    """
+    clauses = []
+    params: dict[str, str] = {}
+    if option_code:
+        clauses.append("option_code = %(option_code)s")
+        params["option_code"] = option_code
+    if tree_type:
+        clauses.append("tree_type = %(tree_type)s")
+        params["tree_type"] = tree_type
+    where = f"WHERE {' AND '.join(clauses)}" if clauses else ""
+
+    with db.cursor() as cur:
+        cur.execute(
+            f"SELECT * FROM application_ready_cost_estimate {where} ORDER BY option_code", params
+        )
+        return [jsonable_row(row) for row in cur.fetchall()]
+
+
 class ScenarioSimulateRequest(BaseModel):
     action_type: str
     inputs: dict[str, Any]
@@ -184,10 +246,35 @@ class ScenarioSimulateRequest(BaseModel):
 
 @app.post("/api/scenario/simulate")
 def simulate_scenario(payload: ScenarioSimulateRequest) -> dict:
-    """Indicative-range greening scenario calculation. Pure math, no DB access."""
+    """Indicative-range greening scenario calculation. Pure math, no DB access.
+
+    For a tree action, pass "species" and "size" in inputs to size the crown from
+    the trained growth model instead of the flat default range; both are consumed
+    here and never reach the underlying contract, which knows nothing about them.
+    """
+    inputs = dict(payload.inputs)
+    if payload.action_type == "tree" and "species" in inputs and "size" in inputs:
+        species = inputs.pop("species")
+        if not isinstance(species, str) or not species.strip():
+            raise HTTPException(status_code=422, detail="species must be a non-empty string")
+        size = _normalize_size(str(inputs.pop("size")))
+        horizon = inputs.get("maturity_horizon_years")
+        if not isinstance(horizon, (int, float)) or isinstance(horizon, bool) or horizon < 0:
+            raise HTTPException(
+                status_code=422, detail="maturity_horizon_years must be a non-negative number"
+            )
+        try:
+            growth = predict_canopy(species, horizon, size=size)
+        except ValueError as error:
+            raise HTTPException(status_code=422, detail=str(error)) from error
+        inputs["projected_canopy_per_tree_m2"] = {
+            "minimum": growth["canopy_m2_min"],
+            "maximum": growth["canopy_m2_max"],
+        }
+
     try:
         return calculate_simulated_action(
-            payload.action_type, payload.inputs, contract=SCENARIO_INPUT_CONTRACT
+            payload.action_type, inputs, contract=SCENARIO_INPUT_CONTRACT
         )
     except ValueError as error:
         raise HTTPException(status_code=422, detail=str(error)) from error
