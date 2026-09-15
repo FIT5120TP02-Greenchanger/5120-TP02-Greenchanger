@@ -9,7 +9,7 @@ class MigrationFileTests(unittest.TestCase):
     def test_migrations_are_numbered_and_ordered(self):
         self.assertEqual(
             [version for version, _ in migration_files()],
-            list(range(1, 55)),
+            list(range(1, 56)),
         )
 
     def test_current_costs_use_melbourne_date_and_retire_anonymous_trees(self):
@@ -66,6 +66,15 @@ class MigrationFileTests(unittest.TestCase):
         sql = expanded_sql(migration)
         self.assertIn("Record-level CC0 or CC BY 4.0 only", sql)
         self.assertIn("GBIF-supported CC0 or CC BY 4.0", sql)
+
+    def test_complete_catalog_includes_currently_priced_species(self):
+        migration = next(path for version, path in migration_files() if version == 55)
+        sql = expanded_sql(migration)
+        self.assertIn("WITH species_candidates AS", sql)
+        self.assertIn("FROM species_profile AS profile", sql)
+        self.assertIn("FROM application_ready_cost_estimate AS estimate", sql)
+        self.assertIn("UNION ALL", sql)
+        self.assertIn("NULLIF(BTRIM(estimate.botanical_name), '')", sql)
 
     def test_include_is_expanded(self):
         with tempfile.TemporaryDirectory() as directory:

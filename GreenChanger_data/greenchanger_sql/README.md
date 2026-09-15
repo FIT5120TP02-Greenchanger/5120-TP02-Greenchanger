@@ -51,7 +51,8 @@ greenchanger_sql/
 │   ├── 051_fix_tree_catalog_currency_type.sql
 │   ├── 052_complete_tree_catalog_enrichment.sql
 │   ├── 053_complete_address_tree_catalog.sql
-│   └── 054_align_gbif_supported_image_licences.sql
+│   ├── 054_align_gbif_supported_image_licences.sql
+│   └── 055_include_priced_species_in_complete_catalog.sql
 ├── seeds/001_reference_data.sql
 └── analytics/001_views.sql
 ```
@@ -83,6 +84,7 @@ greenchanger_sql/
 | `migrations/052_complete_tree_catalog_enrichment.sql` | Adds an audited GBIF image-enrichment result for every scientific name and a complete catalogue view that separates exact prices/images from explicit generic or unavailable fallbacks. |
 | `migrations/053_complete_address_tree_catalog.sql` | Expands the address catalogue from three exact-price trees to exact stock plus locally popular species, retaining explicit generic-cost and unavailable-image states. |
 | `migrations/054_align_gbif_supported_image_licences.sql` | Aligns the image source contract with GBIF's supported open occurrence filters: record-level CC0 and CC BY 4.0. |
+| `migrations/055_include_priced_species_in_complete_catalog.sql` | Keeps current species-specific catalogue stock visible even when its botanical name is not yet present in `species_profile`. |
 | `migrations/010_property_baseline_lookup.sql` | Adds model validation gates and the application-facing property baseline lookup. |
 | `migrations/011_tree_urban_quality_scope.sql` | Adds Tree Urban record quality status and the dataset-version index required by API ingestion. |
 | `migrations/012_property_tree_limitations.sql` | Restricts property tree lookup to the current `2GMEL` version and always returns the machine-derived-data warning. |

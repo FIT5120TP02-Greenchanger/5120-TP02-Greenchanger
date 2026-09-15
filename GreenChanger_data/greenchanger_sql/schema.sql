@@ -3118,3 +3118,4 @@ COMMIT;
 -- include: migrations/052_complete_tree_catalog_enrichment.sql
 -- include: migrations/053_complete_address_tree_catalog.sql
 -- include: migrations/054_align_gbif_supported_image_licences.sql
+-- include: migrations/055_include_priced_species_in_complete_catalog.sql
