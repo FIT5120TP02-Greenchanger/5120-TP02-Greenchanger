@@ -156,6 +156,22 @@ SELECT * FROM get_property_canopy_by_address(
 );
 ```
 
+Query the normalized property/place category with:
+
+```sql
+SELECT * FROM get_property_category(
+    '1 COLLINS STREET MELBOURNE', 5
+);
+```
+
+The controlled list includes `house`, `townhouse`, `apartment`, `station`,
+`road`, `school`, `hospital`, `commercial`, `industrial`, `park`, `utility`,
+`other` and `unclassified`. An assignment must retain its source, method and
+optional dataset version. Existing Vicmap `O`/`G` property-type and `S`/`M`
+address-class codes are decoded separately; they do not establish that a
+property is a house, station, road or another use, so unverified rows remain
+explicitly unclassified.
+
 Current air-temperature context for each matched property is available through:
 
 ```sql
@@ -401,18 +417,44 @@ The complete named-species catalogue is exposed through
 Species-specific prices use `species_specific_current_source_range`; all other
 rows use `generic_current_catalogue_range_not_species_quote`. GBIF enrichment
 publishes only exact Plantae matches with confidence at least 95 and record-level
-CC0 or CC BY 4.0 media. Unresolved names and missing open images
-remain explicit unavailable states rather than receiving a substitute image.
+CC0 or CC BY 4.0 media. For names still missing images, the optional Wikimedia
+Commons fallback is limited to rows with an exact GBIF taxon ID and requires an
+exact Wikidata P225 match for that name or its GBIF canonical taxon. This permits
+an explicitly labelled base-taxon reference for a cultivar while rejecting fuzzy
+or higher-rank substitutions. Only public-domain, CC0, CC BY or CC BY-SA files
+with their record-level licence, creator, source page and attribution are accepted.
+The separately invoked broader pass can also accept exact Wikidata catalogue-name
+or English label/alias matches on taxon items, verified parent species for cultivars,
+same-genus GBIF spelling corrections with confidence at least 93 and similarity at
+least 0.93, and genus representatives only for names explicitly labelled `sp.`. Each
+broader relationship is disclosed in the image alt text or limitation. A final
+Wikipedia-title check can correct a uniquely close binomial only when its Wikidata
+P225 claim exactly verifies the corrected taxon; user-confirmed corrections take
+priority over conflicting GBIF fuzzy suggestions. Ambiguous names remain explicitly
+unavailable.
 
 ```bash
 python greenchanger_script/enrich_tree_catalog.py \
   --workers 12 \
   --confirm-shared
+
+python greenchanger_script/enrich_tree_catalog.py \
+  --commons-fallback \
+  --workers 4 \
+  --confirm-shared
+
+python greenchanger_script/enrich_tree_catalog.py \
+  --commons-broader-fallback \
+  --workers 4 \
+  --confirm-shared
 ```
 
-The command is resumable through
-`data/interim/tree_catalog/gbif_species_images.jsonl`; rerunning it skips names
-already present in the checkpoint unless `--refresh` is supplied.
+The commands are resumable through
+`data/interim/tree_catalog/gbif_species_images.jsonl`. The Commons pass revisits
+only rows without a verified image that have an exact GBIF taxon ID. The broader
+pass revisits every remaining unavailable row using the disclosed rules above.
+Both Commons modes throttle Wikimedia requests; the primary pass skips names
+already present unless `--refresh` is supplied.
 
 The lookup uses the latest application-ready version per source, an indexed
 metre-based radius and a bounded result limit. It returns source and licence

@@ -9,7 +9,7 @@ class MigrationFileTests(unittest.TestCase):
     def test_migrations_are_numbered_and_ordered(self):
         self.assertEqual(
             [version for version, _ in migration_files()],
-            list(range(1, 56)),
+            list(range(1, 58)),
         )
 
     def test_current_costs_use_melbourne_date_and_retire_anonymous_trees(self):
@@ -75,6 +75,28 @@ class MigrationFileTests(unittest.TestCase):
         self.assertIn("FROM application_ready_cost_estimate AS estimate", sql)
         self.assertIn("UNION ALL", sql)
         self.assertIn("NULLIF(BTRIM(estimate.botanical_name), '')", sql)
+
+    def test_wikimedia_fallback_retains_exact_taxon_and_file_licence(self):
+        migration = next(path for version, path in migration_files() if version == 56)
+        sql = expanded_sql(migration)
+        self.assertIn("Wikimedia Commons", sql)
+        self.assertIn("taxon_verification_id", sql)
+        self.assertIn("commons_file_title", sql)
+        self.assertIn("WIKIDATA_EXACT_P225", sql)
+        self.assertIn("verified_wikimedia_commons_image", sql)
+
+    def test_property_categories_are_source_backed_not_inferred_from_raw_codes(self):
+        migration = next(path for version, path in migration_files() if version == 57)
+        sql = expanded_sql(migration)
+        self.assertIn("CREATE TABLE property_category", sql)
+        self.assertIn("CREATE TABLE property_category_assignment", sql)
+        self.assertIn("('house', 'House'", sql)
+        self.assertIn("('station', 'Station'", sql)
+        self.assertIn("('road', 'Road'", sql)
+        self.assertIn("vicmap_property_type_label", sql)
+        self.assertIn("unclassified_source_not_loaded", sql)
+        self.assertIn("get_property_category", sql)
+        self.assertIn("must not be presented as House", sql)
 
     def test_include_is_expanded(self):
         with tempfile.TemporaryDirectory() as directory:

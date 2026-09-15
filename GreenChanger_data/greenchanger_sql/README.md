@@ -52,7 +52,9 @@ greenchanger_sql/
 │   ├── 052_complete_tree_catalog_enrichment.sql
 │   ├── 053_complete_address_tree_catalog.sql
 │   ├── 054_align_gbif_supported_image_licences.sql
-│   └── 055_include_priced_species_in_complete_catalog.sql
+│   ├── 055_include_priced_species_in_complete_catalog.sql
+│   ├── 056_wikimedia_commons_image_fallback.sql
+│   └── 057_property_categories.sql
 ├── seeds/001_reference_data.sql
 └── analytics/001_views.sql
 ```
@@ -85,6 +87,8 @@ greenchanger_sql/
 | `migrations/053_complete_address_tree_catalog.sql` | Expands the address catalogue from three exact-price trees to exact stock plus locally popular species, retaining explicit generic-cost and unavailable-image states. |
 | `migrations/054_align_gbif_supported_image_licences.sql` | Aligns the image source contract with GBIF's supported open occurrence filters: record-level CC0 and CC BY 4.0. |
 | `migrations/055_include_priced_species_in_complete_catalog.sql` | Keeps current species-specific catalogue stock visible even when its botanical name is not yet present in `species_profile`. |
+| `migrations/056_wikimedia_commons_image_fallback.sql` | Adds a Wikimedia Commons fallback for missing images, requiring an exact Wikidata P225 match for an exact GBIF-backed taxon and retaining the file-level open licence, creator, source page and attribution. |
+| `migrations/057_property_categories.sql` | Adds controlled property/place categories such as House, Station and Road, source-backed parcel assignments, raw Vicmap code labels and an address lookup that remains explicitly Unclassified when no authoritative category source has been loaded. |
 | `migrations/010_property_baseline_lookup.sql` | Adds model validation gates and the application-facing property baseline lookup. |
 | `migrations/011_tree_urban_quality_scope.sql` | Adds Tree Urban record quality status and the dataset-version index required by API ingestion. |
 | `migrations/012_property_tree_limitations.sql` | Restricts property tree lookup to the current `2GMEL` version and always returns the machine-derived-data warning. |
@@ -153,6 +157,14 @@ migration.
 Vicmap Address `property_pfi` is stored in `address.source_property_id` and
 matches `parcel.source_parcel_id`. Migration 005 adds this join key plus useful
 address/property attributes and indexes.
+
+Migration 057 adds `property_category`, `property_category_assignment`,
+`application_ready_property_category` and `get_property_category(address,
+limit)`. Categories such as `house`, `station` and `road` require a cited
+building, land-use, transport or feature-of-interest source. Vicmap Property
+`O`/`G` and Vicmap Address `S`/`M` remain separately decoded raw fields and are
+never treated as those use categories. Existing rows therefore return
+`unclassified_source_not_loaded` until a supported classification is ingested.
 
 Migration 010 exposes `latest_greater_melbourne_address_property` and the
 selective `get_property_baseline(address, limit)` function. It attaches current

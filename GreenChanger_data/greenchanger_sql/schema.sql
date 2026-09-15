@@ -3119,3 +3119,5 @@ COMMIT;
 -- include: migrations/053_complete_address_tree_catalog.sql
 -- include: migrations/054_align_gbif_supported_image_licences.sql
 -- include: migrations/055_include_priced_species_in_complete_catalog.sql
+-- include: migrations/056_wikimedia_commons_image_fallback.sql
+-- include: migrations/057_property_categories.sql
