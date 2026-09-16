@@ -1,0 +1,10 @@
+.compare-checkbox {
+    appearance: auto;
+    -webkit-appearance: checkbox;
+    width: 16px;
+    height: 16px;
+    min-width: 16px;
+    min-height: 16px;
+    accent-color: #2f855a;
+    cursor: pointer;
+}

@@ -100,7 +100,7 @@ export default function SpeciesDetail({ species, size, onSizeChange, setCompareA
                     <button className={styles['back-button']} onClick={onBack}>Back</button>
                     <button
                         className={styles['apply-button']}
-                        onClick={() => {onApply(growth); setCompareArray(prev => [...prev, species])}}
+                        onClick={() => { onApply(growth, costs); setCompareArray(prev => [...prev, species]) }}
                         disabled={!size || !growth || applying || loading}
                     >
                         {applying ? 'Applying…' : `Apply ${size} to map`}
