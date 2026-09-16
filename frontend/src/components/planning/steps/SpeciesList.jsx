@@ -1,41 +1,69 @@
-import styles from '../TreePlantingFlow.module.css';
-import { TREE_SIZES } from '../../../hooks/simulation';
-const SIZE_INDEX = {
-    Small: 0,
-    Medium: 1,
-    Large: 2,
-}
-export default function SpeciesList({ species, onSelect, onBack, onExit, onViewDetail }) {
+import styles from '../TreePlantingFlow.module.css'
+
+const cx = (...names) => names.filter(Boolean).join(' ')
+
+export default function SpeciesList({ species = [], selectedSpecies, onSelect, onViewDetail, onBack, onExit }) {
     return (
-        <div className={styles['species-list']}>
-            <span>EXPLORE TREE SPECIES</span>
-            <p>Appearance and size are illustrative at maturity.</p>
-            <ul>
-                {species.map((s) => (
-                    <li key={s.id} onClick={() => onSelect(s)}>
-                        <img src={s.image} alt={s.commonName} width={120} height={120} />
-                        <span>{s.commonName}</span>
-                        <p>Choose size</p>
-                        <div className={styles['price-container']}
-                        // onClick={(e) => {
-                        //     e.stopPropagation();
-                        //     onSizeChange(label);
-                        // }}
-                        >
-                        {Object.entries(TREE_SIZES).map(
-                            ([label, { heightLabel, radiusM }]) => (
-                                    <p key={label}>{label[0]} ${s.price[label]}</p>
-                                )
-                            )}
-                        </div>
-                    </li>
-                ))}
-            </ul>
-            <p>Each species offers Small, Medium and Large stock.</p>
-            <p>Prices are indicative supply only estimates.</p>
-            <button className={styles['back-button']} onClick={onBack}>Back</button>
-            <button className={styles['detail-button']} onClick={onViewDetail}>View Details</button>
-            <button className={styles['exit-button']} onClick={onExit}>Exit</button>
-        </div>
-    );
+        <>
+            <div className={styles['panel-body']}>
+                <span className={styles['user-note']}>Explore tree species</span>
+                <h2 className={styles['panel-title']}>Pick a species to compare</h2>
+                <p className={styles['subtitle']}>Appearance and size are illustrative at maturity.</p>
+
+                <ul className={styles['species-list']}>
+                    {species.map((s) => {
+                        const isSelected = selectedSpecies?.id === s.id
+                        return (
+                            <li key={s.species_key} onClick={() => onSelect(s)}>
+                                <button
+                                    type="button"
+                                    aria-pressed={isSelected}
+                                    className={`${styles['species-card']} ${isSelected && styles['species-card--selected']}`}
+                                >
+                                    <img
+                                        className={styles['species-card-image']}
+                                        src={s.image_url}
+                                        alt={s.image_alt_text}
+                                        width={88}
+                                        height={122}
+                                        loading="lazy"
+                                    />
+                                    <span className={styles['species-card-text']}>
+                                        <span className={styles['species-name']}>{s.common_name}</span>
+                                        <span className={styles['species-latin']}>{s.scientific_name}</span>
+                                    </span>
+                                    <span className={styles['chevron']} aria-hidden="true">&rsaquo;</span>
+                                </button>
+                            </li>
+                        )
+                    })}
+                </ul>
+
+                <p className={styles['note']}>
+                    Each species offers Small, Medium and Large stock.
+                    <br />
+                    Prices are indicative supply-only estimates.
+                </p>
+            </div>
+
+            <div className={styles['panel-actions']}>
+                <div className={styles['panel-footer']}>
+                    <button type="button" className={styles['back-button']} onClick={onBack}>
+                        Back
+                    </button>
+                    <button
+                        type="button"
+                        className={styles['detail-button']}
+                        onClick={onViewDetail}
+                        disabled={!selectedSpecies}
+                    >
+                        {selectedSpecies ? `Select ${selectedSpecies.common_name}` : 'Select a tree'}
+                    </button>
+                </div>
+                <button type="button" className={styles['exit-button']} onClick={onExit}>
+                    Exit
+                </button>
+            </div>
+        </>
+    )
 }

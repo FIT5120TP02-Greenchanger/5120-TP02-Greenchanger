@@ -145,6 +145,7 @@ export function useSelectedProperty(treeFeatures) {
         return {
             address: selectedLabel || selected.properties.ezi_address || `PFI ${selected.properties.prop_pfi}`,
             treeCount: onLot.length,
+            areaLabel: lotArea,
             canopyPct: lotArea ? ((canopy / lotArea) * 100).toFixed(1) + "%" : "—",
             isCircle: selected.properties?.kind === "circle",
             landSurfaceTempC: selected.properties?.landSurfaceTempC,

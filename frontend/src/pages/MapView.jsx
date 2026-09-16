@@ -340,16 +340,21 @@ export default function MapView({ selectedLocation, setSelectedLocation, simulat
         resetCursor();
     }, [pendingPos, treeSize, setSimulatedTrees, selectedTreeId, mode]);
     const handleApplyScenario = useCallback((scenario) => {
-        onScenarioChange(scenario);
-        if (!scenario || !pendingPos) return;
-        const radiusM = TREE_SIZES[scenario.size]?.radiusM ?? TREE_SIZES.Medium.radiusM;
+        console.log('handleApplyScenario triggered');
+        console.log(scenario);
+        onScenarioChange?.(scenario);
+        if (!scenario || !scenario.position) return;
+        const crownWidthM = scenario.growth?.crown_width_m_median;
+        const radiusM = crownWidthM
+            ? crownWidthM / 2
+            : (TREE_SIZES[scenario.size]?.radiusM ?? TREE_SIZES.Medium.radiusM);
 
         if (plantedTreeId) {
             // Re-applying within the same session (via "Start Again") — update the
             // tree already placed instead of stacking a duplicate on top of it.
             setSimulatedTrees((prev) =>
                 prev.map((t) => t.id === plantedTreeId
-                    ? { ...t, radiusM, size: scenario.size, species: scenario.species?.id }
+                    ? { ...t, radiusM, size: scenario.size, species: scenario.species?.scientific_name }
                     : t
                 )
             );
@@ -358,16 +363,16 @@ export default function MapView({ selectedLocation, setSelectedLocation, simulat
 
         const tree = {
             id: crypto.randomUUID(),
-            lng: pendingPos.lng,
-            lat: pendingPos.lat,
+            lng: scenario.position.lng,
+            lat: scenario.position.lat,
             radiusM,
             size: scenario.size,
-            species: scenario.species?.id,
-            speciesName: scenario.species?.commonName,
+            species: scenario.species?.scientific_name,
+            speciesName: scenario.species?.common_name,
         };
         setSimulatedTrees((prev) => [...(prev || []), tree]);
         setPlantedTreeId(tree.id)
-    }, [pendingPos, setSimulatedTrees, plantedTreeId, setPlantedTreeId]);
+    }, [setSimulatedTrees, plantedTreeId, setPlantedTreeId]);
 
 
     // Remove / Reset inside the comparison panel behave like the old page: with no trees left,

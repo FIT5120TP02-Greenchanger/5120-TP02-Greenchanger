@@ -23,6 +23,14 @@ function persistMessages(messages) {
     }
 }
 
+function clearStoredMessages() {
+    try {
+        localStorage.removeItem(STORAGE_KEY);
+    } catch {
+        // localStorage unavailable
+    }
+}
+
 // True when there's something worth telling the bot about — keeps this generic
 // rather than assuming the exact shape of propertyStats/canopyStats.
 function hasUsableContext(context) {
@@ -111,7 +119,7 @@ export default function ChatbotWidget({ context }) {
 
     function handleClearChat() {
         setMessages([])
-        localStorage.removeItem(STORAGE_KEY)
+        clearStoredMessages();
     }
 
     return (

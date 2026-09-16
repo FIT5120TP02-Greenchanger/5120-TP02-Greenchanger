@@ -6,6 +6,7 @@ export default function PropertyPanel({ stats, hint, onPlantTree, onClose }) {
     if (!stats) {
         return <p className={styles["lot-hint"]}>{hint || "Click any property to select it."}</p>;
     }
+    console.log(stats);
 
     return (
         <div
@@ -22,7 +23,7 @@ export default function PropertyPanel({ stats, hint, onPlantTree, onClose }) {
             <p>{stats.address.split(',')[0]}</p>
             <dl className={styles["lot-rows"]}>
                 <dt>Lot area</dt>
-                <dd>{stats.areaLabel}</dd>
+                <dd>{stats.areaLabel.toFixed(0)}</dd>
                 <dt>Trees on lot</dt>
                 <dd>{stats.treeCount}</dd>
 

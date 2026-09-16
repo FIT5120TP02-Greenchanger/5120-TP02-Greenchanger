@@ -31,7 +31,7 @@ export default function ComparisonPanel({ baseline, projected, trees, selectedTr
                 <ul className={styles['tree-list']}>
                     {trees.map((t, i) => (
                         <li key={t.id} className={`${styles['tree-list-item']} ${t.id === selectedTreeId ? styles['tree-list-item--selected'] : ''}`} onClick={() => onFocusTree(t)}>
-                            <span>#{i + 1} · {t.speciesName || t.species || 'General Tree'} — {t.size}</span>
+                            <span>#{i + 1} · {t.speciesName || t.species || 'General Tree'} — {t.size} — {t.radiusM}m</span>
                             <button
                                 className={styles['tree-list-remove']}
                                 onClick={(e) => { e.stopPropagation(); onRemoveTree(t.id); }}
