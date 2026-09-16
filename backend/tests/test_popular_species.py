@@ -48,6 +48,8 @@ def test_returns_species_with_limitations_and_growth_flag(monkeypatch):
                         "image_licence": "CC BY 4.0",
                         "image_licence_url": "https://creativecommons.org/licenses/by/4.0/",
                         "image_attribution": "Photo by Jane Doe, CC BY 4.0.",
+                        "image_status": "curated_reference_image",
+                        "image_limitation": "Illustrative only; appearance varies.",
                     }
                 ]
             ]
@@ -59,12 +61,16 @@ def test_returns_species_with_limitations_and_growth_flag(monkeypatch):
     assert response.status_code == 200
     body = response.json()
     assert "limitations" in body and body["limitations"]
+    # the "please display image_attribution" note is developer-facing (see the
+    # _popular_species docstring), not something end users should see here
+    assert "attribution" not in body["limitations"].lower()
     species = body["species"][0]
     assert species["scientific_name"] == "Platanus x acerifolia"
     # a real species in the trained growth model -- see test_tree_growth.py
     assert species["has_growth_model"] is True
     assert species["image_url"] == "https://example.org/plane.jpg"
     assert species["image_attribution"] == "Photo by Jane Doe, CC BY 4.0."
+    assert species["image_status"] == "curated_reference_image"
 
 
 def test_species_without_a_matching_image_gets_null_image_fields(monkeypatch):
@@ -86,6 +92,8 @@ def test_species_without_a_matching_image_gets_null_image_fields(monkeypatch):
                         "image_licence": None,
                         "image_licence_url": None,
                         "image_attribution": None,
+                        "image_status": None,
+                        "image_limitation": None,
                     }
                 ]
             ]

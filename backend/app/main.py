@@ -249,11 +249,28 @@ def _popular_species() -> list[dict]:
     cached for the life of the process; not scoped by address yet.
 
     Each species is left-joined to application_ready_tree_species_image (the
-    pre-verified, openly-licensed subset of the tree image catalogue) on
-    scientific_name, case-insensitive. A species missing an image just gets
-    null image fields -- named_tree_inventory's scientific_name column isn't
-    always a real scientific name (e.g. "Chinese Elm" is a common name), so
-    not every entry will match.
+    tree image catalogue) on scientific_name, case-insensitive. The join is
+    restricted to `curated_reference_image` rows and iNaturalist-hosted GBIF
+    photos -- other GBIF sources and Wikimedia Commons were spot-checked and
+    include non-representative images (herbarium specimen scans, genus-level
+    stand-ins) that this endpoint should not hand out as "the" photo for a
+    species. iNaturalist URLs are rewritten from /original. (up to ~12MB) to
+    /medium. (~150-200KB) so the frontend isn't asked to load full-res photos.
+
+    IMPORTANT -- image_licence/image_attribution are NOT currently trustworthy:
+    spot-checking against GBIF's own API found cases where this table's
+    image_licence says "CC BY 4.0" but the actual per-photo media license is
+    CC BY-NC 4.0 or CC BY-NC-SA 4.0 (the ingestion pipeline appears to have
+    recorded the GBIF *occurrence* record's license instead of the license on
+    the *image* itself). Do not display these images or their attribution
+    publicly until the data team fixes the source tables -- see PR discussion
+    on #36. image_status/image_limitation are still returned so callers can
+    tell a curated image from an unverified one.
+
+    A species missing an image just gets null image fields --
+    named_tree_inventory's scientific_name column isn't always a real
+    scientific name (e.g. "Chinese Elm" is a common name), so not every entry
+    will match.
     """
     with pool.connection() as conn, conn.cursor() as cur:
         cur.execute(
@@ -270,16 +287,20 @@ def _popular_species() -> list[dict]:
                 LIMIT 10
             )
             SELECT top_species.*,
-                   img.image_url,
+                   replace(img.image_url, '/original.', '/medium.') AS image_url,
                    img.image_page_url,
                    img.image_alt_text,
                    img.image_creator,
                    img.image_licence,
                    img.image_licence_url,
-                   img.image_attribution
+                   img.image_attribution,
+                   img.image_status,
+                   img.image_limitation
             FROM top_species
             LEFT JOIN application_ready_tree_species_image AS img
                    ON lower(img.scientific_name) = top_species.species_key
+                  AND (img.image_status = 'curated_reference_image'
+                       OR img.image_url LIKE 'https://inaturalist-open-data.s3.amazonaws.com/%')
             ORDER BY top_species.tree_count DESC
             """
         )
@@ -308,8 +329,7 @@ def get_popular_species(
             "covers only 9 of Victoria's 87 local government areas (whichever have "
             "published open tree-inventory data). Not scoped to the address given "
             "and not representative of all of Greater Melbourne. Image fields may "
-            "be null for a species without a verified, openly-licensed match; when "
-            "present, display image_attribution alongside the image."
+            "be null for a species without a matched reference image."
         ),
     }
 
