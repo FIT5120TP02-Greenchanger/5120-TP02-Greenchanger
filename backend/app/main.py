@@ -247,19 +247,40 @@ def _popular_species() -> list[dict]:
     by named_tree_inventory (9 of Victoria's 87 LGAs -- whichever have
     published open tree-inventory data). Computed on first request, then
     cached for the life of the process; not scoped by address yet.
+
+    Each species is left-joined to application_ready_tree_species_image (the
+    pre-verified, openly-licensed subset of the tree image catalogue) on
+    scientific_name, case-insensitive. A species missing an image just gets
+    null image fields -- named_tree_inventory's scientific_name column isn't
+    always a real scientific name (e.g. "Chinese Elm" is a common name), so
+    not every entry will match.
     """
     with pool.connection() as conn, conn.cursor() as cur:
         cur.execute(
             """
-            SELECT lower(scientific_name) AS species_key,
-                   MIN(scientific_name) AS scientific_name,
-                   MIN(common_name) AS common_name,
-                   COUNT(*) AS tree_count
-            FROM named_tree_inventory
-            WHERE scientific_name IS NOT NULL
-            GROUP BY lower(scientific_name)
-            ORDER BY tree_count DESC
-            LIMIT 10
+            WITH top_species AS (
+                SELECT lower(scientific_name) AS species_key,
+                       MIN(scientific_name) AS scientific_name,
+                       MIN(common_name) AS common_name,
+                       COUNT(*) AS tree_count
+                FROM named_tree_inventory
+                WHERE scientific_name IS NOT NULL
+                GROUP BY lower(scientific_name)
+                ORDER BY tree_count DESC
+                LIMIT 10
+            )
+            SELECT top_species.*,
+                   img.image_url,
+                   img.image_page_url,
+                   img.image_alt_text,
+                   img.image_creator,
+                   img.image_licence,
+                   img.image_licence_url,
+                   img.image_attribution
+            FROM top_species
+            LEFT JOIN application_ready_tree_species_image AS img
+                   ON lower(img.scientific_name) = top_species.species_key
+            ORDER BY top_species.tree_count DESC
             """
         )
         rows = [jsonable_row(row) for row in cur.fetchall()]
@@ -286,7 +307,9 @@ def get_popular_species(
             "Based on raw tree counts from named_tree_inventory, which currently "
             "covers only 9 of Victoria's 87 local government areas (whichever have "
             "published open tree-inventory data). Not scoped to the address given "
-            "and not representative of all of Greater Melbourne."
+            "and not representative of all of Greater Melbourne. Image fields may "
+            "be null for a species without a verified, openly-licensed match; when "
+            "present, display image_attribution alongside the image."
         ),
     }
 
