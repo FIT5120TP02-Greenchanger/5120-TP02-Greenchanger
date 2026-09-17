@@ -19,7 +19,7 @@ export default function CanopyPanel({ pct, nTrees, canopyM2, viewM2, simulatedCo
                     />
                 </div>
                 <p className={styles["canopy-verdict"]}>
-                    A live count of mapped tree points in view — not a neighbourhood classification.
+                    A live count of mapped tree points in view.
                 </p>
                 {simulatedCount > 0 && (
                     <p className={styles["canopy-verdict"]}>

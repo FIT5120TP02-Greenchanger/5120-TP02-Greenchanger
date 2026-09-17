@@ -1,6 +1,7 @@
 .side-panel {
     border: 1px solid black;
-    width: 350px;
+    width: auto;
+    max-width: fit-content;
     position: absolute;
     top: 26px;
     right: 26px;

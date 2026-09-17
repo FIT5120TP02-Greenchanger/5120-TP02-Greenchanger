@@ -1,7 +1,6 @@
 import { useState } from 'react'
 import LandingPage from './pages/LandingPage.jsx'
 import MapView from './pages/MapView.jsx'
-// import PlantTreePage from './pages/PlantTreePage.jsx'; // planting now happens inside MapView (2026-09-03)
 
 
 function App() {
@@ -12,23 +11,14 @@ function App() {
   // const [planTarget, setplanTarget] = useState(null)
   const [simulatedTrees, setSimulatedTrees] = useState(null);
 
-  // const goToPlant = (target) => {
-  //   setplanTarget(target);
-  //   setPage('plant')
-  // }
+  // const [propertyStats, setPropertyStats] = useState(null);
+  // const [canopyStats, setCanopyStats] = useState(null);
+  // const [currentScenario, setCurrentScenario] = useState(null);
 
-  // const finishPlanting = (trees) => {
-  //   setSimulatedTrees(trees || []);
-  //   setPage('map');
-  // }
-
-  if (page === 'landing') {
-      return <LandingPage onNavigate={setPage} selectedLocation={selectedLocation} setSelectedLocation={setSelectedLocation} />;
-    }
-    // if (page === 'plant') {
-      // return <PlantTreePage planTarget={planTarget} onDone={finishPlanting} />;
-    // }
-    return (
+  return (
+    <>
+      {page === 'landing' && <LandingPage onNavigate={setPage} selectedLocation={selectedLocation} setSelectedLocation={setSelectedLocation} />}
+      {page !== 'landing' && 
       <MapView
         selectedLocation={selectedLocation}
         setSelectedLocation={setSelectedLocation}
@@ -37,8 +27,24 @@ function App() {
         setSimulatedTrees={setSimulatedTrees} // in-map planting writes the scenario here (2026-09-03)
         // Home button on the map page needs a way back to the landing page
         onNavigate={setPage}
-      />
-    );
+        // onPropertyStatsChange={setPropertyStats}
+        // onCanopyStatsChange={setCanopyStats}
+        // onScenarioChange={setCurrentScenario}
+      />}
+      {/* <ChatbotWidget
+          context={
+              page === 'map'
+                  ? {
+                      propertyStats,
+                      canopyStats,
+                      simulatedTrees,
+                      currentScenario
+                  }
+                  : null
+          }
+      /> */}
+    </>
+  );
 }
 
 export default App

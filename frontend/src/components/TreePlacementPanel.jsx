@@ -10,12 +10,13 @@ export default function TreePlacementPanel({ size, onSizeChange, onConfirm, onCa
             {/* <h3>Choose one point</h3> */}
             {/* <p>Place a simulated tree on the map.</p> */}
             <h3>Place your tree</h3>
-            <p>The dashed circle is the canopy at maturity. Click on the map to put it where you want.</p>
+            <p>The dashed circle is the canopy at maturity. Click on  </p>
+            <p>the map to put it where you want.</p>
 
             <div className={styles['placement-step']}>
                 {/* <strong>1. Select a map point</strong> */}
                 {/* <p>Only one active simulated tree.</p> */}
-                <strong>Choose a size, then click on the map where you want the tree.</strong>
+                <strong>Choose a size, then click on the map where you want.</strong>
                 <p>The circle resizes to match the tree. Click again to move it.</p>
                 <p>No suitability assessment is provided.</p>
             </div>

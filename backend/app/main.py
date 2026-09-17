@@ -14,6 +14,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from psycopg import Connection
 from pydantic import BaseModel
 
+from app.chat import router as chat_router
 from app.db import get_db, jsonable_row, pool
 from app.greening_model.scenario_inputs import calculate_simulated_action, load_input_contract
 from app.greening_model.tree_growth import load_model as load_growth_model
@@ -56,6 +57,9 @@ app.add_middleware(
     allow_methods=["GET", "POST"],
     allow_headers=["*"],
 )
+
+# GreenBot: POST /api/chat, defined in app/chat.py.
+app.include_router(chat_router)
 
 
 def _like_prefix(text: str) -> str:
