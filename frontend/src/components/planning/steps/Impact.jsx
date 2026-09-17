@@ -4,9 +4,7 @@ import { IMPACT_METRICS, formatMetric } from '../impactMetrics'
 
 export default function Impact({ scenario, onViewGuidance, onBack, onCompare }) {
     if (!scenario) return null
-    console.log(scenario);
     const { species, size, impact, growth } = scenario
-    console.log(impact);
     const temp_change = `${impact.temperature_change_range_c.minimum}-${impact.temperature_change_range_c.maximum}`
     const canopy_change = `${growth.canopy_m2_min}-${growth.canopy_m2_max}`
     const shade_change = `${growth.crown_width_m_min}-${growth.crown_width_m_max}`

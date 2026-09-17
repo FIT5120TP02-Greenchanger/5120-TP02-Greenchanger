@@ -6,7 +6,6 @@ export default function PropertyPanel({ stats, hint, onPlantTree, onClose }) {
     if (!stats) {
         return <p className={styles["lot-hint"]}>{hint || "Click any property to select it."}</p>;
     }
-    console.log(stats);
 
     return (
         <div

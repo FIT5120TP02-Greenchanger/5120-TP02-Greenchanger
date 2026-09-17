@@ -301,6 +301,7 @@ export default function MapView({ selectedLocation, setSelectedLocation, simulat
         setMode('species');
         setShowChooser(false);
         setChoosingSpecies(true);
+        setPlantedTreeId(null);
     }, []);
     const confirmPlacing = useCallback(() => {
         if (!pendingPos) return;
@@ -340,15 +341,12 @@ export default function MapView({ selectedLocation, setSelectedLocation, simulat
         resetCursor();
     }, [pendingPos, treeSize, setSimulatedTrees, selectedTreeId, mode]);
     const handleApplyScenario = useCallback((scenario) => {
-        console.log('handleApplyScenario triggered');
-        console.log(scenario);
         onScenarioChange?.(scenario);
         if (!scenario || !scenario.position) return;
         const crownWidthM = scenario.growth?.crown_width_m_median;
         const radiusM = crownWidthM
             ? crownWidthM / 2
             : (TREE_SIZES[scenario.size]?.radiusM ?? TREE_SIZES.Medium.radiusM);
-
         if (plantedTreeId) {
             // Re-applying within the same session (via "Start Again") — update the
             // tree already placed instead of stacking a duplicate on top of it.

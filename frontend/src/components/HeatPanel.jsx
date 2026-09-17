@@ -86,16 +86,20 @@ export default function HeatPanel({ stats }) {
                 {!airUnavailable && stats.weatherContext !== WEATHER_REGIONAL && stats.weatherStationName && (
                     <p className={styles["heat-caveat"]}>
                         {stats.weatherStationName}
-                        {stats.weatherObservedAt && `, observed ${stats.weatherObservedAt}`}
+                        {stats.weatherObservedAt && `, observed ${new Date(stats.weatherObservedAt).toISOString().split('T')[0]}`}
                         {stats.weatherDistanceKm != null && ` (${stats.weatherDistanceKm.toFixed(1)}km away)`}.
                     </p>
                 )}
 
                 {stats.classificationScope && (
-                    <p className={styles["heat-scope"]}>
-                        Band relative to the Greater Melbourne application-ready baseline
-                        {stats.classificationSchemeVersion ? ` · ${stats.classificationSchemeVersion}` : ""}
-                    </p>
+                    <>
+                        <p className={styles["heat-scope"]}>
+                            Band relative to the Greater Melbourne application-
+                        </p>
+                        <p className={styles["heat-scope"]}>
+                            ready baseline {stats.classificationSchemeVersion ? ` · ${stats.classificationSchemeVersion}` : ""}
+                        </p>
+                    </>
                 )}
             </div>
         </div>

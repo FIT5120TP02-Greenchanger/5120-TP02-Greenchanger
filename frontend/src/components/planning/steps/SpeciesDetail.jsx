@@ -1,47 +1,103 @@
 import { useState, useEffect } from 'react'
 import styles from '../TreePlantingFlow.module.css'
-import { TREE_SIZES } from '../../../hooks/simulation'
 import { fetchGrowth, fetchCosts, PREVIEW_AGE_YEARS } from '../../../services/trees'
 
+const SIZE_OPTIONS = ['Small', 'Medium', 'Large']
+
 export default function SpeciesDetail({ species, size, onSizeChange, setCompareArray, onApply, applying, onBack, onExit }) {
-    const [growth, setGrowth] = useState(null)
+    // const [growth, setGrowth] = useState(null)
+    const [growthBySize, setGrowthBySize] = useState({
+        Small: null,
+        Medium: null,
+        Large: null,
+    })
     const [costs, setCosts] = useState(null)
     const [loading, setLoading] = useState(false)
     const [error, setError] = useState(null)
 
     useEffect(() => {
-        if (!species || !size) { setGrowth(null); setCosts(null); return }
+        if (!species) { 
+            // setGrowth(null);
+            setGrowthBySize({
+                Small: null,
+                Medium: null,
+                Large: null
+            }) 
+            setCosts(null); 
+            return 
+        }
         let cancelled = false
         setLoading(true)
-        setGrowth(null)
+        // setGrowth(null)
+        setGrowthBySize({
+            Small: null,
+            Medium: null,
+            Large: null,
+        })
         setCosts(null)
         setError(null)
-        Promise.all([
-            fetchGrowth({ species: species.scientific_name, size, years: PREVIEW_AGE_YEARS }),
-            fetchCosts({ treeType: species.common_name }),
-        ])
-            .then(([g, c]) => {
+        async function loadData() {
+            try {
+                const [smallGrowth, mediumGrowth, largeGrowth, costsRaw] =
+                    await Promise.all([
+                        fetchGrowth({
+                            species: species.scientific_name,
+                            size: 'Small',
+                            years: PREVIEW_AGE_YEARS,
+                        }),
+                        fetchGrowth({
+                            species: species.scientific_name,
+                            size: 'Medium',
+                            years: PREVIEW_AGE_YEARS,
+                        }),
+                        fetchGrowth({
+                            species: species.scientific_name,
+                            size: 'Large',
+                            years: PREVIEW_AGE_YEARS,
+                        }),
+                        fetchCosts({
+                            treeType: species.common_name,
+                        }),
+                    ])
+
                 if (cancelled) return
-                setGrowth(g)
-                setCosts(Array.isArray(c) ? c[0] : c)
-            })
-            .catch(() => { if (!cancelled) setError("Couldn't load growth/cost data for this size.") })
-            .finally(() => { if (!cancelled) setLoading(false) })
+
+                setGrowthBySize({
+                    Small: smallGrowth,
+                    Medium: mediumGrowth,
+                    Large: largeGrowth,
+                })
+
+                setCosts(Array.isArray(costsRaw) ? costsRaw[0] : costsRaw)
+            } catch {
+                if (!cancelled) {
+                    setError("Couldn't load growth/cost data.")
+                }
+            } finally {
+                if (!cancelled) {
+                    setLoading(false)
+                }
+            }
+        }
+        loadData()
         return () => { cancelled = true }
-    }, [species, size])
+    }, [species])
 
     if (!species) return null
+
+    const growth = growthBySize[size]
+
     const priceRange = costs
-        ? (costs.minimum_cost === costs.maximum_cost
-            ? `$${costs.minimum_cost}`
-            : `$${costs.minimum_cost}-$${costs.maximum_cost}`)
+        ? (
+            costs.minimum_cost === costs.maximum_cost
+                ? `$${costs.minimum_cost}`
+                : `$${costs.minimum_cost}-$${costs.maximum_cost}`
+        )
         : '—'
-    console.log(priceRange);
+
     const canopyRange = growth
         ? `${growth.canopy_m2_min?.toFixed(0)}-${growth.canopy_m2_max?.toFixed(0)} m²`
         : '—'
-    console.log(canopyRange);
-    console.log(growth);
     const tree_size = growth
     ? {
         Small: { heightLabel: growth.height_m_min },
@@ -78,21 +134,40 @@ export default function SpeciesDetail({ species, size, onSizeChange, setCompareA
 
             <div className={styles['section']}>
                 <span>CHOOSE PLANTING SIZE</span>
+
                 <div className={styles['price-container']}>
-                    {Object.entries(tree_size).map(([label, { heightLabel }]) => (
-                        <button
-                            key={label}
-                            type="button"
-                            className={`${styles['size-option']} ${size === label ? styles['size-option--selected'] : ''}`}
-                            onClick={() => onSizeChange(label)}
-                        >
-                            <span className={styles['size-radio']} />
-                            <span className={styles['size-text']}>
-                                <span className={styles['size-name']}>{label}</span>
-                                <span className={styles['size-height']}>{heightLabel}m</span>
-                            </span>
-                        </button>
-                    ))}
+                    {SIZE_OPTIONS.map((label) => {
+                        const sizeGrowth = growthBySize[label]
+
+                        const heightRange = sizeGrowth
+                            ? `${sizeGrowth.height_m_min?.toFixed(1)}m - ${sizeGrowth.height_m_max?.toFixed(1)}m`
+                            : 'Loading…'
+
+                        return (
+                            <button
+                                key={label}
+                                type="button"
+                                className={`${styles['size-option']} ${
+                                    size === label
+                                        ? styles['size-option--selected']
+                                        : ''
+                                }`}
+                                onClick={() => onSizeChange(label)}
+                            >
+                                <span className={styles['size-radio']} />
+
+                                <span className={styles['size-text']}>
+                                    <span className={styles['size-name']}>
+                                        {label}
+                                    </span>
+
+                                    <span className={styles['size-height']}>
+                                        {heightRange}
+                                    </span>
+                                </span>
+                            </button>
+                        )
+                    })}
                 </div>
             </div>
             <div className={styles['panel-actions']}>

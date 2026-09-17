@@ -33,7 +33,7 @@ function App() {
         onCanopyStatsChange={setCanopyStats}
         onScenarioChange={setCurrentScenario}
       />}
-      <ChatbotWidget
+      {/* <ChatbotWidget
           context={
               page === 'map'
                   ? {
@@ -44,7 +44,7 @@ function App() {
                   }
                   : null
           }
-      />
+      /> */}
     </>
   );
 }

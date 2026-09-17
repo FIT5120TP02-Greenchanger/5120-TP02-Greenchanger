@@ -14,7 +14,6 @@ export default function TreeCompare({ compareArray = [], appliedScenario, rows, 
     // A ref (not `rows` itself) is used to check existence so this effect doesn't
     // re-fire every time onRowsChange updates state.
     const rowsRef = useRef(rows)
-    console.log(compareArray);
     useEffect(() => { rowsRef.current = rows }, [rows])
 
     useEffect(() => {

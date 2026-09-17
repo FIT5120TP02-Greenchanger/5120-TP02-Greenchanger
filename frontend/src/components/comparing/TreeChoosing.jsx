@@ -2,8 +2,6 @@ import { useState } from 'react'
 import styles from './TreeChoosing.module.css'
 import list_styles from '../planning/TreePlantingFlow.module.css'
 export default function TreeChoosing({species, selectedSpecies, compareArray, setCompareArray, onBack, onCompareTree}) {
-    console.log(compareArray.length)
-    console.log(compareArray)
     function handleCheckbox(s) {
         setCompareArray(prev => {
             const alreadySelected = prev.some(
