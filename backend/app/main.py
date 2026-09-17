@@ -227,6 +227,11 @@ def get_tree_costs(
     option_code is the greening-option category (container/backyard/community/...);
     tree_type is the specific species or common name within that category -- they are
     different columns and neither is a substitute for the other.
+
+    A tree_type with no price row of its own (most species for now) gets the generic
+    'container_tree' (small container tree) rows instead, with is_generic_estimate true
+    so the UI can say it is not that species' price. Every row carries the flag.
+    Not applied when option_code is also given: that caller asked for one option only.
     """
     clauses = []
     params: dict[str, str] = {}
@@ -242,7 +247,15 @@ def get_tree_costs(
         cur.execute(
             f"SELECT * FROM application_ready_cost_estimate {where} ORDER BY option_code", params
         )
-        return [jsonable_row(row) for row in cur.fetchall()]
+        rows = [jsonable_row(row) for row in cur.fetchall()]
+        generic = bool(tree_type) and not option_code and not rows
+        if generic:
+            cur.execute(
+                "SELECT * FROM application_ready_cost_estimate "
+                "WHERE option_code = 'container_tree' ORDER BY option_code"
+            )
+            rows = [jsonable_row(row) for row in cur.fetchall()]
+    return [{**row, "is_generic_estimate": generic} for row in rows]
 
 
 @lru_cache(maxsize=1)

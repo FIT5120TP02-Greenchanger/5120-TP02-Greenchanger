@@ -41,3 +41,31 @@ def test_get_tree_costs_filters_by_option_code(override_db):
     response = TestClient(app).get("/api/trees/costs", params={"option_code": "container_tree"})
     assert response.status_code == 200
     assert response.json()[0]["option_code"] == "container_tree"
+
+
+def test_tree_type_with_a_price_is_not_a_generic_estimate(override_db):
+    override_db([[{"option_code": "backyard_tree_diy", "tree_type": "Water Gum"}]])
+    response = TestClient(app).get("/api/trees/costs", params={"tree_type": "Water Gum"})
+    assert [row["is_generic_estimate"] for row in response.json()] == [False]
+
+
+def test_tree_type_without_a_price_falls_back_to_the_container_tree(override_db):
+    container = {"option_code": "container_tree", "tree_type": None, "minimum_cost": 67.99}
+    override_db([[], [container]])
+    response = TestClient(app).get("/api/trees/costs", params={"tree_type": "Dwarf Yellow Gum"})
+    assert response.status_code == 200
+    body = response.json()
+    assert len(body) == 1
+    assert body[0]["option_code"] == "container_tree"
+    assert body[0]["minimum_cost"] == 67.99
+    assert body[0]["is_generic_estimate"] is True
+
+
+def test_no_fallback_when_an_option_code_is_also_given(override_db):
+    container = {"option_code": "container_tree", "tree_type": None}
+    override_db([[], [container]])
+    response = TestClient(app).get(
+        "/api/trees/costs",
+        params={"tree_type": "Dwarf Yellow Gum", "option_code": "backyard_tree_installed"},
+    )
+    assert response.json() == []
