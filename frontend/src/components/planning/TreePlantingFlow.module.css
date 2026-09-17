@@ -736,9 +736,9 @@ aside:has(.detail-image) {
   transform: scale(0.97);
 }
 
-/* an Exit next to a primary button (the intro's and the impact page's Exit):
-   the design shows the outline button there */
-.panel-footer > .exit-button {
+/* the intro's Exit (next to Explore species): the design shows the outline button there.
+   Other Exits (impact page, species list and details) keep the original brown. */
+.panel-footer > .exit-button:has(+ .explore-button) {
   border-color: var(--green);
   background: #fff;
   color: var(--green);
@@ -767,7 +767,7 @@ aside:has(.detail-image) {
 }
 
 @media (hover: hover) {
-  .panel-footer > .exit-button:hover:not(:disabled) {
+  .panel-footer > .exit-button:has(+ .explore-button):hover:not(:disabled) {
     border-color: var(--green);
     background: var(--tint);
   }
