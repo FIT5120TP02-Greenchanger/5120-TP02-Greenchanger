@@ -8,7 +8,7 @@ const BASE_RATES_PER_M2_PER_YEAR = {
     airQualityImprovement: 0.004,  // kg PM10
 };
 
-export function calculatePlantingImpact({ species, size, lot }) {
+export function calculatePlantingImpact({ species, size }) {
     const radiusM = TREE_SIZES[size]?.radiusM ?? TREE_SIZES.Medium.radiusM;
     const canopyM2 = Math.PI * radiusM ** 2;
     const factor = species?.benefitFactor ?? 1;
