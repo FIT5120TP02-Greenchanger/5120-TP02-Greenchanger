@@ -9,8 +9,103 @@ class MigrationFileTests(unittest.TestCase):
     def test_migrations_are_numbered_and_ordered(self):
         self.assertEqual(
             [version for version, _ in migration_files()],
-            list(range(1, 36)),
+            list(range(1, 59)),
         )
+
+    def test_current_costs_use_melbourne_date_and_retire_anonymous_trees(self):
+        migration = next(path for version, path in migration_files() if version == 49)
+        sql = expanded_sql(migration)
+        self.assertIn("AT TIME ZONE 'Australia/Melbourne'", sql)
+        self.assertIn("ce.tree_type IS NULL", sql)
+        self.assertIn("'backyard_tree_diy'", sql)
+        self.assertIn("CREATE OR REPLACE VIEW application_ready_cost_estimate", sql)
+
+    def test_address_tree_catalog_includes_cost_images_and_council_status(self):
+        migration = next(path for version, path in migration_files() if version == 50)
+        sql = expanded_sql(migration)
+        self.assertIn("CREATE TABLE tree_species_image", sql)
+        self.assertIn("CREATE OR REPLACE VIEW application_ready_tree_species_image", sql)
+        self.assertIn("get_tree_planting_catalog_by_address", sql)
+        self.assertIn("supply_min_cost_aud", sql)
+        self.assertIn("installed_min_cost_aud", sql)
+        self.assertIn("image_attribution", sql)
+        self.assertIn("'Public domain'", sql)
+        self.assertIn("'available_now'", sql)
+        self.assertIn("'council_approval_required'", sql)
+        self.assertIn("not proof of site suitability", sql)
+
+    def test_address_tree_catalog_returns_currency_as_text(self):
+        migration = next(path for version, path in migration_files() if version == 51)
+        sql = expanded_sql(migration)
+        self.assertIn("pg_get_functiondef", sql)
+        self.assertIn("MIN(estimate.currency)::TEXT AS currency", sql)
+        self.assertIn("Currency is returned as text", sql)
+
+    def test_complete_catalog_preserves_missing_and_generic_statuses(self):
+        migration = next(path for version, path in migration_files() if version == 52)
+        sql = expanded_sql(migration)
+        self.assertIn("CREATE TABLE tree_species_image_enrichment", sql)
+        self.assertIn("CREATE OR REPLACE VIEW complete_tree_species_catalog", sql)
+        self.assertIn("verified_open_image", sql)
+        self.assertIn("taxon_unresolved", sql)
+        self.assertIn("generic_current_catalogue_range_not_species_quote", sql)
+        self.assertIn("must not be represented as this species price", sql)
+        self.assertIn("Do not substitute an unverified image", sql)
+
+    def test_address_catalog_combines_exact_stock_and_local_popularity(self):
+        migration = next(path for version, path in migration_files() if version == 53)
+        sql = expanded_sql(migration)
+        self.assertIn("get_council_tree_species_popularity_by_address", sql)
+        self.assertIn("complete_tree_species_catalog", sql)
+        self.assertIn("species_specific_current_source_range", sql)
+        self.assertIn("council_approval_required", sql)
+        self.assertIn("distinguishes species-specific from generic cost", sql)
+
+    def test_gbif_source_uses_supported_open_licence_filters(self):
+        migration = next(path for version, path in migration_files() if version == 54)
+        sql = expanded_sql(migration)
+        self.assertIn("Record-level CC0 or CC BY 4.0 only", sql)
+        self.assertIn("GBIF-supported CC0 or CC BY 4.0", sql)
+
+    def test_complete_catalog_includes_currently_priced_species(self):
+        migration = next(path for version, path in migration_files() if version == 55)
+        sql = expanded_sql(migration)
+        self.assertIn("WITH species_candidates AS", sql)
+        self.assertIn("FROM species_profile AS profile", sql)
+        self.assertIn("FROM application_ready_cost_estimate AS estimate", sql)
+        self.assertIn("UNION ALL", sql)
+        self.assertIn("NULLIF(BTRIM(estimate.botanical_name), '')", sql)
+
+    def test_wikimedia_fallback_retains_exact_taxon_and_file_licence(self):
+        migration = next(path for version, path in migration_files() if version == 56)
+        sql = expanded_sql(migration)
+        self.assertIn("Wikimedia Commons", sql)
+        self.assertIn("taxon_verification_id", sql)
+        self.assertIn("commons_file_title", sql)
+        self.assertIn("WIKIDATA_EXACT_P225", sql)
+        self.assertIn("verified_wikimedia_commons_image", sql)
+
+    def test_property_categories_are_source_backed_not_inferred_from_raw_codes(self):
+        migration = next(path for version, path in migration_files() if version == 57)
+        sql = expanded_sql(migration)
+        self.assertIn("CREATE TABLE property_category", sql)
+        self.assertIn("CREATE TABLE property_category_assignment", sql)
+        self.assertIn("('house', 'House'", sql)
+        self.assertIn("('station', 'Station'", sql)
+        self.assertIn("('road', 'Road'", sql)
+        self.assertIn("vicmap_property_type_label", sql)
+        self.assertIn("unclassified_source_not_loaded", sql)
+        self.assertIn("get_property_category", sql)
+        self.assertIn("must not be presented as House", sql)
+
+    def test_tree_images_require_a_commercially_reusable_media_licence(self):
+        migration = next(path for version, path in migration_files() if version == 58)
+        sql = expanded_sql(migration)
+        self.assertIn("Quarantined: the stored media licence is not approved", sql)
+        self.assertIn("tree_species_image_enrichment_approved_licence_check", sql)
+        self.assertIn("CC BY 4.0", sql)
+        self.assertIn("CC0 1.0", sql)
+        self.assertIn("CREATE OR REPLACE VIEW application_ready_tree_species_image", sql)
 
     def test_include_is_expanded(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -20,6 +115,100 @@ class MigrationFileTests(unittest.TestCase):
             included.write_text("SELECT 1;", encoding="utf-8")
             migration.write_text("-- include: included.sql\n", encoding="utf-8")
             self.assertIn("SELECT 1;", expanded_sql(migration))
+
+    def test_open_tree_research_evidence_preserves_source_limitations(self):
+        migration = next(path for version, path in migration_files() if version == 40)
+        sql = expanded_sql(migration)
+        self.assertIn("CREATE TABLE plant_trait_observation", sql)
+        self.assertIn("CREATE TABLE urban_tree_growth_observation", sql)
+        self.assertIn("CREATE TABLE urban_tree_growth_climate", sql)
+        self.assertIn("city_year_ambiguous", sql)
+        self.assertIn("ring_sequence is source row order", sql)
+        self.assertIn("not guaranteed mature nursery height", sql)
+        self.assertIn("Creative Commons Attribution 4.0 International", sql)
+
+    def test_dea_and_era5_migration_separates_spatial_grains(self):
+        migration = next(path for version, path in migration_files() if version == 41)
+        sql = expanded_sql(migration)
+        self.assertIn("CREATE TABLE dea_land_cover_observation", sql)
+        self.assertIn("CREATE TABLE era5_land_daily_observation", sql)
+        self.assertIn("approximately 9 km ERA5-Land reanalysis", sql)
+        self.assertIn("not property-scale canopy", sql)
+        self.assertIn("USING GIST(observation_geometry)", sql)
+        self.assertIn("USING GIST(observation_location)", sql)
+
+    def test_superseded_era5_partition_cleanup_requires_identical_rows(self):
+        migration = next(path for version, path in migration_files() if version == 42)
+        sql = expanded_sql(migration)
+        self.assertIn("NOT EXISTS", sql)
+        self.assertIn("IS NOT DISTINCT FROM", sql)
+        self.assertIn("DELETE FROM era5_land_daily_observation", sql)
+        self.assertIn("publication_status = 'retired'", sql)
+        self.assertIn("superseded_partial_period", sql)
+
+    def test_council_guidance_separates_verified_and_unverified_species(self):
+        migration = next(path for version, path in migration_files() if version == 43)
+        sql = expanded_sql(migration)
+        self.assertIn("CREATE TABLE local_government_area", sql)
+        self.assertIn("CREATE TABLE council_species_guidance", sql)
+        self.assertIn("latest_victorian_lga_boundary", sql)
+        self.assertIn("get_council_species_options_by_address", sql)
+        self.assertIn("'available_now'", sql)
+        self.assertIn("'council_approval_required'", sql)
+        self.assertIn("occurrence is not planting permission", sql)
+
+    def test_council_species_popularity_is_current_ranked_and_not_approval(self):
+        migration = next(path for version, path in migration_files() if version == 44)
+        sql = expanded_sql(migration)
+        self.assertIn("get_council_tree_species_popularity_by_address", sql)
+        self.assertIn("latest_metropolitan_named_tree_inventory", sql)
+        self.assertIn("latest_council_species_guidance", sql)
+        self.assertIn("ROW_NUMBER() OVER", sql)
+        self.assertIn("recorded_tree_percentage", sql)
+        self.assertIn("unavailable_no_integrated_council_inventory", sql)
+        self.assertIn("frequency never implies planting approval", sql)
+        self.assertNotIn("Vicmap Vegetation - Tree Urban Point", sql)
+
+    def test_council_species_popularity_status_alias_is_forward_fixed(self):
+        migration = next(path for version, path in migration_files() if version == 45)
+        sql = expanded_sql(migration)
+        self.assertIn("pg_get_functiondef", sql)
+        self.assertIn("matched.status", sql)
+        self.assertIn("ORDER BY 3 NULLS LAST", sql)
+        self.assertIn("expected the migration 044 unqualified status expression", sql)
+
+    def test_council_species_popularity_requires_source_and_spatial_council(self):
+        migration = next(path for version, path in migration_files() if version == 46)
+        sql = expanded_sql(migration)
+        self.assertIn("normalize_greenchanger_council_name", sql)
+        self.assertIn("tree.municipality", sql)
+        self.assertIn("v_lga.lga_official_name", sql)
+        self.assertIn("source municipality and authoritative address LGA match", sql)
+
+    def test_missing_council_inventory_falls_back_to_top_ten_overall(self):
+        migration = next(path for version, path in migration_files() if version == 47)
+        sql = expanded_sql(migration)
+        self.assertIn("v_has_council_inventory", sql)
+        self.assertIn("LEAST(p_result_limit, 10)", sql)
+        self.assertIn("fallback_overall_observed_public_tree_frequency", sql)
+        self.assertIn("Warning: no latest application-ready named public-tree inventory", sql)
+        self.assertIn("all integrated Melbourne council inventories", sql)
+
+    def test_council_inventory_availability_check_is_not_recursive(self):
+        migration = next(path for version, path in migration_files() if version == 48)
+        sql = expanded_sql(migration)
+        self.assertIn("v_broken_check", sql)
+        self.assertIn("v_correct_check", sql)
+        self.assertIn("matching source municipality", sql)
+
+    def test_cumulative_schema_expands_metropolitan_tree_contract(self):
+        schema = pathlib.Path(__file__).resolve().parents[1] / "greenchanger_sql/schema.sql"
+        sql = expanded_sql(schema)
+        self.assertLess(
+            sql.index("CREATE TABLE named_tree_inventory"),
+            sql.index("get_metropolitan_named_tree_context"),
+        )
+        self.assertIn("latest_metropolitan_named_tree_inventory", sql)
 
     def test_circular_include_is_rejected(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -160,6 +349,31 @@ class MigrationFileTests(unittest.TestCase):
         self.assertIn("DROP INDEX IF EXISTS uq_cost_estimate_source_version", sql)
         self.assertIn("cost_basis,\n        tree_type,", sql)
         self.assertIn(") NULLS NOT DISTINCT", sql)
+
+    def test_named_tree_inventory_keeps_names_separate_from_vicmap_points(self):
+        migration = next(
+            path for version, path in migration_files() if version == 36
+        )
+        sql = expanded_sql(migration)
+        self.assertIn("CREATE TABLE named_tree_inventory", sql)
+        self.assertIn("common_name TEXT", sql)
+        self.assertIn("scientific_name TEXT", sql)
+        self.assertIn("latest_city_melbourne_named_tree_inventory", sql)
+        self.assertIn("get_named_tree_context", sql)
+        self.assertIn("not joined to a Vicmap Tree Urban point", sql)
+
+    def test_metropolitan_tree_inventory_preserves_source_and_dimensions(self):
+        migration = next(
+            path for version, path in migration_files() if version == 37
+        )
+        sql = expanded_sql(migration)
+        self.assertIn("ADD COLUMN IF NOT EXISTS inventory_source_key TEXT", sql)
+        self.assertIn("ADD COLUMN IF NOT EXISTS municipality TEXT", sql)
+        self.assertIn("ADD COLUMN IF NOT EXISTS height_m NUMERIC", sql)
+        self.assertIn("ADD COLUMN IF NOT EXISTS canopy_width_m NUMERIC", sql)
+        self.assertIn("latest_metropolitan_named_tree_inventory", sql)
+        self.assertIn("get_metropolitan_named_tree_context", sql)
+        self.assertIn("Council inventories cover maintained public trees", sql)
 
     def test_environment_context_uses_bounded_indexed_radius_queries(self):
         migration = next(
@@ -312,6 +526,30 @@ class MigrationFileTests(unittest.TestCase):
         self.assertIn("'suppressed'", sql)
         self.assertIn("licence_status IN ('open_confirmed', 'public_domain')", sql)
         self.assertIn("precise_after_temperature_allowed", sql)
+
+    def test_city_canopy_history_is_versioned_for_five_year_labels(self):
+        migration = next(
+            path for version, path in migration_files() if version == 38
+        )
+        sql = expanded_sql(migration)
+        self.assertIn("CREATE TABLE canopy_snapshot_feature", sql)
+        self.assertIn("Tree Canopies 2016 (Urban Forest)", sql)
+        self.assertIn("Tree Canopies 2021 (Urban Forest)", sql)
+        self.assertIn("latest_city_canopy_snapshots", sql)
+        self.assertIn("five-year canopy baseline", sql)
+        self.assertIn("five-year observed canopy outcome", sql)
+
+    def test_additional_canopy_years_and_metro_change_have_separate_contracts(self):
+        migration = next(
+            path for version, path in migration_files() if version == 39
+        )
+        sql = expanded_sql(migration)
+        self.assertIn("Tree Canopies 2008 (Urban Forest)", sql)
+        self.assertIn("Tree Canopies 2015 (Urban Forest)", sql)
+        self.assertIn("observed_year IN (2008, 2015, 2016, 2021)", sql)
+        self.assertIn("CREATE TABLE metropolitan_vegetation_change_feature", sql)
+        self.assertIn("latest_metropolitan_vegetation_change", sql)
+        self.assertIn("based on 2016 ABS Mesh Blocks", sql)
 
 
 if __name__ == "__main__":

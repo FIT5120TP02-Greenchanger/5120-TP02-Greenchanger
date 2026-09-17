@@ -32,6 +32,120 @@ Versioned application-ready views and property lookup
 
 **Data Quality & Preparation** requires at least 95% of assessed records to pass the configured completeness, validity and consistency checks. Failed records are rejected or quarantined, and limitations are retained in the database. **Data Analytics & Insight Development** covers the analytical measures presented to users. Its calculations separate observed values from modelled scenarios and expose precise projected heat results only from validated model versions.
 
+## Experimental mature canopy-width model
+
+From the project root, create/activate the environment and install the model
+dependency with:
+
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+python -m pip install -r requirements.txt
+```
+
+Train the internal benchmark and print the train/test row counts, held-out R²,
+MAE and RMSE with:
+
+```bash
+python greenchanger_script/train_tree_canopy_model.py
+```
+
+The default run uses a reproducible 80/20 split. The fitted artifact contains
+only the 80% training partition; the 20% test partition remains untouched. The
+model and machine-readable metrics are written to:
+
+```text
+data/processed/models/tree_canopy_width/mature_canopy_width_model.joblib
+data/processed/models/tree_canopy_width/metrics.json
+```
+
+List the tree types that support automatic inputs:
+
+```bash
+python greenchanger_script/predict_tree_canopy.py --list-species
+```
+
+Choose one supported type to automatically fill representative mature height,
+DBH, health, structure, useful-life class and training-area location:
+
+```bash
+python greenchanger_script/predict_tree_canopy.py \
+  --species "River Red Gum"
+```
+
+When current canopy width is omitted, the command treats the selection as a new
+tree with 0 m² current canopy. The JSON response lists every auto-filled input
+and the assumption. User-supplied measurements always override the profile.
+
+For example, run the model with explicit measurements and property location:
+
+```bash
+python greenchanger_script/predict_tree_canopy.py \
+  --species "River Red Gum" \
+  --height-m 8 \
+  --dbh-cm 30 \
+  --current-canopy-width-m 3 \
+  --health "Good" \
+  --structure "Good" \
+  --useful-life "20-30 years" \
+  --longitude 144.66 \
+  --latitude -37.90
+```
+
+The command prints JSON containing `predicted_mature_canopy_width_m`,
+`current_canopy_area_m2`, `predicted_mature_canopy_area_m2`,
+`predicted_added_canopy_m2`, `model_held_out_test_r2` and
+`model_unseen_species_r2`, plus the model timestamp and limitation. R² is a
+model-level evaluation metric, not confidence for the individual prediction.
+Height or DBH is required; supply both when available. Longitude and latitude
+are optional but must be provided together.
+
+The equivalent Python API is:
+
+```bash
+python - <<'PY'
+import joblib
+
+from greenchanger_data.tree_canopy_model import predict_canopy
+
+artifact = joblib.load(
+    "data/processed/models/tree_canopy_width/"
+    "mature_canopy_width_model.joblib"
+)
+
+result = predict_canopy(
+    artifact["model"],
+    species_name="River Red Gum",
+    height_m=8,
+    diameter_breast_height_cm=30,
+    current_canopy_width_m=3,
+    health_status="Good",
+    structure_status="Good",
+    useful_life_expectancy="20-30 years",
+    longitude=144.66,
+    latitude=-37.90,
+)
+
+for name, value in result.items():
+    print(f"{name}: {value:.2f}")
+PY
+```
+
+Use exact Wyndham inventory species/common-name labels where possible. An
+unknown species can be scored because the model handles it explicitly, but that
+estimate relies more heavily on the other measurements and should be treated
+with greater caution.
+
+The trainer uses the open Wyndham inventory records explicitly labelled
+`Mature` or `Over mature`. It predicts observed mature crown width with
+categorical boosting from species, height, DBH, health, structure, remaining
+useful-life category and location. It also reports a stricter complete-species
+holdout diagnostic. The saved artifact is fitted only on the training partition;
+the test partition remains untouched. Mature crown area is derived as
+`π × (width / 2)²`, and added canopy is mature area minus current area, floored
+at zero. This is a cross-sectional benchmark, not longitudinal growth evidence or a production
+forecast; the existing validation gate remains in force.
+
 ## Initial setup
 
 Run commands from the `GreenChanger_data/` project root:
@@ -66,9 +180,17 @@ python greenchanger_script/migrate.py --confirm-shared
 python greenchanger_script/ingestion.py sources --confirm-shared
 python greenchanger_script/ingestion.py boundary --confirm-shared
 
-# 3. Load current Vicmap Address and Property data
+# 3. Load current Vicmap Address, Property and authoritative LGA boundaries
 python greenchanger_script/ingestion.py address --confirm-shared
 python greenchanger_script/ingestion.py property --confirm-shared
+python greenchanger_script/ingestion.py lga-boundaries --confirm-shared
+
+# Load one source-controlled council planting guide at a time. Start from
+# data/reference/council_species_guidance_template.csv and retain its source,
+# licence, effective dates and limitation text.
+python greenchanger_script/ingestion.py council-guidance \
+  --council-guidance-file /path/to/official_council_guidance.csv \
+  --confirm-shared
 
 # 4. Load weather, Landsat surface heat and Vicmap canopy
 python greenchanger_script/ingestion.py bom --confirm-shared
@@ -84,6 +206,26 @@ python greenchanger_script/ingestion.py canopy \
 
 # 5. Load official Vicmap Tree Urban points through the Feature Service API
 python greenchanger_script/ingestion.py trees --confirm-shared
+
+# Load source-labelled named council-tree records. Names are not inferred for
+# nearby Vicmap points or for private/backyard trees absent from inventories.
+python greenchanger_script/ingestion.py named-trees --confirm-shared
+
+# Load openly licensed research inputs for future species-aware modelling.
+# These remain internal evidence and do not publish canopy predictions.
+python greenchanger_script/ingestion.py austraits --confirm-shared
+python greenchanger_script/ingestion.py urban-growth --confirm-shared
+
+# Add historical modelling covariates. DEA streams the public annual COG;
+# ERA5-Land requires accepted CDS terms and a configured ~/.cdsapirc token.
+python greenchanger_script/ingestion.py dea-land-cover \
+  --dea-year 2025 --dea-grid-size-m 500 --confirm-shared
+python greenchanger_script/ingestion.py era5-land \
+  --era5-start 2014-01-01 --era5-end 2018-12-31 --confirm-shared
+python greenchanger_script/ingestion.py brimbank-trees yarra-trees casey-trees \
+  hobsons-bay-trees wyndham-trees port-phillip-trees manningham-trees \
+  glen-eira-trees \
+  --confirm-shared
 
 # Reuse a completed API extract without redownloading it
 python greenchanger_script/ingestion.py trees \
@@ -127,6 +269,22 @@ SELECT * FROM get_property_canopy_by_address(
     '1 COLLINS STREET MELBOURNE', 5
 );
 ```
+
+Query the normalized property/place category with:
+
+```sql
+SELECT * FROM get_property_category(
+    '1 COLLINS STREET MELBOURNE', 5
+);
+```
+
+The controlled list includes `house`, `townhouse`, `apartment`, `station`,
+`road`, `school`, `hospital`, `commercial`, `industrial`, `park`, `utility`,
+`other` and `unclassified`. An assignment must retain its source, method and
+optional dataset version. Existing Vicmap `O`/`G` property-type and `S`/`M`
+address-class codes are decoded separately; they do not establish that a
+property is a house, station, road or another use, so unverified rows remain
+explicitly unclassified.
 
 Current air-temperature context for each matched property is available through:
 
@@ -255,7 +413,7 @@ conversion; their 500 m source resolution is unchanged.
 
 | Output | Current result | Quality/status |
 | --- | ---: | --- |
-| Repository migrations | 001–024 | Deployment state must be confirmed with `migrate.py --status` |
+| Repository migrations | 001–043 | Migration 043 adds authoritative Victorian LGA lookup and versioned council species guidance |
 | Automated tests | Fast unit suite + opt-in PostGIS integration suite | Use the validation commands below and in `PR_DATA_CONTRACT.md` |
 | Melbourne Address records | 3,007,474 | 100% boundary membership |
 | Melbourne Property records | 3,001,053 | 100% boundary membership |
@@ -264,9 +422,171 @@ conversion; their 500 m source resolution is unchanged.
 | Application-ready canopy baseline | 37,146 unique 500 m cells | All baseline checks passed |
 | BOM weather observations | 1,557 from 10 stations | 100% source quality pass rate; version `greater-melbourne-bom-stations-v1` |
 | Vicmap Tree Urban | 10,473,773 Melbourne points | 100% record-quality and boundary-membership pass rates |
+| Source-labelled council trees | 629,322 current rows across nine councils | Every latest eligible-record version passes the ≥95% gate; coverage and fields vary by council |
+| Property-level analytical canopy | 3,001,053 parcels assessed; 2,984,934 available | 99.46% available; 16,119 safely return `Unavailable` rather than an assumed 0% |
 | Cost estimates | 8 in AWS | 100% quality pass; 0 rejected, 0 missing source URLs and 0 expired |
 | Representative residential simulations | 3 properties × 4 actions | 12/12 output checks passed; overall WARN from retained baseline caveats |
 | Validated scenario measure results | 0 | Prototype model is deliberately blocked from application output |
+
+### Named council-tree inventory results
+
+Migration 037 and `council_tree_inventories.py` support eight additional council inventories without
+pretending they describe the same physical objects as Vicmap Tree Urban. Raw
+placeholders become null, removed Brimbank records are excluded, coordinates
+are transformed to EPSG:7855 and clipped to `2GMEL`, Wyndham Z coordinates are
+reduced to the database's 2D point contract, and accepted rows retain their
+municipality, source, licence and available dimensions.
+
+| Source | Raw rows | Current rows in AWS | Eligible quality | Usable-name coverage | Height available | Canopy width available |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| Brimbank Street Trees | 133,373 | 85,900 | 98.42% | 85.50% of 102,082 active rows | 76,638 | 84,225 |
+| City of Yarra | 20,782 | 20,782 | 100% | 100% | 20,782 | Not supplied |
+| City of Casey | 205,614 | 151,204 | 100% | 73.54% | 141,640 | 1,952 non-zero values |
+| Hobsons Bay | 82,100 | 72,409 | 99.96% | 88.23% | Not supplied | Not supplied |
+| Wyndham | 44,859 | 44,841 | 99.99% | 99.97% | 34,257 | 34,260 |
+| City of Port Phillip | 46,000 | 45,989 | 100% | 100% | 42,501 | 43,490 |
+| Manningham City Council | 66,904 | 66,904 | 100% | 100% | 66,904 ranges | Not supplied |
+| Glen Eira Park and Street Trees | 59,259 | 59,229 | 99.99% | 99.96% | 59,071 | 56,365 |
+
+The quality percentage is calculated only over active records with a usable
+name; the separate name-coverage percentage prevents that gate from hiding
+source incompleteness. Brimbank's 1,378 rejected eligible rows failed only the
+identifier-uniqueness rule. Glen Eira's six rejected rows are the members of
+three duplicated source identifiers. A missing council record never means that a private
+or backyard tree does not exist.
+
+`data/reference/council_tree_inventory_coverage.csv` records the review of all
+31 metropolitan councils. Nine councils currently have an integrated source.
+The remaining 22 are deliberately not added where no official openly licensed
+row-level download was verified, the only source was a partial significant-tree
+register, or reuse restrictions were incompatible with the open-data contract.
+"Not added" means no suitable source was verified during the recorded review;
+it does not claim that the council has no internal inventory.
+
+Application lookup:
+
+```sql
+SELECT *
+FROM get_metropolitan_named_tree_context(144.998, -37.805, 500, 100);
+```
+
+Council-specific planting options are resolved from an address. Only explicit
+`approved` or `recommended` guidance appears as `available_now`; conditional,
+unlisted and locally observed species appear as `council_approval_required`:
+
+```sql
+SELECT *
+FROM get_council_species_options_by_address(
+    '251A BELMORE ROAD BALWYN NORTH 3104', NULL, 100
+);
+```
+
+Rank the most commonly recorded public-tree species inside the address council:
+
+```sql
+SELECT popularity_rank, display_name, recorded_tree_count,
+       recorded_tree_percentage, list_category, guidance_status, limitation
+FROM get_council_tree_species_popularity_by_address(
+    '251A BELMORE ROAD BALWYN NORTH 3104', 20
+);
+```
+
+This ranking combines the authoritative LGA lookup with only the latest
+application-ready named council inventories and requires the record's source
+municipality to match the address LGA. Historical versions are not
+double-counted and unnamed Vicmap Tree Urban points are excluded. It may join
+loaded council guidance for recommendation status, but frequency is labelled as
+an observed public-tree inventory statistic—not resident preference, planting
+approval, nursery availability or property suitability. Councils without an
+integrated inventory receive a clearly labelled warning plus at most the ten
+most frequently recorded species across all integrated Melbourne council
+inventories. This fallback is not council-specific evidence, planting approval,
+nursery availability or property-suitability advice.
+
+Return the complete Iteration 2 planting catalogue for an address, including
+the council guidance status, current supply-only and installed AUD ranges, and
+a licensed reference image with attribution:
+
+```sql
+SELECT tree_type, scientific_name, list_category, guidance_status,
+       supply_min_cost_aud, supply_max_cost_aud,
+       installed_min_cost_aud, installed_max_cost_aud,
+       image_url, image_alt_text, image_attribution, guidance_limitation
+FROM get_tree_planting_catalog_by_address(
+    '251A BELMORE ROAD BALWYN NORTH 3104', 20
+);
+```
+
+The function always includes exact-priced catalogue stock, then adds the most
+frequently recorded species for the address council (or the documented
+metropolitan fallback). `available_now` means the loaded council source
+explicitly uses `approved` or `recommended`; every other row is labelled
+`council_approval_required`. Missing species prices use the explicitly labelled
+generic catalogue range, and missing verified images remain unavailable.
+Images are illustrative reference photographs, not the exact nursery stock;
+the returned attribution and limitation must be retained with every image.
+
+The complete named-species catalogue is exposed through
+`complete_tree_species_catalog`. Every distinct scientific name is retained.
+Species-specific prices use `species_specific_current_source_range`; all other
+rows use `generic_current_catalogue_range_not_species_quote`. GBIF enrichment
+publishes only exact Plantae matches with confidence at least 95 and individual
+media-level CC0 or CC BY 4.0 terms. The licence must be present on the selected media object;
+an occurrence-search licence filter is not sufficient. Missing licences, All Rights
+Reserved, CC BY-NC, CC BY-ND and custom terms are rejected. For names still
+missing images, the optional Wikimedia
+Commons fallback is limited to rows with an exact GBIF taxon ID and requires an
+exact Wikidata P225 match for that name or its GBIF canonical taxon. This permits
+an explicitly labelled base-taxon reference for a cultivar while rejecting fuzzy
+or higher-rank substitutions. Only public-domain, CC0, CC BY or CC BY-SA files
+with their record-level licence, creator, source page and attribution are accepted.
+The separately invoked broader pass can also accept exact Wikidata catalogue-name
+or English label/alias matches on taxon items, verified parent species for cultivars,
+same-genus GBIF spelling corrections with confidence at least 93 and similarity at
+least 0.93, and genus representatives only for names explicitly labelled `sp.`. Each
+broader relationship is disclosed in the image alt text or limitation. A final
+Wikipedia-title check can correct a uniquely close binomial only when its Wikidata
+P225 claim exactly verifies the corrected taxon; user-confirmed corrections take
+priority over conflicting GBIF fuzzy suggestions. Ambiguous names remain explicitly
+unavailable.
+
+```bash
+python greenchanger_script/enrich_tree_catalog.py \
+  --workers 12 \
+  --confirm-shared
+
+python greenchanger_script/enrich_tree_catalog.py \
+  --commons-fallback \
+  --workers 4 \
+  --confirm-shared
+
+python greenchanger_script/enrich_tree_catalog.py \
+  --commons-broader-fallback \
+  --workers 4 \
+  --confirm-shared
+
+# Revalidate every existing GBIF image against its current media-level licence,
+# then load the replaced or quarantined results into the database.
+python greenchanger_script/enrich_tree_catalog.py \
+  --revalidate-gbif-licences \
+  --fetch-only \
+  --workers 12
+python greenchanger_script/migrate.py --confirm-shared
+python greenchanger_script/enrich_tree_catalog.py \
+  --load-only \
+  --confirm-shared
+```
+
+The commands are resumable through
+`data/interim/tree_catalog/gbif_species_images.jsonl`. The Commons pass revisits
+only rows without a verified image that have an exact GBIF taxon ID. The broader
+pass revisits every remaining unavailable row using the disclosed rules above.
+Both Commons modes throttle Wikimedia requests; the primary pass skips names
+already present unless `--refresh` is supplied.
+
+The lookup uses the latest application-ready version per source, an indexed
+metre-based radius and a bounded result limit. It returns source and licence
+metadata plus the public-tree/private-tree limitation with every row.
 
 ### Active environmental classifications
 
@@ -379,9 +699,51 @@ one general environmental model with four independent contracts:
 | Model | Target | Required core sources | Current status |
 | --- | --- | --- | --- |
 | Tree canopy growth | Future canopy-area range for an individual tree at a stated horizon | City of Melbourne tree inventory and 2021 canopy | Training data not prepared |
-| Melbourne-wide canopy change | 2014–2018 vegetation-cover change at Mesh Block/aligned-cell grain | Victorian metropolitan vegetation change, Vicmap Property and ERA5-Land | Training data not prepared |
+| Melbourne canopy change | Historical canopy/change at a consistently aligned spatial grain | City of Melbourne 2008/2015/2016/2021 canopy snapshots, Victorian metropolitan vegetation change, Vicmap Property, DEA Land Cover and ERA5-Land | DEA/ERA5 ingestion implemented; shared versions and aligned labels still need to be built |
 | Cooling association | Landsat land-surface-temperature range conditional on vegetation and weather | Landsat surface temperature, vegetation change and ERA5-Land | Training data not prepared |
 | Garden cooling | Paired irrigated/unirrigated experimental response | Burnley 2021–2022 irrigation experiment | Blocked pending record-level licence confirmation |
+
+#### Historical canopy and vegetation-change inputs
+
+The longitudinal preparation stage supports City of Melbourne canopy polygons
+for 2008, 2015, 2016 and 2021. Migration 039 adds the earlier years without
+rewriting migration 038 and creates a separate contract for the statewide
+department's 2014–2018 metropolitan percentage-point change layer:
+
+```bash
+python greenchanger_script/migrate.py --confirm-shared
+python greenchanger_script/ingestion.py sources --confirm-shared
+python greenchanger_script/ingestion.py city-canopy \
+  --city-canopy-year 2008 --confirm-shared
+python greenchanger_script/ingestion.py city-canopy \
+  --city-canopy-year 2015 --confirm-shared
+python greenchanger_script/ingestion.py city-canopy \
+  --city-canopy-year 2016 --confirm-shared
+python greenchanger_script/ingestion.py city-canopy \
+  --city-canopy-year 2021 --confirm-shared
+python greenchanger_script/ingestion.py vegetation-change \
+  --vegetation-change-file /path/to/VEGETATION_COVER_2014_18_CHG.shp \
+  --confirm-shared
+```
+
+The City API extracts are checksummed, geometry-repaired where
+possible, normalised to multipolygons in EPSG:7855 and subjected to required,
+unique, year and positive-area checks. Passing snapshots remain `internal`.
+The metropolitan product must first be ordered/downloaded in SHP or GDB format
+from DataShare because its catalogue page is not a direct data API. Its raw
+attributes are preserved in JSONB while recognised tree, shrub, grass and total
+change fields (`PP_ANYTREE`, `PP_SHRUB`, `PP_GRASS` and `PP_ANYVEG`) are
+normalised to percentage points. The large source is read in bounded 5,000-row
+batches. Its business key combines `MMB_CODE` and `UNIQUEID`, because one
+modified Mesh Block can contain multiple land-type polygons. It remains
+separate because its polygons are based on 2016 ABS Mesh Blocks, not canopy
+patches.
+
+These inputs do not become ML labels or resident-facing results until all
+selected years have been aligned to a common grid and capture/classification
+method differences have been assessed. The canopy sources supply year-level rather than exact
+acquisition dates, so `observed_on` stores 31 December only as a period-end
+convention; modelling must use `observed_year`.
 
 These are model specifications, not trained estimators. All corresponding
 `model_version` rows have `output_precision='suppressed'`; therefore no model
@@ -391,7 +753,13 @@ temporal held-out validation, uncertainty coverage checks and an explicit new
 status migration. The existing literature-bounded scenario calculator remains
 separate and unchanged.
 
-The historical modelling weather control is ERA5-Land (CC BY 4.0). Current BOM
+The historical modelling weather control is ERA5-Land (CC BY 4.0). Migration
+041 stores daily summaries of its approximately 9 km reanalysis grid in a
+separate table, with temperature (°C), precipitation (mm), layer-1 soil water
+(m³/m³), surface solar radiation (MJ/m²) and wind speed (m/s). DEA Land Cover
+(CC BY 4.0) is separately stored as annual fractions of its six Level-3 classes
+on aligned 500 m Melbourne modelling cells. Neither dataset is published as a
+property observation. Current BOM
 station observations remain useful application context, but the anonymous
 feed is optional for model training because its feed-specific open-reuse terms
 have not been confirmed. The Burnley files are also blocked until the Rights
@@ -444,6 +812,9 @@ The Tree Urban raw extract was obtained from the official Vicmap ArcGIS Feature 
 | Vicmap Address | Address search, coordinates and Property join key |
 | Vicmap Property | Property polygons, identifiers and area |
 | Vicmap Vegetation – Tree Urban Point | Mapped individual-tree context, radius and height |
+| Nine supported source-labelled council tree inventories | Public-tree names and available measured height, crown spread, DBH, maturity, health and planting dates; fields differ by council and each source is loaded separately |
+| ERA5-Land daily controls | Historical temperature, rainfall, soil-water, solar-radiation and wind covariates for modelling; approximately 9 km and not property observations |
+| DEA Land Cover | Annual 30 m categorical land cover aggregated to aligned 500 m modelling cells; not parcel canopy |
 | Vicmap Vegetation – Tree Extent | Melbourne neighbourhood canopy baseline |
 | USGS Landsat Collection 2 Surface Temperature | Spatial land-surface-temperature baseline |
 | [BOM Melbourne observations](https://www.bom.gov.au/vic/observations/melbourne.shtml) | Recent multi-station air-temperature context; exact official feeds are versioned in `config/bom_stations.json` |
@@ -468,6 +839,21 @@ All source versions retain extraction time, observation period, checksum, source
 - The dimension audit suppressed 172,179 optional height values outside the conservative 0.5–100 m plausibility range. Tree locations and counts were retained; missing height must not be inferred.
 - A point does not prove current tree presence, ownership, health or exact crown extent.
 - Results must be labelled “mapped tree points” and should not replace a site inspection.
+
+### Named council trees
+
+- Council inventories describe managed street/park trees, not all vegetation or private/backyard trees.
+- They are independent source records and are not assigned to nearby Vicmap Tree Urban points by proximity.
+- Brimbank and Hobsons Bay source files date from 2019; they are not current field surveys even where catalogue metadata was refreshed later.
+- Wyndham provides common names but not botanical names. Hobsons Bay supplies DBH ranges but no height or crown width; Yarra supplies height but no crown width. Casey crown-width fields are mostly zero and are treated as missing, not measured zero.
+- Port Phillip supplies species, planting date, DBH, height and crown-width fields for public street trees. It excludes private trees and source update dates vary by record.
+- Manningham supplies street-tree species, height and DBH ranges, address and survey date. The published extract has no crown-width or planting-year field.
+- Glen Eira supplies botanical and common names, DBH, height, crown spread and location type. The source has no observation or planting date, so it supports cross-sectional dimension modelling but not age-based growth by itself.
+- A missing name or dimension returns `Unavailable`; it is never inferred from another council or from a nearby mapped point.
+- “Most common” is calculated only from the latest application-ready public-tree
+  inventory records spatially inside the selected LGA. It must not be presented
+  as “best to plant”; council guidance and property-specific conditions remain
+  separate decisions.
 
 ### Heat and weather
 
@@ -550,8 +936,8 @@ mean local causal validation or permission to display a precise after-temperatur
 - No suitable government dataset provides current Melbourne residential greening prices.
 - The version-controlled file `data/reference/cost_estimates.csv` uses current advertised supplier prices and clearly labelled composite scenarios.
 - Exact advertised retail prices are high confidence; transparent multi-source calculations are medium confidence; broad installed-market guidance is low confidence.
-- The current coverage includes DIY and installed backyard trees by named type, a container tree, potted plants, an installed garden bed, DIY and installed green walls, and an installed advanced/community tree context.
-- Named residential tree costs currently cover Ficus Hillii Flash, Mandarin Emperor Dwarf, Lemon Lisbon Dwarf, Mediterranean Sweet Orange Dwarf, Chinese Elm and Chinese Pistache. `tree_type` and `botanical_name` are retained in the CSV, database and application-ready view.
+- The current coverage includes DIY and installed backyard trees by named type, potted plants, an installed garden bed, DIY and installed green walls, and an installed advanced/community tree context. The earlier container-tree estimate is retained only as expired history.
+- Named residential tree costs now match the Iteration 2 planting flow: Water Gum, Lemon-scented Gum and Crepe Myrtle. Earlier Ficus, citrus, elm and pistache estimates remain in the CSV as expired history and are excluded from current application results. `tree_type` and `botanical_name` are retained in the CSV, database and application-ready view.
 - Green-roof and unsupported annual-maintenance values remain absent rather than being invented.
 - Every record includes its source, assumptions, validity window, verification timestamp, inclusions and confidence level.
 - Outputs are indicative estimates, not quotations, and should be rechecked approximately every three months.
@@ -559,20 +945,16 @@ mean local causal validation or permission to display a precise after-temperatur
 
 #### Cost sources and assumptions
 
-The prices below were verified on 26 August 2026 and have a review date of
-26 November 2026. Full component fields and source notes are stored in
+The tree prices below were verified on 15 September 2026 and have a review date
+of 14 December 2026. Other greening options retain their own row-level validity
+windows. Full component fields and source notes are stored in
 `data/reference/cost_estimates.csv`.
 
 | Greening option | Indicative range | Source-backed assumption | Confidence |
 | --- | ---: | --- | --- |
-| DIY small backyard tree | $25–$85 per tree | [Plants Melbourne Nursery](https://plantsmelb.com/store/page/2/) advertised 200–300 mm Ficus stock; delivery, soil, stakes and labour are excluded. | High |
-| Professionally planted small tree | $109–$169 per tree | $25–$85 plant plus one $84 advertised landscaping hour from [Landscaping for Melbourne](https://landscapingformelbourne.com/pricing/); assumes a prepared and accessible site. | Medium |
-| Mandarin Emperor Dwarf | $59 supply only; $143 with one planting hour | [Diaco's Garden Nursery](https://diacos.com.au/product/mandarin-emperor-dwarf/) advertised the tree at $59; the installed scenario adds one published $84 Melbourne landscaping hour. | High supply / medium installed |
-| Lemon Lisbon Dwarf | $59 supply only; $143 with one planting hour | [Diaco's fruit-tree catalogue](https://diacos.com.au/fruit-trees/) advertised the tree at $59; the installed scenario adds one published $84 Melbourne landscaping hour. | High supply / medium installed |
-| Mediterranean Sweet Orange Dwarf | $59 supply only; $143 with one planting hour | [Diaco's fruit-tree catalogue](https://diacos.com.au/fruit-trees/) advertised the tree at $59; the installed scenario adds one published $84 Melbourne landscaping hour. | High supply / medium installed |
-| Chinese Elm | $41.95–$169.95 supply only; $125.95–$253.95 with one planting hour | [Diaco's ornamental-tree catalogue](https://diacos.com.au/product-category/plants/ornamental-trees/) advertised variant-dependent stock; the source describes this as a large tree for larger gardens. | High supply / medium installed |
-| Chinese Pistache | $49.95–$179.95 supply only; $133.95–$263.95 with one planting hour | [Diaco's ornamental-tree catalogue](https://diacos.com.au/product-category/plants/ornamental-trees/) advertised variant-dependent stock; the installed scenario adds one published $84 Melbourne landscaping hour. | High supply / medium installed |
-| Container tree | $67.99–$185.68 per tree | [Diaco's Lemon Eureka](https://diacos.com.au/product/lemon-eureka/) at $49–$139 plus a 400 mm pot from [Ladybird Nursery](https://ladybirdnursery.com.au/products/plastic-pot-400mm-pick-up-only) or [Bunnings](https://www.bunnings.com.au/elho-40cm-terracotta-vibia-outdoor-plant-pot_p0366936) at $18.99–$46.68; potting mix, delivery and labour are excluded. | Medium |
+| Water Gum | $24.95–$99.95 supply only; $108.95–$183.95 with one planting hour | [Diaco's Garden Nursery](https://diacos.com.au/product/water-gum/) lists variant-dependent Water Gum stock; installed cost adds one published $84 Melbourne landscaping hour. | High supply / medium installed |
+| Lemon-scented Gum | $15.95–$259.95 supply only; $99.95–$343.95 with one planting hour | [Plant Nest](https://www.plantnest.com.au/products/lemon-scented-gum-corymbia-citriodora-scentuous) lists an exact-species starting price and a 30 cm `Scentuous` cultivar; variants must be confirmed before purchase. | Medium |
+| Crepe Myrtle | $35–$179.95 supply only; $119–$263.95 with one planting hour | [Diaco's Garden Nursery](https://diacos.com.au/product/crape-mrytle/) lists colour- and pot-size-dependent Crepe Myrtle stock; installed cost adds one published $84 Melbourne landscaping hour. | High supply / medium installed |
 | Potted plants | $49–$175 per pot | Melbourne-accessible plants with decorative pots or multi-planters from [The Indoor Plant Co](https://www.theindoorplantco.com.au/collections/all-plants); delivery and ongoing care are excluded. | High |
 | Installed garden bed | $105–$190 per m² | Published Melbourne installed garden-construction range from [Landscaping for Melbourne](https://landscapingformelbourne.com/pricing/); the final price depends on site conditions and inclusions. | Medium |
 | DIY living green-wall kit | $94.95 per m² | [Vertical Gardens Direct](https://www.verticalgardensdirect.com.au/products/wallgarden-original-vertical-garden-wall-planter-kit-5-pots-1-square-meter) five-pot kit covering 1 m²; plants, growing media, irrigation, fixings and shipping are excluded. | High |
@@ -593,10 +975,10 @@ staking, irrigation, permits and aftercare remain excluded unless explicitly sta
 - API extraction uses a reproducible bounding box, while application-ready spatial data are filtered to the official ABS 2026 `2GMEL` boundary.
 - Address–Property joins use Vicmap Address `property_pfi` to Vicmap Property `prop_pfi`; unmatched records remain documented rather than silently removed.
 
-## Iteration 1 readiness and next data work
+## Pre-deployment readiness and next data work
 
 The data component can support Local Heat & Greenery Understanding and the baseline parts of
-Residential Greening Scenario Simulation: address/parcel context, Melbourne boundary membership, relative heat and
+Residential Greening Scenario Simulation: address/parcel context, Melbourne boundary membership, fixed heat and
 canopy classifications, mapped-tree context, recent weather when available and
 source-backed indicative cost ranges. The environmental and weather values are
 application-ready only with the limitations and labels documented above.
@@ -605,15 +987,18 @@ The next data-science work, in recommended order, is:
 
 1. Review `residential-greening-simulation-inputs-v1` with the team/mentor, then connect the
    approved contract to scenario persistence and the application data handoff.
-2. Update any remaining legacy Clayton-only acceptance criteria, fixtures or
-   presentation text to the official Melbourne `2GMEL` scope.
-3. Run the prepared analytical Tree Extent VRT as an offline ingestion batch,
-   rebuild the Melbourne canopy baseline, and publish a newly versioned
-   classification scheme after quality and imagery checks. Do not silently
-   replace the current proxy-derived v1.
-4. Add 10 m and 25 m buffered mapped-tree counts so property context does not
+2. Review the 16,119 parcel-canopy records that safely return `Unavailable` due
+   to insufficient raster coverage or processing eligibility; do not convert
+   them to zero canopy.
+3. Reconcile historical canopy, vegetation-change, DEA and ERA5-Land data onto
+   explicit training grains before fitting any predictive model. Keep every
+   model output suppressed until spatial/temporal held-out validation passes.
+4. Request full inventories and compatible reuse permission from additional
+   councils. The 31-council audit currently has nine integrated sources; a
+   partial register or unlicensed download must not be treated as complete.
+5. Add 10 m and 25 m buffered mapped-tree counts so property context does not
    rely only on parcel intersection.
-5. Refresh BOM observations before demonstrations, rerun the six Melbourne
+6. Refresh BOM observations before demonstrations, rerun the six Melbourne
    sanity scenarios, investigate every warning, and retain the generated
    quality/validation evidence.
 

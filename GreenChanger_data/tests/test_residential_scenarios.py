@@ -1,3 +1,4 @@
+from datetime import date
 import unittest
 
 from greenchanger_data.residential_scenarios import (
@@ -62,23 +63,37 @@ class ResidentialScenarioTests(unittest.TestCase):
     def test_tree_cost_outputs_keep_type_and_botanical_name(self):
         tree = self.contract["actions"]["tree"]["iteration_1_example"]
         estimates = estimate_action_costs("tree", tree, self.costs)
-        mandarin = next(
+        water_gum = next(
             item for item in estimates
-            if item["tree_type"] == "Mandarin Emperor Dwarf"
+            if item["tree_type"] == "Water Gum"
             and item["cost_context"] == "melbourne_residential_standard_access"
         )
-        self.assertEqual(mandarin["botanical_name"], "Citrus reticulata 'Emperor' (dwarf)")
-        self.assertEqual(mandarin["minimum_cost_aud"], 143.0)
-        self.assertEqual(mandarin["maximum_cost_aud"], 143.0)
+        self.assertEqual(water_gum["botanical_name"], "Tristaniopsis laurina")
+        self.assertEqual(water_gum["minimum_cost_aud"], 108.95)
+        self.assertEqual(water_gum["maximum_cost_aud"], 183.95)
 
     def test_tree_costs_can_be_filtered_by_selected_type(self):
         tree = dict(self.contract["actions"]["tree"]["iteration_1_example"])
-        tree["tree_type"] = "Mandarin Emperor Dwarf"
+        tree["tree_type"] = "Water Gum"
         estimates = estimate_action_costs("tree", tree, self.costs)
         self.assertEqual(len(estimates), 2)
         self.assertEqual(
             {item["tree_type"] for item in estimates},
-            {"Mandarin Emperor Dwarf"},
+            {"Water Gum"},
+        )
+
+    def test_cost_loader_excludes_expired_species(self):
+        costs = load_cost_rows(as_of=date(2026, 9, 15))
+        current_tree_types = {
+            row["tree_type"]
+            for row in costs
+            if row["option_code"] in {
+                "backyard_tree_diy", "backyard_tree_installed"
+            }
+        }
+        self.assertEqual(
+            current_tree_types,
+            {"Water Gum", "Lemon-scented Gum", "Crepe Myrtle"},
         )
 
     def test_all_four_actions_are_validated_and_keep_scope(self):

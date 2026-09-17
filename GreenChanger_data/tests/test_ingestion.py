@@ -2,8 +2,10 @@ import inspect
 import unittest
 
 from greenchanger_script.ingestion import (
+    JOBS,
     ingest_bom,
     ingest_costs,
+    main,
     optional_bool,
     quality_dimension,
     sync_sources,
@@ -50,6 +52,25 @@ class IngestionHelperTests(unittest.TestCase):
             "source_name, valid_from, source_reference",
             source,
         )
+
+    def test_dea_and_era5_jobs_are_registered(self):
+        self.assertIn("dea-land-cover", JOBS)
+        self.assertIn("era5-land", JOBS)
+
+    def test_council_boundary_and_guidance_jobs_are_registered(self):
+        self.assertIn("lga-boundaries", JOBS)
+        self.assertIn("council-guidance", JOBS)
+        self.assertIn("port-phillip-trees", JOBS)
+        self.assertIn("manningham-trees", JOBS)
+        self.assertIn("glen-eira-trees", JOBS)
+
+    def test_era5_download_is_prepared_before_ingestion_connection(self):
+        source = inspect.getsource(main)
+        self.assertLess(
+            source.index("prepare_era5_land_download(args)"),
+            source.index("connection = db.connect()"),
+        )
+        self.assertIn("Preserve the original failure", source)
 
 
 if __name__ == "__main__":

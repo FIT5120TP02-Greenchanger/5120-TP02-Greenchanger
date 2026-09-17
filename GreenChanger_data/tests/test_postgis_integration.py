@@ -68,6 +68,81 @@ class PostgisEnvironmentContextIntegrationTests(unittest.TestCase):
                 time.sleep(0.5)
         raise last_error
 
+    def test_open_tree_research_contract_is_internal_and_conflict_safe(self):
+        with self.connection.cursor() as cursor:
+            cursor.execute(
+                """SELECT source_name, licence_status
+                   FROM dataset_source
+                   WHERE source_name IN (
+                       'AusTraits 7.0.0',
+                       'Tree growth of 10 tree species planted in seven Australian cities'
+                   )
+                   ORDER BY source_name"""
+            )
+            self.assertEqual(
+                cursor.fetchall(),
+                [
+                    ("AusTraits 7.0.0", "open_confirmed"),
+                    (
+                        "Tree growth of 10 tree species planted in seven Australian cities",
+                        "open_confirmed",
+                    ),
+                ],
+            )
+            cursor.execute(
+                """SELECT COUNT(*)
+                   FROM predictive_model_source AS link
+                   JOIN dataset_source AS source USING (source_id)
+                   WHERE link.model_code = 'tree_canopy_growth'
+                     AND NOT link.required_for_training
+                     AND link.training_use_allowed
+                     AND source.source_name IN (
+                         'AusTraits 7.0.0',
+                         'Tree growth of 10 tree species planted in seven Australian cities'
+                     )"""
+            )
+            self.assertEqual(cursor.fetchone()[0], 2)
+            cursor.execute(
+                """SELECT to_regclass('plant_trait_observation'),
+                          to_regclass('urban_tree_growth_observation'),
+                          to_regclass('urban_tree_growth_climate'),
+                          to_regclass('usable_urban_tree_growth_climate')"""
+            )
+            self.assertTrue(all(cursor.fetchone()))
+
+    def test_dea_and_era5_tables_enforce_separate_spatial_contracts(self):
+        with self.connection.cursor() as cursor:
+            cursor.execute(
+                """SELECT to_regclass('dea_land_cover_observation'),
+                          to_regclass('era5_land_daily_observation'),
+                          to_regclass('latest_dea_land_cover'),
+                          to_regclass('latest_era5_land_daily')"""
+            )
+            self.assertTrue(all(cursor.fetchone()))
+            cursor.execute(
+                """SELECT
+                       Find_SRID(current_schema()::text, 'dea_land_cover_observation',
+                                 'observation_geometry'),
+                       Find_SRID(current_schema()::text, 'era5_land_daily_observation',
+                                 'observation_location')"""
+            )
+            self.assertEqual(cursor.fetchone(), (7855, 7855))
+            cursor.execute(
+                """SELECT source_name, licence_status
+                   FROM dataset_source
+                   WHERE source_name IN (
+                       'DEA Land Cover (Landsat)',
+                       'ERA5-Land hourly data from 1950 to present'
+                   ) ORDER BY source_name"""
+            )
+            self.assertEqual(
+                cursor.fetchall(),
+                [
+                    ("DEA Land Cover (Landsat)", "open_confirmed"),
+                    ("ERA5-Land hourly data from 1950 to present", "open_confirmed"),
+                ],
+            )
+
     @classmethod
     def tearDownClass(cls):
         if hasattr(cls, "connection"):
@@ -125,6 +200,349 @@ class PostgisEnvironmentContextIntegrationTests(unittest.TestCase):
                     (Decimal("30"), "High"),
                     (Decimal("100"), "High"),
                 ],
+            )
+
+    def test_historical_canopy_sources_and_metric_geometry_contract(self):
+        with self.connection.cursor() as cursor:
+            cursor.execute(
+                """SELECT source_id, source_name
+                   FROM dataset_source
+                   WHERE publisher = 'City of Melbourne'
+                     AND source_name IN (
+                         'Tree Canopies 2008 (Urban Forest)',
+                         'Tree Canopies 2015 (Urban Forest)',
+                         'Tree Canopies 2016 (Urban Forest)',
+                         'Tree Canopies 2021 (Urban Forest)'
+                     )
+                   ORDER BY source_name"""
+            )
+            sources = cursor.fetchall()
+            self.assertEqual(len(sources), 4)
+            source_id = next(
+                source_id for source_id, name in sources
+                if name == "Tree Canopies 2016 (Urban Forest)"
+            )
+            cursor.execute(
+                """INSERT INTO dataset_version (
+                       source_id, source_observed_from, source_observed_to,
+                       quality_status, integration_status, publication_status,
+                       derivation_method
+                   ) VALUES (
+                       %s, DATE '2016-01-01', DATE '2016-12-31',
+                       'passed_with_limitations', 'integrated', 'internal',
+                       'integration_fixture'
+                   ) RETURNING dataset_version_id""",
+                (source_id,),
+            )
+            version_id = cursor.fetchone()[0]
+            cursor.execute(
+                """INSERT INTO canopy_snapshot_feature (
+                       dataset_version_id, source_feature_key, observed_year,
+                       observed_on, canopy_geometry, calculated_area_m2
+                   ) VALUES (
+                       %s, 'fixture-polygon', 2016, DATE '2016-12-31',
+                       ST_Multi(ST_Buffer(ST_Transform(ST_SetSRID(
+                           ST_MakePoint(144.96, -37.81), 4326
+                       ), 7855), 5)), 78.54
+                   )""",
+                (version_id,),
+            )
+            cursor.execute(
+                """SELECT observed_year, ST_SRID(canopy_geometry),
+                          publication_status
+                   FROM latest_city_canopy_snapshots
+                   JOIN dataset_version USING (dataset_version_id)
+                   WHERE source_feature_key = 'fixture-polygon'"""
+            )
+            self.assertEqual(cursor.fetchone(), (2016, 7855, "internal"))
+
+    def test_metropolitan_vegetation_change_has_separate_versioned_grain(self):
+        with self.connection.cursor() as cursor:
+            cursor.execute(
+                """SELECT source_id
+                   FROM dataset_source
+                   WHERE source_name =
+                     'Change in Vegetation Cover in Metropolitan Melbourne between 2014 and 2018'"""
+            )
+            source_id = cursor.fetchone()[0]
+            cursor.execute(
+                """INSERT INTO dataset_version (
+                       source_id, source_observed_from, source_observed_to,
+                       quality_status, integration_status, publication_status,
+                       derivation_method
+                   ) VALUES (
+                       %s, DATE '2014-01-01', DATE '2018-12-31',
+                       'passed_with_limitations', 'integrated', 'internal',
+                       'integration_fixture'
+                   ) RETURNING dataset_version_id""",
+                (source_id,),
+            )
+            version_id = cursor.fetchone()[0]
+            cursor.execute(
+                """INSERT INTO metropolitan_vegetation_change_feature (
+                       dataset_version_id, source_feature_key, mesh_block_code,
+                       tree_change_pct_points, change_geometry
+                   ) VALUES (
+                       %s, 'fixture-change', '200000001', 4.5,
+                       ST_Multi(ST_Buffer(ST_Transform(ST_SetSRID(
+                           ST_MakePoint(144.96, -37.81), 4326
+                       ), 7855), 100))
+                   )""",
+                (version_id,),
+            )
+            cursor.execute(
+                """SELECT mesh_block_code, tree_change_pct_points,
+                          ST_SRID(change_geometry), publication_status
+                   FROM latest_metropolitan_vegetation_change
+                   JOIN dataset_version USING (dataset_version_id)
+                   WHERE source_feature_key = 'fixture-change'"""
+            )
+            self.assertEqual(
+                cursor.fetchone(), ("200000001", Decimal("4.5"), 7855, "internal")
+            )
+
+    def test_metropolitan_named_tree_lookup_preserves_council_source(self):
+        with self.connection.cursor() as cursor:
+            cursor.execute(
+                """
+                SELECT municipality, display_name, taxonomic_precision,
+                       height_m, canopy_width_m, status, limitation
+                FROM get_metropolitan_named_tree_context(
+                    144.96, -37.81, 100, 10
+                )
+                """
+            )
+            rows = cursor.fetchall()
+            self.assertEqual(len(rows), 1)
+            self.assertEqual(rows[0][:6], (
+                "City of Brimbank", "River Red Gum", "species",
+                Decimal("12"), Decimal("8"), "observed_council_inventory",
+            ))
+            self.assertIn("not every private tree", rows[0][6])
+
+    def test_address_species_options_separate_verified_from_approval_required(self):
+        with self.connection.cursor() as cursor:
+            cursor.execute(
+                """SELECT source_id FROM dataset_source
+                   WHERE source_name =
+                     'Vicmap Admin - Local Government Area Polygon Aligned to Property'
+                     AND publisher = 'Department of Transport and Planning'"""
+            )
+            lga_source_id = cursor.fetchone()[0]
+            cursor.execute(
+                """INSERT INTO dataset_version (
+                       source_id, quality_status, integration_status,
+                       publication_status, derivation_method
+                   ) VALUES (%s, 'passed', 'integrated', 'application_ready',
+                             'integration_fixture')
+                   RETURNING dataset_version_id""",
+                (lga_source_id,),
+            )
+            lga_version_id = cursor.fetchone()[0]
+            cursor.execute(
+                """INSERT INTO local_government_area (
+                       dataset_version_id, source_feature_id, lga_code, lga_name,
+                       lga_official_name, boundary_geometry, area_m2
+                   ) VALUES (
+                       %s, 'fixture-lga', '999', 'BRIMBANK', 'BRIMBANK CITY',
+                       ST_Multi(ST_Buffer(ST_Transform(ST_SetSRID(
+                           ST_MakePoint(144.96, -37.81), 4326
+                       ), 7855), 1000)),
+                       ST_Area(ST_Buffer(ST_Transform(ST_SetSRID(
+                           ST_MakePoint(144.96, -37.81), 4326
+                       ), 7855), 1000))
+                   )""",
+                (lga_version_id,),
+            )
+            cursor.execute(
+                """INSERT INTO dataset_source (
+                       source_name, publisher, source_url, licence, licence_status,
+                       source_category, geographic_coverage, access_method
+                   ) VALUES (
+                       'Official test planting guide', 'Test City Council',
+                       'https://example.invalid/official-guide',
+                       'Creative Commons Attribution 4.0 International',
+                       'open_confirmed', 'council_species_guidance',
+                       'Test City Council', 'integration fixture'
+                   ) RETURNING source_id"""
+            )
+            guidance_source_id = cursor.fetchone()[0]
+            cursor.execute(
+                """INSERT INTO dataset_version (
+                       source_id, quality_status, integration_status,
+                       publication_status, source_observed_from
+                   ) VALUES (%s, 'passed', 'integrated', 'application_ready',
+                             DATE '2026-01-01')
+                   RETURNING dataset_version_id""",
+                (guidance_source_id,),
+            )
+            guidance_version_id = cursor.fetchone()[0]
+            cursor.execute(
+                """INSERT INTO council_species_guidance (
+                       dataset_version_id, source_row_number, lga_code, species_id,
+                       scientific_name, common_name, mature_size_class,
+                       mature_height_min_m, mature_height_max_m,
+                       mature_canopy_width_min_m, mature_canopy_width_max_m,
+                       guidance_status, effective_from, source_url, licence, limitation
+                   ) SELECT
+                       %s, 2, '999', species_id, scientific_name, common_name,
+                       'large', 15, 30, 12, 25, 'recommended', DATE '2026-01-01',
+                       'https://example.invalid/official-guide',
+                       'Creative Commons Attribution 4.0 International',
+                       'Confirm services and property-specific site conditions.'
+                   FROM species_profile
+                   WHERE scientific_name = 'Eucalyptus camaldulensis'""",
+                (guidance_version_id,),
+            )
+            cursor.execute(
+                """SELECT dataset_version_id
+                   FROM latest_metropolitan_named_tree_inventory
+                   WHERE scientific_name = 'Eucalyptus camaldulensis'
+                   LIMIT 1"""
+            )
+            named_version_id = cursor.fetchone()[0]
+            cursor.execute(
+                """INSERT INTO species_profile (
+                       scientific_name, common_name, source_reference
+                   ) VALUES ('Acacia fixture', 'Fixture Wattle', 'integration fixture')
+                   RETURNING species_id"""
+            )
+            unlisted_species_id = cursor.fetchone()[0]
+            cursor.execute(
+                """INSERT INTO named_tree_inventory (
+                       dataset_version_id, source_tree_id, species_id,
+                       inventory_source_key, municipality, common_name,
+                       scientific_name, display_name, taxonomic_precision,
+                       tree_location, quality_status
+                   ) VALUES (
+                       %s, 'UNLISTED-FIXTURE-1', %s, 'brimbank',
+                       'City of Brimbank', 'Fixture Wattle', 'Acacia fixture',
+                       'Fixture Wattle', 'species', ST_Transform(ST_SetSRID(
+                           ST_MakePoint(144.9602, -37.81), 4326
+                       ), 7855), 'passed'
+                   )""",
+                (named_version_id, unlisted_species_id),
+            )
+            cursor.execute(
+                """SELECT list_category, scientific_name, guidance_status,
+                          council_code, council_name
+                   FROM get_council_species_options_by_address(
+                       '10 TEST STREET MELBOURNE 3000', NULL, 20
+                   )
+                   ORDER BY list_category, scientific_name"""
+            )
+            rows = cursor.fetchall()
+            self.assertIn(
+                (
+                    "available_now", "Eucalyptus camaldulensis", "recommended",
+                    "999", "BRIMBANK CITY",
+                ),
+                rows,
+            )
+            self.assertIn(
+                (
+                    "council_approval_required", "Acacia fixture",
+                    "approval_required", "999", "BRIMBANK CITY",
+                ),
+                rows,
+            )
+            cursor.execute(
+                """INSERT INTO named_tree_inventory (
+                       dataset_version_id, source_tree_id, species_id,
+                       inventory_source_key, municipality, common_name,
+                       scientific_name, display_name, genus, taxonomic_precision,
+                       height_m, canopy_width_m, tree_location, quality_status
+                   ) VALUES (
+                       %s, 'BRIMBANK-FIXTURE-2',
+                       (SELECT species_id FROM species_profile
+                        WHERE scientific_name = 'Eucalyptus camaldulensis'),
+                       'brimbank', 'City of Brimbank', 'River Red Gum',
+                       'Eucalyptus camaldulensis', 'River Red Gum',
+                       'Eucalyptus', 'species', 14, 10,
+                       ST_Transform(ST_SetSRID(
+                           ST_MakePoint(144.9603, -37.81), 4326
+                       ), 7855), 'passed'
+                   )""",
+                (named_version_id,),
+            )
+            cursor.execute(
+                """SELECT popularity_rank, scientific_name,
+                          recorded_tree_count, recorded_tree_percentage,
+                          list_category, guidance_status, status, limitation
+                   FROM get_council_tree_species_popularity_by_address(
+                       '10 TEST STREET MELBOURNE 3000', 20
+                   )
+                   ORDER BY popularity_rank"""
+            )
+            popularity_rows = cursor.fetchall()
+            self.assertEqual(popularity_rows[0][:6], (
+                1, "Eucalyptus camaldulensis", 2, Decimal("66.67"),
+                "available_now", "recommended",
+            ))
+            self.assertEqual(popularity_rows[1][:6], (
+                2, "Acacia fixture", 1, Decimal("33.33"),
+                "council_approval_required", "not_in_loaded_guidance",
+            ))
+            self.assertTrue(all(
+                row[6] == "observed_public_tree_frequency"
+                for row in popularity_rows
+            ))
+            self.assertIn("not resident preference", popularity_rows[0][7])
+
+            cursor.execute(
+                """INSERT INTO local_government_area (
+                       dataset_version_id, source_feature_id, lga_code, lga_name,
+                       lga_official_name, boundary_geometry, area_m2
+                   ) VALUES (
+                       %s, 'fixture-lga-without-inventory', '888', 'BOROONDARA',
+                       'BOROONDARA CITY', ST_Multi(ST_Buffer(ST_Transform(
+                           ST_SetSRID(ST_MakePoint(145.10, -37.81), 4326), 7855
+                       ), 1000)), ST_Area(ST_Buffer(ST_Transform(
+                           ST_SetSRID(ST_MakePoint(145.10, -37.81), 4326), 7855
+                       ), 1000))
+                   )""",
+                (lga_version_id,),
+            )
+            cursor.execute(
+                """INSERT INTO address (
+                       dataset_version_id, source_address_id, source_property_id,
+                       full_address, locality_name, postcode, is_primary,
+                       address_location
+                   ) SELECT dataset_version_id, 'ADDRESS-FALLBACK', NULL,
+                       '20 FALLBACK ROAD BALWYN 3103', 'BALWYN', '3103', 'Y',
+                       ST_Transform(ST_SetSRID(
+                           ST_MakePoint(145.10, -37.81), 4326
+                       ), 7855)
+                   FROM address
+                   WHERE source_address_id = 'ADDRESS-A'
+                   LIMIT 1"""
+            )
+            cursor.execute(
+                """SELECT council_name, popularity_rank, scientific_name,
+                          recorded_tree_count, list_category, guidance_status,
+                          status, limitation
+                   FROM get_council_tree_species_popularity_by_address(
+                       '20 FALLBACK RD BALWYN 3103', 20
+                   )
+                   ORDER BY popularity_rank"""
+            )
+            fallback_rows = cursor.fetchall()
+            self.assertEqual(len(fallback_rows), 2)
+            self.assertEqual(fallback_rows[0][:6], (
+                "BOROONDARA CITY", 1, "Eucalyptus camaldulensis", 2,
+                "council_approval_required", "not_in_loaded_guidance",
+            ))
+            self.assertTrue(all(
+                row[6] == "fallback_overall_observed_public_tree_frequency"
+                for row in fallback_rows
+            ))
+            self.assertIn("Warning: no latest", fallback_rows[0][7])
+            self.assertIn("all integrated Melbourne", fallback_rows[0][7])
+            cursor.execute(
+                """DELETE FROM named_tree_inventory
+                   WHERE source_tree_id IN (
+                       'UNLISTED-FIXTURE-1', 'BRIMBANK-FIXTURE-2'
+                   )"""
             )
 
     def test_cost_business_key_separates_tree_types_and_deduplicates_null(self):
@@ -209,6 +627,88 @@ class PostgisEnvironmentContextIntegrationTests(unittest.TestCase):
             )
             self.assertEqual(cursor.fetchone(), (1, Decimal("25")))
 
+    def test_address_tree_catalog_returns_cost_and_licensed_image(self):
+        with self.connection.cursor() as cursor:
+            cursor.execute(
+                """INSERT INTO cost_estimate (
+                       greening_option_id, cost_context, cost_basis,
+                       tree_type, botanical_name, minimum_cost, maximum_cost,
+                       currency, includes_installation, source_name,
+                       source_reference, source_url, valid_from, valid_to,
+                       last_verified_at, confidence_level
+                   )
+                   SELECT greening_option_id,
+                          CASE option_code
+                              WHEN 'backyard_tree_diy'
+                                  THEN 'catalogue_integration_supply'
+                              ELSE 'catalogue_integration_installed'
+                          END,
+                          'per_tree', 'Water Gum', 'Tristaniopsis laurina',
+                          CASE option_code WHEN 'backyard_tree_diy' THEN 25 ELSE 109 END,
+                          CASE option_code WHEN 'backyard_tree_diy' THEN 100 ELSE 184 END,
+                          'AUD', option_code = 'backyard_tree_installed',
+                          'Catalogue integration source',
+                          'catalogue-integration-water-gum',
+                          'https://example.invalid/catalogue-integration',
+                          CURRENT_DATE, CURRENT_DATE + 30,
+                          CURRENT_TIMESTAMP, 'high'
+                   FROM greening_option
+                   WHERE option_code IN (
+                       'backyard_tree_diy', 'backyard_tree_installed'
+                   )"""
+            )
+            try:
+                cursor.execute(
+                    """SELECT council_name, tree_type, scientific_name,
+                              supply_min_cost_aud, supply_max_cost_aud,
+                              installed_min_cost_aud, installed_max_cost_aud,
+                              image_licence, image_creator, image_url,
+                              cost_status, image_status
+                       FROM get_tree_planting_catalog_by_address(
+                           '10 TEST STREET MELBOURNE 3000', 20
+                       )
+                       WHERE tree_type = 'Water Gum'"""
+                )
+                row = cursor.fetchone()
+                self.assertIsNotNone(row)
+                self.assertEqual(row[:3], (
+                    "BRIMBANK CITY", "Water Gum", "Tristaniopsis laurina",
+                ))
+                self.assertEqual(row[3:7], (
+                    Decimal("25"), Decimal("100"),
+                    Decimal("109"), Decimal("184"),
+                ))
+                self.assertEqual(row[7:9], ("Public domain", "Eug"))
+                self.assertTrue(row[9].startswith("https://"))
+                self.assertEqual(row[10:], (
+                    "species_specific_current_source_range",
+                    "curated_reference_image",
+                ))
+                cursor.execute(
+                    """SELECT cost_status, image_status, image_url,
+                              supply_min_cost_aud, installed_max_cost_aud
+                       FROM get_tree_planting_catalog_by_address(
+                           '10 TEST STREET MELBOURNE 3000', 20
+                       )
+                       WHERE scientific_name = 'Eucalyptus camaldulensis'"""
+                )
+                generic = cursor.fetchone()
+                self.assertIsNotNone(generic)
+                self.assertEqual(
+                    generic[:3],
+                    (
+                        "generic_current_catalogue_range_not_species_quote",
+                        "image_enrichment_not_run",
+                        None,
+                    ),
+                )
+                self.assertEqual(generic[3:], (Decimal("25"), Decimal("184")))
+            finally:
+                cursor.execute(
+                    """DELETE FROM cost_estimate
+                       WHERE source_name = 'Catalogue integration source'"""
+                )
+
     @classmethod
     def _seed_spatial_contract(cls):
         with cls.connection.cursor() as cursor:
@@ -246,6 +746,9 @@ class PostgisEnvironmentContextIntegrationTests(unittest.TestCase):
                  "landsat_latest_daily_mosaic_v1"),
                 ("weather", "BOM Melbourne station observations",
                  "Bureau of Meteorology", "weather", "bom_multi_station_fixture_v1"),
+                ("named_trees", "Brimbank Street Trees",
+                 "Brimbank City Council", "tree_inventory",
+                 "brimbank_inventory_filter_to_abs_2GMEL_2026_v1"),
             )
             for key, source_name, publisher, category, method in specifications:
                 cursor.execute(
@@ -328,6 +831,37 @@ class PostgisEnvironmentContextIntegrationTests(unittest.TestCase):
                 FROM UNNEST(ARRAY[5, 10, 15]) AS fixture(offset_m)
                 """,
                 (versions["trees"],),
+            )
+            cursor.execute(
+                """
+                INSERT INTO species_profile (
+                    scientific_name, common_name, genus, source_reference
+                ) VALUES (
+                    'Eucalyptus camaldulensis', 'River Red Gum',
+                    'Eucalyptus', 'PostGIS integration fixture'
+                )
+                RETURNING species_id
+                """
+            )
+            species_id = cursor.fetchone()[0]
+            cursor.execute(
+                """
+                INSERT INTO named_tree_inventory (
+                    dataset_version_id, source_tree_id, species_id,
+                    inventory_source_key, municipality, common_name,
+                    scientific_name, display_name, genus, taxonomic_precision,
+                    height_m, canopy_width_m, tree_location, quality_status
+                ) VALUES (
+                    %s, 'BRIMBANK-FIXTURE-1', %s, 'brimbank',
+                    'City of Brimbank', 'River Red Gum',
+                    'Eucalyptus camaldulensis', 'River Red Gum',
+                    'Eucalyptus', 'species', 12, 8,
+                    ST_Transform(ST_SetSRID(
+                        ST_MakePoint(144.9601, -37.81), 4326
+                    ), 7855), 'passed'
+                )
+                """,
+                (versions["named_trees"], species_id),
             )
             cursor.execute(
                 """

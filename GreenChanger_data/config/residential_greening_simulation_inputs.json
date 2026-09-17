@@ -23,6 +23,7 @@
       "additional_required_inputs": ["overlap_factor", "site_area_m2"],
       "iteration_1_example": {
         "quantity": 1,
+        "tree_type": "Water Gum",
         "projected_canopy_per_tree_m2": {"minimum": 6.6, "maximum": 43.7},
         "maturity_horizon_years": 10,
         "survival_probability": {"minimum": 0.5, "maximum": 1.0},

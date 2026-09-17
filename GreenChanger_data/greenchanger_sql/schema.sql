@@ -1403,8 +1403,11 @@ SELECT
 FROM cost_estimate AS ce
 JOIN greening_option AS go USING (greening_option_id)
 WHERE go.active
-  AND ce.valid_from <= CURRENT_DATE
-  AND ce.valid_to >= CURRENT_DATE;
+  AND ce.valid_from <= (CURRENT_TIMESTAMP AT TIME ZONE 'Australia/Melbourne')::DATE
+  AND (
+      ce.valid_to IS NULL
+      OR ce.valid_to >= (CURRENT_TIMESTAMP AT TIME ZONE 'Australia/Melbourne')::DATE
+  );
 
 COMMENT ON VIEW application_ready_cost_estimate IS
     'Current source-backed greening cost contexts with option labels, confidence and mandatory indicative-estimate disclaimer.';
@@ -1827,6 +1830,142 @@ $function$;
 
 COMMENT ON FUNCTION classify_canopy_benchmark(NUMERIC) IS
     'Evidence-backed canopy progress against the official 15.3 percent metropolitan baseline and current 30 percent Victorian urban-area target. Not valid for the rendered Vicmap proxy or proof of property-level compliance.';
+
+COMMIT;
+
+-- Named City of Melbourne tree inventory (migration 036).
+-- This source-specific inventory is kept separate from Vicmap Tree Urban because
+-- proximity alone is not enough to prove that records describe the same tree.
+BEGIN;
+
+ALTER TABLE species_profile
+    ADD COLUMN IF NOT EXISTS genus TEXT,
+    ADD COLUMN IF NOT EXISTS family TEXT;
+
+CREATE TABLE named_tree_inventory (
+    named_tree_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    dataset_version_id UUID NOT NULL REFERENCES dataset_version(dataset_version_id),
+    source_tree_id TEXT NOT NULL,
+    species_id UUID REFERENCES species_profile(species_id),
+    common_name TEXT,
+    scientific_name TEXT,
+    display_name TEXT NOT NULL,
+    genus TEXT,
+    family TEXT,
+    diameter_breast_height_cm NUMERIC CHECK (
+        diameter_breast_height_cm IS NULL OR diameter_breast_height_cm > 0
+    ),
+    year_planted INTEGER CHECK (
+        year_planted IS NULL OR year_planted BETWEEN 1700 AND 2200
+    ),
+    date_planted DATE,
+    age_description TEXT,
+    useful_life_expectancy TEXT,
+    useful_life_expectancy_years INTEGER CHECK (
+        useful_life_expectancy_years IS NULL OR useful_life_expectancy_years >= 0
+    ),
+    precinct TEXT,
+    located_in TEXT,
+    tree_location geometry(Point, 7855) NOT NULL,
+    quality_status TEXT NOT NULL CHECK (quality_status IN ('passed', 'failed')),
+    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE (dataset_version_id, source_tree_id),
+    CHECK (common_name IS NOT NULL OR scientific_name IS NOT NULL)
+);
+
+CREATE INDEX idx_named_tree_inventory_location
+    ON named_tree_inventory USING GIST (tree_location);
+CREATE INDEX idx_named_tree_inventory_version_quality
+    ON named_tree_inventory (dataset_version_id, quality_status);
+CREATE INDEX idx_named_tree_inventory_species
+    ON named_tree_inventory (species_id);
+CREATE INDEX idx_named_tree_inventory_display_name
+    ON named_tree_inventory (UPPER(display_name) text_pattern_ops);
+
+CREATE OR REPLACE VIEW latest_city_melbourne_named_tree_inventory AS
+WITH latest_version AS (
+    SELECT version.dataset_version_id
+    FROM dataset_version AS version
+    JOIN dataset_source AS source USING (source_id)
+    WHERE source.source_name = 'Trees, with species and dimensions (Urban Forest)'
+      AND source.publisher = 'City of Melbourne'
+      AND version.integration_status = 'integrated'
+      AND version.publication_status = 'application_ready'
+    ORDER BY version.extracted_at DESC, version.dataset_version_id DESC
+    LIMIT 1
+)
+SELECT
+    tree.*,
+    'City of Melbourne municipality only'::TEXT AS geographic_scope,
+    'Council inventory name; not inferred from Vicmap Tree Urban'::TEXT AS name_status,
+    'CC BY 4.0'::TEXT AS licence
+FROM named_tree_inventory AS tree
+JOIN latest_version USING (dataset_version_id)
+WHERE tree.quality_status = 'passed';
+
+CREATE OR REPLACE FUNCTION get_named_tree_context(
+    p_longitude DOUBLE PRECISION,
+    p_latitude DOUBLE PRECISION,
+    p_radius_m DOUBLE PRECISION DEFAULT 100.0,
+    p_result_limit INTEGER DEFAULT 100
+)
+RETURNS TABLE (
+    named_tree_id UUID,
+    source_tree_id TEXT,
+    common_name TEXT,
+    scientific_name TEXT,
+    display_name TEXT,
+    distance_m NUMERIC,
+    diameter_breast_height_cm NUMERIC,
+    year_planted INTEGER,
+    precinct TEXT,
+    geometry_geojson JSONB,
+    source TEXT,
+    status TEXT,
+    limitation TEXT
+)
+LANGUAGE plpgsql
+STABLE
+AS $function$
+DECLARE
+    v_point geometry(Point, 7855);
+BEGIN
+    IF p_radius_m <= 0 OR p_radius_m > 2000 THEN
+        RAISE EXCEPTION 'radius_m must be greater than 0 and no more than 2000';
+    END IF;
+    IF p_result_limit <= 0 OR p_result_limit > 2000 THEN
+        RAISE EXCEPTION 'result_limit must be between 1 and 2000';
+    END IF;
+    v_point := ST_Transform(
+        ST_SetSRID(ST_MakePoint(p_longitude, p_latitude), 4326), 7855
+    );
+
+    RETURN QUERY
+    SELECT
+        tree.named_tree_id,
+        tree.source_tree_id,
+        tree.common_name,
+        tree.scientific_name,
+        tree.display_name,
+        ROUND(ST_Distance(tree.tree_location, v_point)::NUMERIC, 2),
+        tree.diameter_breast_height_cm,
+        tree.year_planted,
+        tree.precinct,
+        ST_AsGeoJSON(ST_Transform(tree.tree_location, 4326), 6)::JSONB,
+        'City of Melbourne Trees, with species and dimensions (Urban Forest)'::TEXT,
+        'observed_council_inventory_name'::TEXT,
+        'Coverage is limited to the City of Melbourne municipality. This record is not joined to a Vicmap Tree Urban point.'::TEXT
+    FROM latest_city_melbourne_named_tree_inventory AS tree
+    WHERE ST_DWithin(tree.tree_location, v_point, p_radius_m)
+    ORDER BY tree.tree_location <-> v_point, tree.named_tree_id
+    LIMIT p_result_limit;
+END;
+$function$;
+
+COMMENT ON TABLE named_tree_inventory IS
+    'Source-specific City of Melbourne named-tree observations kept separate from machine-derived Vicmap Tree Urban points.';
+COMMENT ON VIEW latest_city_melbourne_named_tree_inventory IS
+    'Latest application-ready City of Melbourne named-tree inventory. It must not be used to infer names for nearby Vicmap points.';
 
 COMMIT;
 
@@ -2958,3 +3097,27 @@ COMMENT ON FUNCTION classify_environmental_value(TEXT, NUMERIC, TEXT) IS
     'Uses fixed GreenChanger 27/30 C display bands for heat and evidence-backed 15.3/30% progress bands for canopy. Missing, non-finite and unknown metrics return Unavailable.';
 
 COMMIT;
+
+-- The application runner expands this directive so the cumulative schema stays
+-- aligned with the append-only migration without duplicating its SQL here.
+-- include: migrations/037_metropolitan_named_tree_inventories.sql
+-- include: migrations/038_city_canopy_history.sql
+-- include: migrations/039_historical_canopy_and_vegetation_change.sql
+-- include: migrations/040_open_tree_research_evidence.sql
+-- include: migrations/041_dea_land_cover_and_era5_land.sql
+-- include: migrations/042_retire_superseded_era5_partition.sql
+-- include: migrations/043_council_species_guidance.sql
+-- include: migrations/044_council_tree_species_popularity.sql
+-- include: migrations/045_fix_council_species_popularity_status.sql
+-- include: migrations/046_require_source_council_for_popularity.sql
+-- include: migrations/047_fallback_to_metropolitan_tree_popularity.sql
+-- include: migrations/048_fix_council_inventory_availability_check.sql
+-- include: migrations/049_align_current_tree_costs.sql
+-- include: migrations/050_address_tree_catalog_with_images.sql
+-- include: migrations/051_fix_tree_catalog_currency_type.sql
+-- include: migrations/052_complete_tree_catalog_enrichment.sql
+-- include: migrations/053_complete_address_tree_catalog.sql
+-- include: migrations/054_align_gbif_supported_image_licences.sql
+-- include: migrations/055_include_priced_species_in_complete_catalog.sql
+-- include: migrations/056_wikimedia_commons_image_fallback.sql
+-- include: migrations/057_property_categories.sql

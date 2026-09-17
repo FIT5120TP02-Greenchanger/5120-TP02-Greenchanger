@@ -39,6 +39,38 @@ from greenchanger_data.boundary import (
     save_raw as save_boundary_raw,
 )
 from greenchanger_data.canopy import aggregate_canopy, profile_canopy_raster
+from greenchanger_data.city_melbourne_trees import (
+    fetch_records as fetch_named_tree_records,
+    normalise_records as normalise_named_tree_records,
+    read_raw as read_named_tree_raw,
+    save_raw as save_named_tree_raw,
+)
+from greenchanger_data.city_canopy_history import (
+    SOURCE_NAMES as CITY_CANOPY_SOURCE_NAMES,
+    download as download_city_canopy,
+    limited as limit_city_canopy_rows,
+    normalised_rows as normalised_city_canopy_rows,
+    read_raw as read_city_canopy_raw,
+)
+from greenchanger_data.council_tree_inventories import (
+    SOURCES as COUNCIL_TREE_SOURCES,
+    download as download_council_trees,
+    feature_count as council_tree_feature_count,
+    iter_normalised as iter_council_tree_rows,
+)
+from greenchanger_data.council_species_guidance import read_rows as read_guidance_rows
+from greenchanger_data.dea_land_cover import (
+    aggregate_land_cover,
+    continental_cog_url,
+    request_checksum as dea_request_checksum,
+)
+from greenchanger_data.era5_land import (
+    combined_checksum as era5_combined_checksum,
+    download_era5_land,
+    normalise_era5_files,
+    request_metadata as era5_request_metadata,
+    source_files as era5_source_files,
+)
 from greenchanger_data.property_canopy import validate_property_canopy_source
 from greenchanger_data.landsat import (
     aggregate_surface_temperature,
@@ -49,9 +81,37 @@ from greenchanger_data.landsat import (
     search_surface_temperature,
     signed_asset_href,
 )
+from greenchanger_data.metropolitan_vegetation_change import (
+    SOURCE_NAME as VEGETATION_CHANGE_SOURCE_NAME,
+    feature_count as vegetation_change_feature_count,
+    normalised_rows as normalised_vegetation_change_rows,
+    source_checksum as vegetation_change_source_checksum,
+)
 from greenchanger_data.quality import QualityReport, validate_record_stream, validate_records
+from greenchanger_data.research_tree_data import (
+    AUSTRAITS_SOURCE_NAME,
+    URBAN_GROWTH_SOURCE_NAME,
+    austraits_counts,
+    combined_checksum,
+    download_austraits,
+    download_urban_growth,
+    iter_austraits_rows,
+    normalise_climate_rows,
+    normalise_growth_rows,
+    read_urban_growth_workbook,
+)
 from greenchanger_data.sources import load_source_registry, sha256_file
 from greenchanger_data.vicmap_features import extract_to_jsonl, read_jsonl
+from greenchanger_data.vicmap_lga import (
+    LGA_LAYER_URL,
+    PUBLISHER as LGA_PUBLISHER,
+    SOURCE_NAME as LGA_SOURCE_NAME,
+    fetch_document as fetch_lga_document,
+    rows_from_document as lga_rows_from_document,
+    rows_from_file as lga_rows_from_file,
+    save_raw as save_lga_raw,
+    source_checksum as lga_source_checksum,
+)
 
 
 BATCH_SIZE = 2_000
@@ -212,6 +272,34 @@ def quality_dimension(rule_type: str) -> str:
         "allowed": "validity",
         "field_order": "consistency",
     }[rule_type]
+
+
+def official_melbourne_bbox(connection) -> tuple[float, float, float, float]:
+    """Read the WGS84 bounds of the versioned official 2GMEL boundary."""
+
+    with connection.cursor() as cursor:
+        cursor.execute(
+            """SELECT ST_XMin(bounds) AS west, ST_YMin(bounds) AS south,
+                      ST_XMax(bounds) AS east, ST_YMax(bounds) AS north
+               FROM (
+                   SELECT ST_Extent(
+                              ST_Transform(boundary_geometry, 4326)
+                          )::box3d AS bounds
+                   FROM analysis_area
+                   WHERE source_area_code = '2GMEL'
+               ) AS official"""
+        )
+        row = cursor.fetchone()
+    values = (
+        (row["west"], row["south"], row["east"], row["north"])
+        if isinstance(row, dict) and row is not None
+        else row
+    )
+    if values is None or values[0] is None:
+        raise RuntimeError(
+            "Official Melbourne boundary is missing; run the boundary ingestion first"
+        )
+    return tuple(float(value) for value in values)
 
 
 def record_quality_run(connection, dataset_version_id, report: QualityReport) -> None:
@@ -452,6 +540,262 @@ def ingest_boundary(connection, _args: argparse.Namespace) -> dict[str, Any]:
         "area_sqkm": row["source_area_sqkm"],
         "raw_extract": str(raw_path),
         "message": "Official ABS ASGS 2026 Melbourne boundary integrated",
+    }
+
+
+def ingest_lga_boundaries(connection, args: argparse.Namespace) -> dict[str, Any]:
+    """Integrate the current authoritative Vicmap property-aligned LGA layer."""
+
+    if args.lga_file:
+        if not args.lga_file.exists():
+            raise FileNotFoundError(args.lga_file)
+        rows = list(lga_rows_from_file(args.lga_file))
+        raw_path = args.lga_file
+        checksum = lga_source_checksum(args.lga_file)
+        media_type = "application/vnd.esri.shapefile"
+    else:
+        document = fetch_lga_document()
+        rows = lga_rows_from_document(document)
+        stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+        raw_path = ROOT / "data" / "raw" / "vicmap_admin" / f"lga_polygon_{stamp}.geojson"
+        save_lga_raw(document, raw_path)
+        checksum = sha256_file(raw_path)
+        media_type = "application/geo+json"
+
+    registered_source_id = source_id(connection, LGA_SOURCE_NAME, LGA_PUBLISHER)
+    version_id = create_dataset_version(
+        connection,
+        registered_source_id=registered_source_id,
+        row_count=len(rows),
+        checksum=checksum,
+    )
+    register_spatial_assets(connection, version_id, [{
+        "asset_role": "authoritative_lga_boundaries",
+        "source_scene_id": "VICMAP_ADMIN_LGA_POLYGON",
+        "source_href": f"{LGA_LAYER_URL}/query",
+        "local_path": str(raw_path.resolve()),
+        "media_type": media_type,
+        "source_crs": "source declared; normalised to EPSG:7855",
+        "checksum": checksum,
+        "acquired_at": datetime.now(timezone.utc).isoformat(),
+        "metadata": {
+            "layer": "LGA_POLYGON",
+            "alignment": "Vicmap Property",
+            "licence": "Creative Commons Attribution 4.0 International",
+        },
+    }])
+    rules, threshold = quality_configuration("local_government_area")
+    report = validate_records(
+        "local_government_area", rows, rules, threshold_pct=threshold
+    )
+    record_quality_run(connection, version_id, report)
+    if not report.passed_gate:
+        connection.commit()
+        return {
+            "rows_in": len(rows), "rows_written": 0,
+            "rows_rejected": report.failing_records,
+            "quality_pass_rate": report.pass_rate,
+            "dataset_version_id": str(version_id),
+            "message": "Vicmap LGA boundaries failed the quality gate; nothing integrated",
+        }
+
+    rejected = set(report.failed_indices)
+    accepted = [row for index, row in enumerate(rows) if index not in rejected]
+    values = [(
+        version_id, row["source_feature_id"], row["lga_code"], row["lga_name"],
+        row["lga_official_name"], row["abs_lga_code"],
+        row["gazettal_registration"], row["geometry_wkt"], row["source_srid"],
+        row["geometry_repaired"],
+    ) for row in accepted]
+    written = write_batches(
+        connection,
+        f"""INSERT INTO local_government_area (
+                dataset_version_id, source_feature_id, lga_code, lga_name,
+                lga_official_name, abs_lga_code, gazettal_registration,
+                boundary_geometry, area_m2, geometry_repaired, quality_status
+            ) VALUES (
+                %s, %s, %s, %s, %s, %s, %s,
+                ST_Multi(ST_Transform(ST_GeomFromText(%s::text, %s::integer), {TARGET_SRID})),
+                ST_Area(ST_Transform(ST_GeomFromText(%s::text, %s::integer), {TARGET_SRID})),
+                %s, 'passed'
+            )""",
+        [value[:9] + (value[7], value[8], value[9]) for value in values],
+    )
+    with connection.cursor() as cursor:
+        cursor.execute(
+            """UPDATE dataset_version
+               SET integration_status = 'integrated',
+                   publication_status = 'application_ready',
+                   derivation_method = 'official_vicmap_lga_polygon_to_epsg7855_v1'
+               WHERE dataset_version_id = %s""",
+            (version_id,),
+        )
+        cursor.execute(
+            """INSERT INTO data_limitation (
+                   dataset_version_id, limitation_type, description,
+                   affected_area, analytical_impact, mitigation
+               ) VALUES (%s, 'administrative_boundary_only', %s, 'Victoria', %s, %s)""",
+            (
+                version_id,
+                "LGA membership does not establish whether a species is permitted or suitable for a particular property.",
+                "The boundary can select a council but cannot supply planting approval.",
+                "Join only to separately sourced, effective council species guidance.",
+            ),
+        )
+    return {
+        "rows_in": len(rows), "rows_written": written,
+        "rows_rejected": report.failing_records,
+        "quality_pass_rate": report.pass_rate,
+        "dataset_version_id": str(version_id),
+        "raw_extract": str(raw_path),
+        "message": f"{written} authoritative Victorian LGA polygons integrated",
+    }
+
+
+def ingest_council_species_guidance(connection, args: argparse.Namespace) -> dict[str, Any]:
+    """Load one authoritative council guidance source from the CSV contract."""
+
+    path = args.council_guidance_file
+    if path is None:
+        raise ValueError("council-guidance requires --council-guidance-file")
+    if not path.exists():
+        raise FileNotFoundError(path)
+    rows = read_guidance_rows(path)
+    if not rows:
+        raise ValueError("Council guidance file contains no rows")
+    sources = {
+        (row["source_name"], row["publisher"], row["source_url"], row["licence"])
+        for row in rows
+    }
+    if len(sources) != 1 or any(not value for value in next(iter(sources))):
+        raise ValueError(
+            "Each guidance file must contain one complete source_name, publisher, "
+            "source_url and licence combination"
+        )
+    source_name, publisher, source_url, licence = next(iter(sources))
+    licence_key = licence.casefold()
+    licence_status = (
+        "open_confirmed"
+        if "creative commons attribution" in licence_key or "cc by" in licence_key
+        else "review_required"
+    )
+    with connection.cursor() as cursor:
+        cursor.execute(
+            """INSERT INTO dataset_source (
+                   source_name, publisher, source_url, licence, licence_status,
+                   source_category, geographic_coverage, access_method, update_frequency
+               ) VALUES (%s, %s, %s, %s, %s, 'council_species_guidance',
+                         %s, 'source-controlled CSV transcription', 'source controlled')
+               ON CONFLICT (source_name, publisher) DO UPDATE SET
+                   source_url = EXCLUDED.source_url,
+                   licence = EXCLUDED.licence,
+                   licence_status = EXCLUDED.licence_status,
+                   source_category = EXCLUDED.source_category
+               RETURNING source_id""",
+            (
+                source_name, publisher, source_url, licence, licence_status,
+                ", ".join(sorted({row["lga_name"] or row["lga_code"] for row in rows})),
+            ),
+        )
+        registered_source_id = cursor.fetchone()["source_id"]
+    version_id = create_dataset_version(
+        connection,
+        registered_source_id=registered_source_id,
+        row_count=len(rows),
+        checksum=sha256_file(path),
+        observed_from=min(row["effective_from"] for row in rows),
+        observed_to=max(row["effective_to"] or row["effective_from"] for row in rows),
+    )
+    rules, threshold = quality_configuration("council_species_guidance")
+    report = validate_records(
+        "council_species_guidance", rows, rules, threshold_pct=threshold
+    )
+    record_quality_run(connection, version_id, report)
+    if not report.passed_gate:
+        connection.commit()
+        return {
+            "rows_in": len(rows), "rows_written": 0,
+            "rows_rejected": report.failing_records,
+            "quality_pass_rate": report.pass_rate,
+            "dataset_version_id": str(version_id),
+            "message": "Council species guidance failed the quality gate; nothing integrated",
+        }
+    accepted = [
+        row for index, row in enumerate(rows) if index not in set(report.failed_indices)
+    ]
+    with connection.cursor() as cursor:
+        cursor.execute(
+            """SELECT ARRAY_AGG(DISTINCT lga_code) AS codes
+               FROM latest_victorian_lga_boundary
+               WHERE lga_code = ANY(%s)""",
+            ([row["lga_code"] for row in accepted],),
+        )
+        found_codes = set(cursor.fetchone()["codes"] or [])
+        missing_codes = sorted({row["lga_code"] for row in accepted} - found_codes)
+        if missing_codes:
+            raise ValueError(
+                f"Guidance contains unknown LGA codes: {', '.join(missing_codes)}. "
+                "Load current LGA boundaries first."
+            )
+        species = {
+            row["scientific_name"]: row["common_name"]
+            for row in accepted if row["scientific_name"]
+        }
+        cursor.executemany(
+            """INSERT INTO species_profile (
+                   scientific_name, common_name, source_reference
+               ) VALUES (%s, %s, %s)
+               ON CONFLICT (scientific_name) DO UPDATE SET
+                   common_name = COALESCE(species_profile.common_name, EXCLUDED.common_name),
+                   source_reference = COALESCE(
+                       species_profile.source_reference, EXCLUDED.source_reference
+                   )""",
+            [(name, common_name, source_name) for name, common_name in species.items()],
+        )
+    written = write_batches(
+        connection,
+        """INSERT INTO council_species_guidance (
+               dataset_version_id, source_row_number, lga_code, species_id,
+               scientific_name, common_name, mature_size_class,
+               mature_height_min_m, mature_height_max_m,
+               mature_canopy_width_min_m, mature_canopy_width_max_m,
+               minimum_planting_area_m2, sunlight_requirement, water_need_class,
+               root_risk_class, site_requirements, guidance_status,
+               effective_from, effective_to, source_url, licence, limitation
+           ) VALUES (
+               %s, %s, %s,
+               (SELECT species_id FROM species_profile WHERE scientific_name = %s),
+               %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s,
+               %s, %s, %s, %s, %s
+           )""",
+        [(
+            version_id, row["source_row_number"], row["lga_code"],
+            row["scientific_name"], row["scientific_name"], row["common_name"],
+            row["mature_size_class"], row["mature_height_min_m"],
+            row["mature_height_max_m"], row["mature_canopy_width_min_m"],
+            row["mature_canopy_width_max_m"], row["minimum_planting_area_m2"],
+            row["sunlight_requirement"], row["water_need_class"],
+            row["root_risk_class"], row["site_requirements"],
+            row["guidance_status"], row["effective_from"], row["effective_to"],
+            row["source_url"], row["licence"], row["limitation"],
+        ) for row in accepted],
+    )
+    with connection.cursor() as cursor:
+        cursor.execute(
+            """UPDATE dataset_version
+               SET integration_status = 'integrated',
+                   publication_status = 'application_ready',
+                   derivation_method = 'source_guidance_csv_v1'
+               WHERE dataset_version_id = %s""",
+            (version_id,),
+        )
+    return {
+        "rows_in": len(rows), "rows_written": written,
+        "rows_rejected": report.failing_records,
+        "quality_pass_rate": report.pass_rate,
+        "dataset_version_id": str(version_id),
+        "source": source_name,
+        "message": f"{written} authoritative council guidance rows integrated",
     }
 
 
@@ -1106,6 +1450,478 @@ def ingest_trees(connection, args: argparse.Namespace) -> dict[str, Any]:
     }
 
 
+def ingest_named_trees(connection, args: argparse.Namespace) -> dict[str, Any]:
+    """Load source-labelled City of Melbourne tree names without inferring Vicmap names."""
+
+    if args.city_tree_file:
+        if not args.city_tree_file.exists():
+            raise FileNotFoundError(args.city_tree_file)
+        raw_path = args.city_tree_file
+        raw_records = list(read_named_tree_raw(raw_path))
+    else:
+        raw_records = fetch_named_tree_records()
+        stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+        raw_path = (
+            ROOT / "data" / "raw" / "city_melbourne"
+            / f"named_trees_{stamp}.jsonl.gz"
+        )
+        save_named_tree_raw(raw_records, raw_path)
+
+    rows = normalise_named_tree_records(raw_records)
+    rules, threshold = quality_configuration("named_tree_inventory")
+    report = validate_records(
+        "named_tree_inventory", rows, rules, threshold_pct=threshold
+    )
+    registered_source_id = source_id(
+        connection,
+        "Trees, with species and dimensions (Urban Forest)",
+        "City of Melbourne",
+    )
+    version_id = create_dataset_version(
+        connection,
+        registered_source_id=registered_source_id,
+        row_count=len(rows),
+        checksum=sha256_file(raw_path),
+    )
+    record_quality_run(connection, version_id, report)
+    if not report.passed_gate:
+        connection.commit()
+        return {
+            "rows_in": len(rows),
+            "rows_written": 0,
+            "rows_rejected": report.failing_records,
+            "quality_pass_rate": report.pass_rate,
+            "dataset_version_id": str(version_id),
+            "message": "Named-tree inventory failed the quality gate; nothing integrated",
+        }
+
+    rejected = set(report.failed_indices)
+    accepted = [row for index, row in enumerate(rows) if index not in rejected]
+    with connection.cursor() as cursor:
+        cursor.execute(
+            """SELECT analysis_area_id FROM analysis_area
+               WHERE source_area_code = '2GMEL' AND source_year = 2026
+               ORDER BY analysis_area_id DESC LIMIT 1"""
+        )
+        area = cursor.fetchone()
+        if area is None:
+            raise ValueError("Load the official Melbourne boundary before named trees")
+        analysis_area_id = area["analysis_area_id"]
+
+        species: dict[str, tuple[str | None, str | None, str | None]] = {}
+        for row in accepted:
+            if row["scientific_name"]:
+                species.setdefault(
+                    row["scientific_name"],
+                    (row["common_name"], row["genus"], row["family"]),
+                )
+        cursor.executemany(
+            """INSERT INTO species_profile (
+                   scientific_name, common_name, genus, family, source_reference
+               ) VALUES (%s, %s, %s, %s, %s)
+               ON CONFLICT (scientific_name) DO UPDATE SET
+                   common_name = COALESCE(species_profile.common_name, EXCLUDED.common_name),
+                   genus = COALESCE(species_profile.genus, EXCLUDED.genus),
+                   family = COALESCE(species_profile.family, EXCLUDED.family),
+                   source_reference = COALESCE(
+                       species_profile.source_reference, EXCLUDED.source_reference
+                   )""",
+            [
+                (
+                    scientific_name, values[0], values[1], values[2],
+                    "City of Melbourne Trees, with species and dimensions (Urban Forest)",
+                )
+                for scientific_name, values in species.items()
+            ],
+        )
+
+        cursor.execute(
+            """CREATE TEMP TABLE named_tree_stage (
+                   source_tree_id TEXT, common_name TEXT, scientific_name TEXT,
+                   display_name TEXT, genus TEXT, family TEXT,
+                   diameter_breast_height_cm NUMERIC, year_planted INTEGER,
+                   date_planted DATE, age_description TEXT,
+                   useful_life_expectancy TEXT,
+                   useful_life_expectancy_years INTEGER, precinct TEXT,
+                   located_in TEXT, geometry_wkt TEXT, source_srid INTEGER
+               ) ON COMMIT DROP"""
+        )
+        with cursor.copy(
+            """COPY named_tree_stage (
+                   source_tree_id, common_name, scientific_name, display_name,
+                   genus, family, diameter_breast_height_cm, year_planted,
+                   date_planted, age_description, useful_life_expectancy,
+                   useful_life_expectancy_years, precinct, located_in,
+                   geometry_wkt, source_srid
+               ) FROM STDIN"""
+        ) as copy:
+            for row in accepted:
+                copy.write_row(
+                    (
+                        row["source_tree_id"], row["common_name"],
+                        row["scientific_name"], row["display_name"],
+                        row["genus"], row["family"],
+                        row["diameter_breast_height_cm"], row["year_planted"],
+                        row["date_planted"], row["age_description"],
+                        row["useful_life_expectancy"],
+                        row["useful_life_expectancy_years"], row["precinct"],
+                        row["located_in"], row["geometry_wkt"], row["source_srid"],
+                    )
+                )
+
+        cursor.execute(
+            f"""WITH candidates AS MATERIALIZED (
+                     SELECT stage.*,
+                            ST_Transform(
+                                ST_GeomFromText(stage.geometry_wkt, stage.source_srid),
+                                {TARGET_SRID}
+                            ) AS tree_location
+                     FROM named_tree_stage AS stage
+                 )
+                 INSERT INTO named_tree_inventory (
+                     dataset_version_id, source_tree_id, species_id,
+                     inventory_source_key, municipality, taxonomic_precision,
+                     common_name, scientific_name, display_name, genus, family,
+                     diameter_breast_height_cm, year_planted, date_planted,
+                     age_description, useful_life_expectancy,
+                     useful_life_expectancy_years, precinct, located_in,
+                     tree_location, quality_status
+                 )
+                 SELECT %s, candidate.source_tree_id, species.species_id,
+                        'city_melbourne', 'City of Melbourne',
+                        CASE
+                            WHEN candidate.scientific_name IS NOT NULL THEN 'species'
+                            WHEN candidate.common_name IS NOT NULL THEN 'common_name'
+                            ELSE NULL
+                        END,
+                        candidate.common_name, candidate.scientific_name,
+                        candidate.display_name, candidate.genus, candidate.family,
+                        candidate.diameter_breast_height_cm,
+                        candidate.year_planted, candidate.date_planted,
+                        candidate.age_description,
+                        candidate.useful_life_expectancy,
+                        candidate.useful_life_expectancy_years,
+                        candidate.precinct, candidate.located_in,
+                        candidate.tree_location, 'passed'
+                 FROM candidates AS candidate
+                 LEFT JOIN species_profile AS species
+                   ON species.scientific_name = candidate.scientific_name
+                 WHERE EXISTS (
+                     SELECT 1 FROM analysis_area_tile AS tile
+                     WHERE tile.analysis_area_id = %s
+                       AND tile.tile_geometry && candidate.tree_location
+                       AND ST_Covers(tile.tile_geometry, candidate.tree_location)
+                 )""",
+            (version_id, analysis_area_id),
+        )
+        written = cursor.rowcount
+        boundary_excluded = len(accepted) - written
+        cursor.execute(
+            """UPDATE dataset_version
+               SET integration_status = 'integrated',
+                   publication_status = 'application_ready',
+                   analysis_area_id = %s,
+                   derivation_method = 'city_inventory_filter_to_abs_2GMEL_2026_v1',
+                   coverage_pass_rate = %s
+               WHERE dataset_version_id = %s""",
+            (
+                analysis_area_id,
+                round(100.0 * written / len(accepted), 6) if accepted else 0,
+                version_id,
+            ),
+        )
+        cursor.execute(
+            """INSERT INTO data_limitation (
+                   dataset_version_id, limitation_type, description,
+                   affected_area, analytical_impact, mitigation
+               ) VALUES (%s, 'city_melbourne_only', %s, %s, %s, %s)""",
+            (
+                version_id,
+                "Tree names come from the City of Melbourne maintained-tree inventory.",
+                "City of Melbourne municipality",
+                "Named trees are unavailable elsewhere in metropolitan Melbourne and are not matched to Vicmap points.",
+                "Return Unavailable outside inventory coverage and preserve the source label.",
+            ),
+        )
+
+    return {
+        "rows_in": len(rows),
+        "rows_written": written,
+        "rows_rejected": report.failing_records,
+        "rows_outside_melbourne": boundary_excluded,
+        "quality_pass_rate": report.pass_rate,
+        "dataset_version_id": str(version_id),
+        "raw_extract": str(raw_path),
+        "message": f"{written} source-labelled City of Melbourne named trees integrated",
+    }
+
+
+def ingest_council_named_trees(
+    connection, args: argparse.Namespace, council_key: str
+) -> dict[str, Any]:
+    """Load one council inventory while retaining its source-specific limitations."""
+
+    source = COUNCIL_TREE_SOURCES[council_key]
+    if args.council_tree_file:
+        if not args.council_tree_file.exists():
+            raise FileNotFoundError(args.council_tree_file)
+        raw_path = args.council_tree_file
+    else:
+        stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+        raw_path = download_council_trees(
+            source, ROOT / "data" / "raw" / "council_trees" / council_key / stamp
+        )
+
+    raw_count = council_tree_feature_count(council_key, raw_path)
+    inactive_count = 0
+    unnamed_count = 0
+    eligible_count = 0
+    observed_dates: list[str] = []
+    for row in iter_council_tree_rows(council_key, raw_path):
+        if not row["active_record"]:
+            inactive_count += 1
+        elif not row["display_name"]:
+            unnamed_count += 1
+        else:
+            eligible_count += 1
+            if row["source_observed_on"]:
+                observed_dates.append(row["source_observed_on"])
+
+    def eligible_rows():
+        for row in iter_council_tree_rows(council_key, raw_path):
+            if row["active_record"] and row["display_name"]:
+                yield row
+
+    rules, threshold = quality_configuration("named_tree_inventory")
+    report = validate_record_stream(
+        "named_tree_inventory", eligible_rows, rules, threshold_pct=threshold
+    )
+    registered_source_id = source_id(connection, source.source_name, source.publisher)
+    version_id = create_dataset_version(
+        connection,
+        registered_source_id=registered_source_id,
+        row_count=raw_count,
+        checksum=sha256_file(raw_path),
+        observed_from=min(observed_dates) if observed_dates else None,
+        observed_to=max(observed_dates) if observed_dates else None,
+    )
+    record_quality_run(connection, version_id, report)
+    if not report.passed_gate:
+        connection.commit()
+        return {
+            "rows_in": raw_count,
+            "rows_eligible": eligible_count,
+            "rows_written": 0,
+            "rows_rejected": report.failing_records,
+            "quality_pass_rate": report.pass_rate,
+            "dataset_version_id": str(version_id),
+            "message": f"{source.source_name} failed the quality gate; nothing integrated",
+        }
+
+    failed = set(report.failed_indices)
+
+    def accepted_rows():
+        for index, row in enumerate(eligible_rows()):
+            if index not in failed:
+                yield row
+
+    species: dict[str, tuple[str | None, str | None, str | None]] = {}
+    for row in accepted_rows():
+        if row["scientific_name"]:
+            species.setdefault(
+                row["scientific_name"],
+                (row["common_name"], row["genus"], row["family"]),
+            )
+
+    with connection.cursor() as cursor:
+        cursor.execute(
+            """SELECT analysis_area_id FROM analysis_area
+               WHERE source_area_code = '2GMEL' AND source_year = 2026
+               ORDER BY analysis_area_id DESC LIMIT 1"""
+        )
+        area = cursor.fetchone()
+        if area is None:
+            raise ValueError("Load the official Melbourne boundary before council trees")
+        analysis_area_id = area["analysis_area_id"]
+
+        cursor.executemany(
+            """INSERT INTO species_profile (
+                   scientific_name, common_name, genus, family, source_reference
+               ) VALUES (%s, %s, %s, %s, %s)
+               ON CONFLICT (scientific_name) DO UPDATE SET
+                   common_name = COALESCE(species_profile.common_name, EXCLUDED.common_name),
+                   genus = COALESCE(species_profile.genus, EXCLUDED.genus),
+                   family = COALESCE(species_profile.family, EXCLUDED.family),
+                   source_reference = COALESCE(
+                       species_profile.source_reference, EXCLUDED.source_reference
+                   )""",
+            [
+                (name, values[0], values[1], values[2], source.source_name)
+                for name, values in species.items()
+            ],
+        )
+
+        cursor.execute(
+            """CREATE TEMP TABLE council_named_tree_stage (
+                   source_tree_id TEXT, inventory_source_key TEXT,
+                   municipality TEXT, common_name TEXT, scientific_name TEXT,
+                   display_name TEXT, genus TEXT, family TEXT,
+                   taxonomic_precision TEXT, diameter_breast_height_cm NUMERIC,
+                   dbh_min_cm NUMERIC, dbh_max_cm NUMERIC, height_m NUMERIC,
+                   height_min_m NUMERIC, height_max_m NUMERIC,
+                   canopy_width_m NUMERIC, canopy_width_min_m NUMERIC,
+                   canopy_width_max_m NUMERIC, canopy_width_ew_m NUMERIC,
+                   canopy_width_ns_m NUMERIC, year_planted INTEGER,
+                   date_planted DATE, age_description TEXT,
+                   useful_life_expectancy TEXT,
+                   useful_life_expectancy_years INTEGER, health_status TEXT,
+                   structure_status TEXT, precinct TEXT, located_in TEXT,
+                   address TEXT, source_observed_on DATE,
+                   geometry_wkt TEXT, source_srid INTEGER
+               ) ON COMMIT DROP"""
+        )
+        copy_sql = """COPY council_named_tree_stage (
+            source_tree_id, inventory_source_key, municipality, common_name,
+            scientific_name, display_name, genus, family, taxonomic_precision,
+            diameter_breast_height_cm, dbh_min_cm, dbh_max_cm, height_m,
+            height_min_m, height_max_m, canopy_width_m, canopy_width_min_m,
+            canopy_width_max_m, canopy_width_ew_m, canopy_width_ns_m,
+            year_planted, date_planted, age_description,
+            useful_life_expectancy, useful_life_expectancy_years,
+            health_status, structure_status, precinct, located_in, address,
+            source_observed_on, geometry_wkt, source_srid
+        ) FROM STDIN"""
+        stage_columns = (
+            "source_tree_id", "inventory_source_key", "municipality",
+            "common_name", "scientific_name", "display_name", "genus", "family",
+            "taxonomic_precision", "diameter_breast_height_cm", "dbh_min_cm",
+            "dbh_max_cm", "height_m", "height_min_m", "height_max_m",
+            "canopy_width_m", "canopy_width_min_m", "canopy_width_max_m",
+            "canopy_width_ew_m", "canopy_width_ns_m", "year_planted",
+            "date_planted", "age_description", "useful_life_expectancy",
+            "useful_life_expectancy_years", "health_status", "structure_status",
+            "precinct", "located_in", "address", "source_observed_on",
+            "geometry_wkt", "source_srid",
+        )
+        with cursor.copy(copy_sql) as copy:
+            for row in accepted_rows():
+                copy.write_row(tuple(row[column] for column in stage_columns))
+
+        cursor.execute(
+            f"""WITH candidates AS MATERIALIZED (
+                     SELECT stage.*,
+                            ST_Transform(
+                                ST_GeomFromText(stage.geometry_wkt, stage.source_srid),
+                                {TARGET_SRID}
+                            ) AS tree_location
+                     FROM council_named_tree_stage AS stage
+                 )
+                 INSERT INTO named_tree_inventory (
+                     dataset_version_id, source_tree_id, species_id,
+                     inventory_source_key, municipality, common_name,
+                     scientific_name, display_name, genus, family,
+                     taxonomic_precision, diameter_breast_height_cm,
+                     dbh_min_cm, dbh_max_cm, height_m, height_min_m, height_max_m,
+                     canopy_width_m, canopy_width_min_m, canopy_width_max_m,
+                     canopy_width_ew_m, canopy_width_ns_m, year_planted,
+                     date_planted, age_description, useful_life_expectancy,
+                     useful_life_expectancy_years, health_status,
+                     structure_status, precinct, located_in, address,
+                     source_observed_on, tree_location, quality_status
+                 )
+                 SELECT %s, candidate.source_tree_id, species.species_id,
+                        candidate.inventory_source_key, candidate.municipality,
+                        candidate.common_name, candidate.scientific_name,
+                        candidate.display_name, candidate.genus, candidate.family,
+                        candidate.taxonomic_precision,
+                        candidate.diameter_breast_height_cm, candidate.dbh_min_cm,
+                        candidate.dbh_max_cm, candidate.height_m,
+                        candidate.height_min_m, candidate.height_max_m,
+                        candidate.canopy_width_m, candidate.canopy_width_min_m,
+                        candidate.canopy_width_max_m, candidate.canopy_width_ew_m,
+                        candidate.canopy_width_ns_m, candidate.year_planted,
+                        candidate.date_planted, candidate.age_description,
+                        candidate.useful_life_expectancy,
+                        candidate.useful_life_expectancy_years,
+                        candidate.health_status, candidate.structure_status,
+                        candidate.precinct, candidate.located_in,
+                        candidate.address, candidate.source_observed_on,
+                        candidate.tree_location, 'passed'
+                 FROM candidates AS candidate
+                 LEFT JOIN species_profile AS species
+                   ON species.scientific_name = candidate.scientific_name
+                 WHERE EXISTS (
+                     SELECT 1 FROM analysis_area_tile AS tile
+                     WHERE tile.analysis_area_id = %s
+                       AND tile.tile_geometry && candidate.tree_location
+                       AND ST_Covers(tile.tile_geometry, candidate.tree_location)
+                 )""",
+            (version_id, analysis_area_id),
+        )
+        written = cursor.rowcount
+        boundary_excluded = report.passing_records - written
+        cursor.execute(
+            """UPDATE dataset_version
+               SET integration_status = 'integrated',
+                   publication_status = 'application_ready',
+                   analysis_area_id = %s,
+                   derivation_method = %s,
+                   coverage_pass_rate = %s
+               WHERE dataset_version_id = %s""",
+            (
+                analysis_area_id,
+                f"{council_key}_inventory_filter_to_abs_2GMEL_2026_v1",
+                round(100.0 * written / report.passing_records, 2)
+                if report.passing_records else 0,
+                version_id,
+            ),
+        )
+        cursor.execute(
+            """INSERT INTO data_limitation (
+                   dataset_version_id, limitation_type, description,
+                   affected_area, analytical_impact, mitigation
+               ) VALUES
+               (%s, 'public_council_trees_only', %s, %s, %s, %s),
+               (%s, 'source_name_coverage', %s, %s, %s, %s)""",
+            (
+                version_id,
+                "The inventory describes council-managed public trees, not every private or backyard tree.",
+                source.municipality,
+                "Absence from this inventory is not evidence that no tree exists.",
+                "Keep property canopy and Vicmap observations separate and retain this limitation in user-visible output.",
+                version_id,
+                f"{unnamed_count} active source rows without a usable common, botanical or genus-level name were excluded; {inactive_count} inactive rows were excluded.",
+                source.municipality,
+                "Named-tree coverage is incomplete and differs between councils.",
+                "Return Unavailable for missing names and report source-specific coverage.",
+            ),
+        )
+
+    return {
+        "rows_in": raw_count,
+        "rows_active": raw_count - inactive_count,
+        "rows_eligible": eligible_count,
+        "rows_written": written,
+        "rows_inactive_excluded": inactive_count,
+        "rows_without_name_excluded": unnamed_count,
+        "rows_quality_rejected": report.failing_records,
+        "rows_outside_melbourne": boundary_excluded,
+        "eligible_quality_pass_rate": report.pass_rate,
+        "source_name_coverage_pct": round(
+            100.0 * eligible_count / (raw_count - inactive_count), 2
+        ) if raw_count > inactive_count else 0,
+        "dataset_version_id": str(version_id),
+        "raw_extract": str(raw_path),
+        "message": f"{written} source-labelled {source.municipality} trees integrated",
+    }
+
+
+def _council_job(council_key: str) -> Job:
+    return lambda connection, args: ingest_council_named_trees(
+        connection, args, council_key
+    )
+
+
 def ingest_canopy(connection, args: argparse.Namespace) -> dict[str, Any]:
     """Aggregate an official Vicmap Tree Extent GeoTIFF and integrate it."""
 
@@ -1317,6 +2133,563 @@ def ingest_canopy(connection, args: argparse.Namespace) -> dict[str, Any]:
     }
 
 
+def ingest_city_canopy_history(connection, args: argparse.Namespace) -> dict[str, Any]:
+    """Load one normalised City of Melbourne historical canopy snapshot."""
+
+    year = args.city_canopy_year
+    if year is None:
+        raise ValueError(
+            "city-canopy requires --city-canopy-year 2008, 2015, 2016 or 2021"
+        )
+    if args.city_canopy_file:
+        if not args.city_canopy_file.exists():
+            raise FileNotFoundError(args.city_canopy_file)
+        raw_path = args.city_canopy_file
+        raw_count = sum(
+            1 for _ in limit_city_canopy_rows(
+                read_city_canopy_raw(raw_path), args.max_city_canopy_records
+            )
+        )
+    else:
+        stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+        raw_path = (
+            ROOT / "data" / "raw" / "city_canopy" / str(year)
+            / f"canopy_{year}_{stamp}.jsonl.gz"
+        )
+        downloaded_count = download_city_canopy(year, raw_path)
+        raw_count = min(downloaded_count, args.max_city_canopy_records) \
+            if args.max_city_canopy_records else downloaded_count
+
+    def rows():
+        return limit_city_canopy_rows(
+            normalised_city_canopy_rows(raw_path, year),
+            args.max_city_canopy_records,
+        )
+
+    rules, threshold = quality_configuration("canopy_snapshot_feature")
+    report = validate_record_stream(
+        "canopy_snapshot_feature", rows, rules, threshold_pct=threshold
+    )
+    registered_source_id = source_id(
+        connection, CITY_CANOPY_SOURCE_NAMES[year], "City of Melbourne"
+    )
+    version_id = create_dataset_version(
+        connection,
+        registered_source_id=registered_source_id,
+        row_count=raw_count,
+        checksum=sha256_file(raw_path),
+        observed_from=f"{year}-01-01",
+        observed_to=f"{year}-12-31",
+    )
+    record_quality_run(connection, version_id, report)
+    if not report.passed_gate:
+        connection.commit()
+        return {
+            "rows_in": raw_count,
+            "rows_written": 0,
+            "rows_rejected": report.failing_records,
+            "quality_pass_rate": report.pass_rate,
+            "dataset_version_id": str(version_id),
+            "message": "Historical canopy failed the 95% quality gate",
+        }
+
+    failed = set(report.failed_indices)
+    with connection.cursor() as cursor:
+        cursor.execute(
+            """CREATE TEMP TABLE city_canopy_stage (
+                   source_feature_key TEXT, observed_year SMALLINT,
+                   observed_on DATE, geometry_wkt TEXT, source_srid INTEGER,
+                   source_area_m2 NUMERIC, calculated_area_m2 NUMERIC,
+                   source_area_difference_pct NUMERIC,
+                   geometry_repaired BOOLEAN
+               ) ON COMMIT DROP"""
+        )
+        with cursor.copy(
+            """COPY city_canopy_stage (
+                   source_feature_key, observed_year, observed_on, geometry_wkt,
+                   source_srid, source_area_m2, calculated_area_m2,
+                   source_area_difference_pct,
+                   geometry_repaired
+               ) FROM STDIN"""
+        ) as copy:
+            for index, row in enumerate(rows()):
+                if index in failed:
+                    continue
+                copy.write_row(
+                    (
+                        row["source_feature_key"], row["observed_year"],
+                        row["observed_on"], row["geometry_wkt"],
+                        row["source_srid"], row["source_area_m2"],
+                        row["calculated_area_m2"],
+                        row["source_area_difference_pct"],
+                        row["geometry_repaired"],
+                    )
+                )
+        cursor.execute(
+            f"""INSERT INTO canopy_snapshot_feature (
+                    dataset_version_id, source_feature_key, observed_year,
+                    observed_on, canopy_geometry, source_area_m2,
+                    calculated_area_m2, source_area_difference_pct,
+                    geometry_repaired, quality_status
+                )
+                SELECT %s, source_feature_key, observed_year, observed_on,
+                       ST_Multi(ST_Transform(
+                           ST_GeomFromText(geometry_wkt, source_srid),
+                           {TARGET_SRID}
+                       )),
+                       source_area_m2, calculated_area_m2,
+                       source_area_difference_pct,
+                       geometry_repaired, 'passed'
+                FROM city_canopy_stage""",
+            (version_id,),
+        )
+        written = cursor.rowcount
+        cursor.execute(
+            """UPDATE dataset_version
+               SET integration_status = 'integrated',
+                   publication_status = 'internal',
+                   quality_status = 'passed_with_limitations',
+                   derivation_method = 'city_canopy_polygon_normalisation_v1'
+               WHERE dataset_version_id = %s""",
+            (version_id,),
+        )
+        cursor.execute(
+            """INSERT INTO data_limitation (
+                   dataset_version_id, limitation_type, description,
+                   affected_area, analytical_impact, mitigation
+               ) VALUES (%s, 'cross_year_method_difference', %s, %s, %s, %s)""",
+            (
+                version_id,
+                "The City canopy snapshots do not all use the same capture and "
+                "classification method: 2008, 2015 and 2016 use aerial imagery "
+                "and LiDAR, while 2021 uses high-resolution multispectral imagery.",
+                "City of Melbourne municipality",
+                "Apparent cross-year canopy change can include mapping-method differences.",
+                "Align both snapshots to one grid and complete temporal/spatial validation before creating ML labels.",
+            ),
+        )
+        cursor.execute(
+            """INSERT INTO data_limitation (
+                   dataset_version_id, limitation_type, description,
+                   affected_area, analytical_impact, mitigation
+               ) VALUES (%s, 'year_only_observation_date', %s, %s, %s, %s)""",
+            (
+                version_id,
+                f"The source identifies observation year {year}, not an exact acquisition day; 31 December is stored as a period-end convention.",
+                "All snapshot features",
+                "Do not interpret observed_on as an exact image acquisition date.",
+                "Use observed_year for modelling and disclose the year-level temporal precision.",
+            ),
+        )
+
+    return {
+        "year": year,
+        "rows_in": raw_count,
+        "rows_written": written,
+        "rows_rejected": report.failing_records,
+        "geometry_repaired": sum(1 for row in rows() if row["geometry_repaired"]),
+        "quality_pass_rate": report.pass_rate,
+        "dataset_version_id": str(version_id),
+        "raw_extract": str(raw_path),
+        "publication_status": "internal",
+        "message": "Snapshot loaded; cross-year training labels are not yet validated",
+    }
+
+
+def ingest_metropolitan_vegetation_change(
+    connection, args: argparse.Namespace
+) -> dict[str, Any]:
+    """Load a DataShare SHP/GDB download of 2014-2018 vegetation change."""
+
+    path = args.vegetation_change_file
+    if path is None:
+        raise ValueError(
+            "vegetation-change requires --vegetation-change-file pointing to the "
+            "SHP or GDB downloaded from the official DataShare order page"
+        )
+    if not path.exists():
+        raise FileNotFoundError(path)
+    raw_count = vegetation_change_feature_count(path)
+
+    def rows():
+        return normalised_vegetation_change_rows(path)
+
+    rules, threshold = quality_configuration("metropolitan_vegetation_change_feature")
+    report = validate_record_stream(
+        "metropolitan_vegetation_change_feature", rows, rules,
+        threshold_pct=threshold,
+    )
+    registered_source_id = source_id(
+        connection, VEGETATION_CHANGE_SOURCE_NAME,
+        "Victorian Government Department of Transport and Planning",
+    )
+    version_id = create_dataset_version(
+        connection,
+        registered_source_id=registered_source_id,
+        row_count=raw_count,
+        checksum=vegetation_change_source_checksum(path),
+        observed_from="2014-01-01",
+        observed_to="2018-12-31",
+    )
+    record_quality_run(connection, version_id, report)
+    if not report.passed_gate:
+        connection.commit()
+        return {
+            "rows_in": raw_count,
+            "rows_written": 0,
+            "rows_rejected": report.failing_records,
+            "quality_pass_rate": report.pass_rate,
+            "dataset_version_id": str(version_id),
+            "message": "Vegetation change failed the 95% quality gate",
+        }
+
+    failed = set(report.failed_indices)
+    with connection.cursor() as cursor:
+        cursor.execute(
+            """CREATE TEMP TABLE vegetation_change_stage (
+                   source_feature_key TEXT, mesh_block_code TEXT,
+                   observed_from DATE, observed_to DATE,
+                   tree_change_pct_points NUMERIC,
+                   shrub_change_pct_points NUMERIC,
+                   grass_change_pct_points NUMERIC,
+                   total_vegetation_change_pct_points NUMERIC,
+                   geometry_wkt TEXT, source_srid INTEGER,
+                   source_properties JSONB
+               ) ON COMMIT DROP"""
+        )
+        with cursor.copy(
+            """COPY vegetation_change_stage (
+                   source_feature_key, mesh_block_code, observed_from, observed_to,
+                   tree_change_pct_points, shrub_change_pct_points,
+                   grass_change_pct_points, total_vegetation_change_pct_points,
+                   geometry_wkt, source_srid, source_properties
+               ) FROM STDIN"""
+        ) as copy:
+            for index, row in enumerate(rows()):
+                if index in failed:
+                    continue
+                copy.write_row((
+                    row["source_feature_key"], row["mesh_block_code"],
+                    row["observed_from"], row["observed_to"],
+                    row["tree_change_pct_points"], row["shrub_change_pct_points"],
+                    row["grass_change_pct_points"],
+                    row["total_vegetation_change_pct_points"],
+                    row["geometry_wkt"], row["source_srid"],
+                    json.dumps(row["source_properties"]),
+                ))
+        cursor.execute(
+            f"""INSERT INTO metropolitan_vegetation_change_feature (
+                    dataset_version_id, source_feature_key, mesh_block_code,
+                    observed_from, observed_to, tree_change_pct_points,
+                    shrub_change_pct_points, grass_change_pct_points,
+                    total_vegetation_change_pct_points, change_geometry,
+                    source_properties, quality_status
+                )
+                SELECT %s, source_feature_key, mesh_block_code, observed_from,
+                       observed_to, tree_change_pct_points, shrub_change_pct_points,
+                       grass_change_pct_points,
+                       total_vegetation_change_pct_points,
+                       ST_Multi(ST_Transform(
+                           ST_GeomFromText(geometry_wkt, source_srid), {TARGET_SRID}
+                       )), source_properties, 'passed'
+                FROM vegetation_change_stage""",
+            (version_id,),
+        )
+        written = cursor.rowcount
+        cursor.execute(
+            """UPDATE dataset_version
+               SET integration_status = 'integrated', publication_status = 'internal',
+                   quality_status = 'passed_with_limitations',
+                   derivation_method = 'datavic_vegetation_change_normalisation_v1'
+               WHERE dataset_version_id = %s""",
+            (version_id,),
+        )
+        cursor.execute(
+            """INSERT INTO data_limitation (
+                   dataset_version_id, limitation_type, description,
+                   affected_area, analytical_impact, mitigation
+               ) VALUES (%s, 'source_download_and_grain', %s, %s, %s, %s)""",
+            (
+                version_id,
+                "DataShare supplies an ordered spatial download rather than a direct feature API; polygons are based on 2016 ABS Mesh Blocks.",
+                "Metropolitan Melbourne comparison extent",
+                "Values describe area-level percentage-point change and cannot be treated as individual-tree or parcel observations.",
+                "Keep the raw download checksum and align features to a common modelling grid before joining other years.",
+            ),
+        )
+    return {
+        "rows_in": raw_count,
+        "rows_written": written,
+        "rows_rejected": report.failing_records,
+        "quality_pass_rate": report.pass_rate,
+        "dataset_version_id": str(version_id),
+        "message": f"{written} metropolitan vegetation-change features integrated",
+    }
+
+
+def ingest_austraits(connection, args: argparse.Namespace) -> dict[str, Any]:
+    """Load the prototype-relevant subset of the versioned AusTraits release."""
+
+    archive = args.austraits_file or (
+        ROOT / "data" / "raw" / "austraits" / "austraits-7.0.0.zip"
+    )
+    if args.austraits_file is None:
+        download_austraits(archive)
+    elif not archive.exists():
+        raise FileNotFoundError(archive)
+
+    raw_count, selected_count = austraits_counts(archive)
+    maximum = args.max_austraits_records
+
+    def rows():
+        return iter_austraits_rows(archive, maximum=maximum)
+
+    rules, threshold = quality_configuration("plant_trait_observation")
+    report = validate_record_stream(
+        "plant_trait_observation", rows, rules, threshold_pct=threshold
+    )
+    registered_source_id = source_id(
+        connection, AUSTRAITS_SOURCE_NAME, "AusTraits collaboration"
+    )
+    version_id = create_dataset_version(
+        connection,
+        registered_source_id=registered_source_id,
+        row_count=raw_count,
+        checksum=sha256_file(archive),
+    )
+    record_quality_run(connection, version_id, report)
+    if not report.passed_gate:
+        connection.commit()
+        return {
+            "rows_in": raw_count,
+            "rows_selected": report.total_records,
+            "rows_written": 0,
+            "rows_rejected": report.failing_records,
+            "quality_pass_rate": report.pass_rate,
+            "dataset_version_id": str(version_id),
+            "message": "AusTraits selected observations failed the 95% quality gate",
+        }
+
+    failed = set(report.failed_indices)
+    with connection.cursor() as cursor:
+        with cursor.copy(
+            """COPY plant_trait_observation (
+                   dataset_version_id, source_row_number, dataset_id,
+                   observation_id, taxon_name, original_name, trait_name,
+                   value_text, value_numeric, unit, entity_type, value_type,
+                   basis_of_value, replicates, basis_of_record, life_stage,
+                   location_id, collection_date, source_dataset_id,
+                   measurement_remarks, quality_status
+               ) FROM STDIN"""
+        ) as copy:
+            for index, row in enumerate(rows()):
+                if index in failed:
+                    continue
+                copy.write_row((
+                    version_id, row["source_row_number"], row["dataset_id"],
+                    row["observation_id"], row["taxon_name"], row["original_name"],
+                    row["trait_name"], row["value_text"], row["value_numeric"],
+                    row["unit"], row["entity_type"], row["value_type"],
+                    row["basis_of_value"], row["replicates"],
+                    row["basis_of_record"], row["life_stage"], row["location_id"],
+                    row["collection_date"], row["source_dataset_id"],
+                    row["measurement_remarks"], "passed",
+                ))
+        written = report.passing_records
+        cursor.execute(
+            """UPDATE dataset_version
+               SET integration_status = 'integrated', publication_status = 'internal',
+                   quality_status = 'passed_with_limitations',
+                   derivation_method = 'prototype_relevant_trait_filter_v1'
+               WHERE dataset_version_id = %s""",
+            (version_id,),
+        )
+        cursor.execute(
+            """INSERT INTO data_limitation (
+                   dataset_version_id, limitation_type, description,
+                   affected_area, analytical_impact, mitigation
+               ) VALUES (%s, 'trait_semantics', %s, %s, %s, %s)""",
+            (
+                version_id,
+                "Only explicitly selected prototype-relevant traits are loaded from the full release.",
+                "All AusTraits records used by GreenChanger",
+                "Observed plant height and physiological water-use traits are not guaranteed mature dimensions, horticultural water-needs classes, root-risk ratings or allergen ratings.",
+                "Retain source context and use traits only as optional research features until a horticultural contract and held-out model validation exist.",
+            ),
+        )
+    return {
+        "rows_in": raw_count,
+        "rows_available_in_selected_traits": selected_count,
+        "rows_assessed": report.total_records,
+        "rows_written": written,
+        "rows_rejected": report.failing_records,
+        "quality_pass_rate": report.pass_rate,
+        "dataset_version_id": str(version_id),
+        "publication_status": "internal",
+        "message": f"{written} AusTraits research observations integrated",
+    }
+
+
+def ingest_urban_growth(connection, args: argparse.Namespace) -> dict[str, Any]:
+    """Load the seven-city tree-ring study and its separately usable climate data."""
+
+    directory = args.urban_growth_directory or (
+        ROOT / "data" / "raw" / "urban_tree_growth" / "figshare_28970981_v2"
+    )
+    if args.urban_growth_directory is None:
+        paths = download_urban_growth(directory)
+    else:
+        paths = {
+            name: directory / name
+            for name in ("Raw_data_GCB.xlsx", "Climate_data_GCB.xlsx")
+        }
+        missing = [str(path) for path in paths.values() if not path.exists()]
+        if missing:
+            raise FileNotFoundError("Missing urban-growth workbook(s): " + ", ".join(missing))
+
+    raw_growth = read_urban_growth_workbook(paths["Raw_data_GCB.xlsx"])
+    raw_climate = read_urban_growth_workbook(paths["Climate_data_GCB.xlsx"])
+    growth_rows = normalise_growth_rows(raw_growth)
+    climate_rows = normalise_climate_rows(raw_climate)
+    growth_rules, threshold = quality_configuration("urban_tree_growth_observation")
+    climate_rules, _ = quality_configuration("urban_tree_growth_climate")
+    growth_report = validate_records(
+        "urban_tree_growth_observation", growth_rows, growth_rules,
+        threshold_pct=threshold,
+    )
+    climate_report = validate_records(
+        "urban_tree_growth_climate", climate_rows, climate_rules,
+        threshold_pct=threshold,
+    )
+    registered_source_id = source_id(
+        connection, URBAN_GROWTH_SOURCE_NAME, "Esperon-Rodriguez et al."
+    )
+    version_id = create_dataset_version(
+        connection,
+        registered_source_id=registered_source_id,
+        row_count=len(raw_growth) + len(raw_climate),
+        checksum=combined_checksum(paths.values()),
+    )
+    record_quality_run(connection, version_id, growth_report)
+    record_quality_run(connection, version_id, climate_report)
+    passed_gate = growth_report.passed_gate and climate_report.passed_gate
+    if not passed_gate:
+        with connection.cursor() as cursor:
+            cursor.execute(
+                """UPDATE dataset_version
+                   SET quality_status = 'failed', integration_status = 'failed'
+                   WHERE dataset_version_id = %s""",
+                (version_id,),
+            )
+        connection.commit()
+        return {
+            "rows_in": len(raw_growth) + len(raw_climate),
+            "rows_written": 0,
+            "rows_rejected": growth_report.failing_records + climate_report.failing_records,
+            "dataset_version_id": str(version_id),
+            "message": "Urban tree growth evidence failed the 95% quality gate",
+        }
+
+    growth_failed = set(growth_report.failed_indices)
+    climate_failed = set(climate_report.failed_indices)
+    with connection.cursor() as cursor:
+        with cursor.copy(
+            """COPY urban_tree_growth_observation (
+                   dataset_version_id, source_row_number, city,
+                   species_name_original, species_name, tree_number,
+                   ring_sequence, tree_ring_width_mm,
+                   basal_area_increment_cm2_year, quality_status
+               ) FROM STDIN"""
+        ) as copy:
+            for index, row in enumerate(growth_rows):
+                if index not in growth_failed:
+                    copy.write_row((
+                        version_id, row["source_row_number"], row["city"],
+                        row["species_name_original"], row["species_name"],
+                        row["tree_number"], row["ring_sequence"],
+                        row["tree_ring_width_mm"],
+                        row["basal_area_increment_cm2_year"], "passed",
+                    ))
+        with cursor.copy(
+            """COPY urban_tree_growth_climate (
+                   dataset_version_id, source_row_number, city, observation_year,
+                   variant_number, source_occurrence_count, city_year_ambiguous,
+                   annual_precipitation_mm, precipitation_driest_month_mm,
+                   precipitation_wettest_month_mm,
+                   precipitation_driest_quarter_mm,
+                   mean_temperature_warmest_month_c,
+                   mean_annual_temperature_c,
+                   mean_temperature_coldest_month_c,
+                   isothermality_divided_by_100, precipitation_index,
+                   quality_status
+               ) FROM STDIN"""
+        ) as copy:
+            for index, row in enumerate(climate_rows):
+                if index not in climate_failed:
+                    copy.write_row((
+                        version_id, row["source_row_number"], row["city"], row["year"],
+                        row["variant_number"], row["source_occurrence_count"],
+                        row["city_year_ambiguous"], row["AP"], row["PDM"], row["PWM"],
+                        row["PDQ"], row["MTWM"], row["MAT"], row["MTCM"],
+                        row["IDM"], row["IP"], "passed",
+                    ))
+        combined_total = growth_report.total_records + climate_report.total_records
+        combined_passed = growth_report.passing_records + climate_report.passing_records
+        combined_rate = round(combined_passed / combined_total * 100, 2)
+        cursor.execute(
+            """UPDATE dataset_version
+               SET integration_status = 'integrated', publication_status = 'internal',
+                   quality_status = 'passed_with_limitations', quality_pass_rate = %s,
+                   derivation_method = 'figshare_v2_tree_ring_and_climate_normalisation_v1'
+               WHERE dataset_version_id = %s""",
+            (combined_rate, version_id),
+        )
+        limitations = [
+            (
+                "temporal_linkage",
+                "The growth workbook has no calendar-year column; ring_sequence is source order within each tree, not tree age or year.",
+                "Direct growth-to-climate joins",
+                "Growth rings cannot be safely joined to the climate workbook by year.",
+                "Obtain and validate ring calendar-year metadata before any temporal join.",
+            ),
+            (
+                "source_conflict",
+                "Exact climate duplicates are collapsed with occurrence counts; conflicting city-year variants are retained and flagged.",
+                "Mildura climate records",
+                "Ambiguous city-years are excluded from usable_urban_tree_growth_climate.",
+                "Resolve conflicts against the study authors or source publication before use.",
+            ),
+            (
+                "target_mismatch",
+                "Tree-ring width and basal-area increment measure stem growth, not canopy area.",
+                "Tree canopy growth modelling",
+                "The source cannot directly produce 5- or 10-year canopy predictions.",
+                "Fit and validate a separate species-aware allometric link with canopy observations.",
+            ),
+        ]
+        cursor.executemany(
+            """INSERT INTO data_limitation (
+                   dataset_version_id, limitation_type, description,
+                   affected_area, analytical_impact, mitigation
+               ) VALUES (%s, %s, %s, %s, %s, %s)""",
+            [(version_id, *row) for row in limitations],
+        )
+
+    ambiguous = sum(row["city_year_ambiguous"] for row in climate_rows)
+    return {
+        "rows_in": len(raw_growth) + len(raw_climate),
+        "growth_rows_written": growth_report.passing_records,
+        "climate_rows_written": climate_report.passing_records,
+        "rows_written": growth_report.passing_records + climate_report.passing_records,
+        "rows_rejected": growth_report.failing_records + climate_report.failing_records,
+        "ambiguous_climate_variants_retained": ambiguous,
+        "quality_pass_rate": combined_rate,
+        "dataset_version_id": str(version_id),
+        "publication_status": "internal",
+        "message": "Australian urban-tree growth research evidence integrated",
+    }
+
+
 def ingest_heat(connection, args: argparse.Namespace) -> dict[str, Any]:
     """Discover, download and integrate official Landsat surface temperature."""
 
@@ -1429,17 +2802,390 @@ def ingest_heat(connection, args: argparse.Namespace) -> dict[str, Any]:
     }
 
 
+def ingest_dea_land_cover(connection, args: argparse.Namespace) -> dict[str, Any]:
+    """Aggregate the official annual DEA Level-3 COG to Melbourne model cells."""
+
+    year = args.dea_year
+    bbox = args.model_bbox or official_melbourne_bbox(connection)
+    source = str(args.dea_file) if args.dea_file else continental_cog_url(year)
+    if args.dea_file and not args.dea_file.exists():
+        raise FileNotFoundError(args.dea_file)
+    rows = list(aggregate_land_cover(
+        source,
+        year=year,
+        bbox_wgs84=bbox,
+        grid_size_m=args.dea_grid_size_m,
+    ))
+    rules, threshold = quality_configuration("dea_land_cover_observation")
+    report = validate_records(
+        "dea_land_cover_observation", rows, rules, threshold_pct=threshold
+    )
+    registered_source_id = source_id(
+        connection, "DEA Land Cover (Landsat)", "Geoscience Australia"
+    )
+    checksum = (
+        sha256_file(args.dea_file) if args.dea_file
+        else dea_request_checksum(source, year, bbox, args.dea_grid_size_m)
+    )
+    version_id = create_dataset_version(
+        connection,
+        registered_source_id=registered_source_id,
+        row_count=len(rows),
+        checksum=checksum,
+        observed_from=f"{year}-01-01",
+        observed_to=f"{year}-12-31",
+        spatial_resolution_m=30,
+    )
+    register_spatial_assets(connection, version_id, [{
+        "asset_role": "annual_land_cover_level3",
+        "source_scene_id": f"ga_ls_landcover_class_cyear_3-{year}-level3",
+        "source_href": continental_cog_url(year),
+        "local_path": str(args.dea_file.resolve()) if args.dea_file else None,
+        "media_type": "image/tiff; application=geotiff; profile=cloud-optimized",
+        "source_crs": "EPSG:3577",
+        "pixel_size_m": 30,
+        "checksum": checksum,
+        "acquired_at": f"{year}-12-31T23:59:59Z",
+        "metadata": {
+            "product_id": "ga_ls_landcover_class_cyear_3",
+            "product_version": "2.0.0",
+            "band": "level3",
+            "bbox_wgs84": list(bbox),
+            "aggregation_grid_m": args.dea_grid_size_m,
+        },
+    }])
+    record_quality_run(connection, version_id, report)
+    if not report.passed_gate:
+        connection.commit()
+        return {
+            "rows_in": len(rows), "rows_written": 0,
+            "rows_rejected": report.failing_records,
+            "quality_pass_rate": report.pass_rate,
+            "dataset_version_id": str(version_id),
+            "message": "DEA Land Cover failed the 95% quality gate",
+        }
+
+    failed = set(report.failed_indices)
+    values = [(
+        version_id, row["cell_key"], row["observed_year"], row["observed_on"],
+        row["geometry_wkt"], row["source_srid"], row["dominant_level3_code"],
+        row["dominant_level3_name"], row["cultivated_vegetation_pct"],
+        row["natural_terrestrial_vegetation_pct"],
+        row["natural_aquatic_vegetation_pct"], row["artificial_surface_pct"],
+        row["natural_bare_surface_pct"], row["water_pct"], row["valid_data_pct"],
+        args.dea_grid_size_m,
+    ) for index, row in enumerate(rows) if index not in failed]
+    with connection.cursor() as cursor:
+        cursor.execute(
+            """CREATE TEMP TABLE dea_land_cover_stage (
+                   dataset_version_id UUID, cell_key TEXT, observed_year SMALLINT,
+                   observed_on DATE, geometry_wkt TEXT, source_srid INTEGER,
+                   dominant_level3_code SMALLINT, dominant_level3_name TEXT,
+                   cultivated_vegetation_pct NUMERIC,
+                   natural_terrestrial_vegetation_pct NUMERIC,
+                   natural_aquatic_vegetation_pct NUMERIC,
+                   artificial_surface_pct NUMERIC, natural_bare_surface_pct NUMERIC,
+                   water_pct NUMERIC, valid_data_pct NUMERIC, aggregation_grid_m NUMERIC
+               ) ON COMMIT DROP"""
+        )
+        with cursor.copy(
+            """COPY dea_land_cover_stage (
+                   dataset_version_id, cell_key, observed_year, observed_on,
+                   geometry_wkt, source_srid, dominant_level3_code,
+                   dominant_level3_name, cultivated_vegetation_pct,
+                   natural_terrestrial_vegetation_pct,
+                   natural_aquatic_vegetation_pct, artificial_surface_pct,
+                   natural_bare_surface_pct, water_pct, valid_data_pct,
+                   aggregation_grid_m
+               ) FROM STDIN"""
+        ) as copy:
+            for value in values:
+                copy.write_row(value)
+        cursor.execute(
+            f"""INSERT INTO dea_land_cover_observation (
+                    dataset_version_id, cell_key, observed_year, observed_on,
+                    observation_geometry, dominant_level3_code,
+                    dominant_level3_name, cultivated_vegetation_pct,
+                    natural_terrestrial_vegetation_pct,
+                    natural_aquatic_vegetation_pct, artificial_surface_pct,
+                    natural_bare_surface_pct, water_pct, valid_data_pct,
+                    aggregation_grid_m, quality_status
+                )
+                SELECT stage.dataset_version_id, stage.cell_key, stage.observed_year,
+                       stage.observed_on,
+                       ST_GeomFromText(stage.geometry_wkt, stage.source_srid),
+                       stage.dominant_level3_code, stage.dominant_level3_name,
+                       stage.cultivated_vegetation_pct,
+                       stage.natural_terrestrial_vegetation_pct,
+                       stage.natural_aquatic_vegetation_pct,
+                       stage.artificial_surface_pct, stage.natural_bare_surface_pct,
+                       stage.water_pct, stage.valid_data_pct,
+                       stage.aggregation_grid_m, 'passed'
+                FROM dea_land_cover_stage AS stage
+                WHERE EXISTS (
+                    SELECT 1 FROM analysis_area AS area
+                    WHERE area.source_area_code = '2GMEL'
+                      AND ST_Covers(
+                        area.boundary_geometry,
+                        ST_Centroid(ST_GeomFromText(stage.geometry_wkt, stage.source_srid))
+                    )
+                )"""
+        )
+        written = cursor.rowcount
+        cursor.execute(
+            """UPDATE dataset_version
+               SET integration_status = 'integrated', publication_status = 'internal',
+                   quality_status = 'passed_with_limitations',
+                   derivation_method = 'dea_level3_30m_to_500m_class_fraction_v1'
+               WHERE dataset_version_id = %s""", (version_id,)
+        )
+        cursor.execute(
+            """INSERT INTO data_limitation (
+                   dataset_version_id, limitation_type, description,
+                   affected_area, analytical_impact, mitigation
+               ) VALUES (%s, 'spatial_and_semantic_resolution', %s, %s, %s, %s)""",
+            (
+                version_id,
+                "DEA Land Cover is an annual 30 m satellite-derived classification aggregated to modelling cells.",
+                "Melbourne modelling extent",
+                "It is suitable for land-cover covariates, not individual-tree, parcel-canopy or current field-survey claims.",
+                "Keep property canopy from the analytical Vicmap raster and use DEA only at the aligned modelling grain.",
+            ),
+        )
+    return {
+        "rows_in": len(rows), "rows_written": written,
+        "rows_rejected": report.failing_records,
+        "rows_outside_melbourne": len(values) - written,
+        "quality_pass_rate": report.pass_rate,
+        "dataset_version_id": str(version_id),
+        "year": year, "source": source,
+        "message": f"{written} Melbourne DEA land-cover cells integrated",
+    }
+
+
+def ingest_era5_land(connection, args: argparse.Namespace) -> dict[str, Any]:
+    """Download/reuse ERA5-Land NetCDF and load daily Melbourne weather controls."""
+
+    if not args.era5_start or not args.era5_end:
+        raise ValueError("era5-land requires --era5-start and --era5-end")
+    start = datetime.strptime(args.era5_start, "%Y-%m-%d").date()
+    end = datetime.strptime(args.era5_end, "%Y-%m-%d").date()
+    if end < start:
+        raise ValueError("--era5-end must not precede --era5-start")
+    bbox = args.model_bbox or official_melbourne_bbox(connection)
+    prepared_paths = getattr(args, "_era5_downloaded_paths", None)
+    if prepared_paths:
+        paths = prepared_paths
+    elif args.era5_file:
+        paths = era5_source_files(args.era5_file)
+    else:
+        output = ROOT / "data" / "raw" / "era5_land"
+        paths = download_era5_land(
+            output, start=start, end=end, bbox_wgs84=bbox
+        )
+    def rows():
+        return normalise_era5_files(paths, start=start, end=end)
+
+    rules, threshold = quality_configuration("era5_land_daily_observation")
+    report = validate_record_stream(
+        "era5_land_daily_observation", rows, rules, threshold_pct=threshold
+    )
+    registered_source_id = source_id(
+        connection,
+        "ERA5-Land hourly data from 1950 to present",
+        "Copernicus Climate Change Service / ECMWF",
+    )
+    checksum = era5_combined_checksum(paths)
+    version_id = create_dataset_version(
+        connection,
+        registered_source_id=registered_source_id,
+        row_count=report.total_records, checksum=checksum,
+        observed_from=start, observed_to=end, spatial_resolution_m=9000,
+    )
+    register_spatial_assets(connection, version_id, [{
+        "asset_role": "hourly_weather_control_netcdf",
+        "source_scene_id": path.name,
+        "source_href": "https://cds.climate.copernicus.eu/api",
+        "local_path": str(path.resolve()), "media_type": "application/x-netcdf",
+        "source_crs": "EPSG:4326 regular 0.1 degree grid", "pixel_size_m": 9000,
+        "checksum": sha256_file(path),
+        "metadata": json.loads(era5_request_metadata(start, end, bbox)),
+    } for path in paths])
+    record_quality_run(connection, version_id, report)
+    if not report.passed_gate:
+        connection.commit()
+        return {
+            "rows_in": report.total_records, "rows_written": 0,
+            "rows_rejected": report.failing_records,
+            "quality_pass_rate": report.pass_rate,
+            "dataset_version_id": str(version_id),
+            "message": "ERA5-Land failed the 95% quality gate",
+        }
+
+    failed = set(report.failed_indices)
+    with connection.cursor() as cursor:
+        cursor.execute(
+            """CREATE TEMP TABLE era5_land_stage (
+                   dataset_version_id UUID, cell_key TEXT, observed_on DATE,
+                   geometry_wkt TEXT, source_srid INTEGER,
+                   air_temperature_mean_c NUMERIC,
+                   air_temperature_min_c NUMERIC,
+                   air_temperature_max_c NUMERIC,
+                   precipitation_total_mm NUMERIC,
+                   soil_water_layer_1_mean_m3_m3 NUMERIC,
+                   surface_solar_radiation_total_mj_m2 NUMERIC,
+                   wind_speed_mean_ms NUMERIC, hour_count SMALLINT
+               ) ON COMMIT DROP"""
+        )
+        accepted = 0
+        with cursor.copy(
+            """COPY era5_land_stage (
+                   dataset_version_id, cell_key, observed_on, geometry_wkt,
+                   source_srid, air_temperature_mean_c, air_temperature_min_c,
+                   air_temperature_max_c, precipitation_total_mm,
+                   soil_water_layer_1_mean_m3_m3,
+                   surface_solar_radiation_total_mj_m2, wind_speed_mean_ms,
+                   hour_count
+               ) FROM STDIN"""
+        ) as copy:
+            for index, row in enumerate(rows()):
+                if index in failed:
+                    continue
+                copy.write_row((
+                    version_id, row["cell_key"], row["observed_on"],
+                    row["geometry_wkt"], row["source_srid"],
+                    row["air_temperature_mean_c"], row["air_temperature_min_c"],
+                    row["air_temperature_max_c"], row["precipitation_total_mm"],
+                    row["soil_water_layer_1_mean_m3_m3"],
+                    row["surface_solar_radiation_total_mj_m2"],
+                    row["wind_speed_mean_ms"], row["hour_count"],
+                ))
+                accepted += 1
+        cursor.execute(
+            f"""INSERT INTO era5_land_daily_observation (
+                    dataset_version_id, cell_key, observed_on, observation_location,
+                    air_temperature_mean_c, air_temperature_min_c,
+                    air_temperature_max_c, precipitation_total_mm,
+                    soil_water_layer_1_mean_m3_m3,
+                    surface_solar_radiation_total_mj_m2, wind_speed_mean_ms,
+                    hour_count, quality_status
+                )
+                SELECT stage.dataset_version_id, stage.cell_key, stage.observed_on,
+                       ST_Transform(
+                           ST_GeomFromText(stage.geometry_wkt, stage.source_srid),
+                           {TARGET_SRID}
+                       ), stage.air_temperature_mean_c,
+                       stage.air_temperature_min_c, stage.air_temperature_max_c,
+                       stage.precipitation_total_mm,
+                       stage.soil_water_layer_1_mean_m3_m3,
+                       stage.surface_solar_radiation_total_mj_m2,
+                       stage.wind_speed_mean_ms, stage.hour_count, 'passed'
+                FROM era5_land_stage AS stage
+                WHERE EXISTS (
+                    SELECT 1 FROM analysis_area AS area
+                    WHERE area.source_area_code = '2GMEL'
+                      AND ST_Covers(
+                          area.boundary_geometry,
+                          ST_Transform(
+                              ST_GeomFromText(stage.geometry_wkt, stage.source_srid),
+                              {TARGET_SRID}
+                          )
+                      )
+                )"""
+        )
+        written = cursor.rowcount
+        cursor.execute(
+            """UPDATE dataset_version
+               SET integration_status = 'integrated', publication_status = 'internal',
+                   quality_status = 'passed_with_limitations',
+                   derivation_method = 'era5_land_hourly_to_daily_grid_v1'
+               WHERE dataset_version_id = %s""", (version_id,)
+        )
+        cursor.execute(
+            """INSERT INTO data_limitation (
+                   dataset_version_id, limitation_type, description,
+                   affected_area, analytical_impact, mitigation
+               ) VALUES (%s, 'reanalysis_not_station_measurement', %s, %s, %s, %s)""",
+            (
+                version_id,
+                "ERA5-Land is model reanalysis at approximately 9 km and is aggregated here from hourly to daily values.",
+                "Melbourne CDS subset",
+                "It controls historical model conditions but must not be displayed as live property air temperature or property-scale weather.",
+                "Use recent BOM observations for resident-facing air temperature and preserve ERA5 units and model provenance.",
+            ),
+        )
+    return {
+        "rows_in": report.total_records, "rows_written": written,
+        "rows_rejected": report.failing_records,
+        "rows_outside_melbourne": accepted - written,
+        "quality_pass_rate": report.pass_rate,
+        "dataset_version_id": str(version_id),
+        "observed_from": start.isoformat(), "observed_to": end.isoformat(),
+        "source_files": [str(path) for path in paths],
+        "message": f"{written} daily ERA5-Land grid controls integrated",
+    }
+
+
+def prepare_era5_land_download(args: argparse.Namespace) -> None:
+    """Download ERA5 files before opening the long-lived ingestion connection.
+
+    CDS requests can take hours. Aurora or an intervening network device can
+    close a PostgreSQL connection that remains idle for that long, so the
+    database connection used for loading must be created after the downloads.
+    """
+
+    if "era5-land" not in args.jobs or args.era5_file:
+        return
+    if not args.era5_start or not args.era5_end:
+        raise ValueError("era5-land requires --era5-start and --era5-end")
+    start = datetime.strptime(args.era5_start, "%Y-%m-%d").date()
+    end = datetime.strptime(args.era5_end, "%Y-%m-%d").date()
+    if end < start:
+        raise ValueError("--era5-end must not precede --era5-start")
+
+    if args.model_bbox:
+        bbox = args.model_bbox
+    else:
+        lookup_connection = db.connect()
+        try:
+            bbox = official_melbourne_bbox(lookup_connection)
+        finally:
+            lookup_connection.close()
+
+    output = ROOT / "data" / "raw" / "era5_land"
+    args._era5_downloaded_paths = download_era5_land(
+        output, start=start, end=end, bbox_wgs84=bbox
+    )
+
+
 Job = Callable[[Any, argparse.Namespace], dict[str, Any]]
 JOBS: dict[str, Job] = {
     "sources": sync_sources,
     "boundary": ingest_boundary,
+    "lga-boundaries": ingest_lga_boundaries,
+    "council-guidance": ingest_council_species_guidance,
     "bom": ingest_bom,
     "costs": ingest_costs,
     "canopy": ingest_canopy,
+    "city-canopy": ingest_city_canopy_history,
+    "vegetation-change": ingest_metropolitan_vegetation_change,
+    "austraits": ingest_austraits,
+    "urban-growth": ingest_urban_growth,
+    "dea-land-cover": ingest_dea_land_cover,
+    "era5-land": ingest_era5_land,
     "heat": ingest_heat,
     "address": ingest_address,
     "property": ingest_property,
     "trees": ingest_trees,
+    "named-trees": ingest_named_trees,
+    "brimbank-trees": _council_job("brimbank"),
+    "yarra-trees": _council_job("yarra"),
+    "casey-trees": _council_job("casey"),
+    "hobsons-bay-trees": _council_job("hobsons_bay"),
+    "wyndham-trees": _council_job("wyndham"),
+    "port-phillip-trees": _council_job("port_phillip"),
+    "manningham-trees": _council_job("manningham"),
+    "glen-eira-trees": _council_job("glen_eira"),
 }
 
 
@@ -1457,7 +3203,60 @@ def parse_args() -> argparse.Namespace:
         help="Versioned Melbourne BOM station registry.",
     )
     parser.add_argument("--cost-file", type=Path, default=DEFAULT_COST_FILE)
+    parser.add_argument(
+        "--lga-file", type=Path,
+        help="Optional official Vicmap LGA SHP/GDB; otherwise use the REST API.",
+    )
+    parser.add_argument(
+        "--council-guidance-file", type=Path,
+        help="Authoritative council guidance CSV using the reference template.",
+    )
     parser.add_argument("--canopy-file", type=Path)
+    parser.add_argument(
+        "--city-canopy-year", type=int, choices=(2008, 2015, 2016, 2021),
+        help="City of Melbourne historical canopy snapshot year.",
+    )
+    parser.add_argument(
+        "--city-canopy-file", type=Path,
+        help="Reuse a .jsonl or .jsonl.gz City of Melbourne canopy extract.",
+    )
+    parser.add_argument(
+        "--max-city-canopy-records", type=int,
+        help="Diagnostic record limit; omit for a complete production extract.",
+    )
+    parser.add_argument(
+        "--vegetation-change-file", type=Path,
+        help="Official DataShare SHP/GDB for metropolitan 2014-2018 vegetation change.",
+    )
+    parser.add_argument(
+        "--austraits-file", type=Path,
+        help="Reuse the official austraits-7.0.0.zip release archive.",
+    )
+    parser.add_argument(
+        "--max-austraits-records", type=int,
+        help="Diagnostic limit after relevant-trait filtering; omit in production.",
+    )
+    parser.add_argument(
+        "--urban-growth-directory", type=Path,
+        help="Directory containing Raw_data_GCB.xlsx and Climate_data_GCB.xlsx.",
+    )
+    parser.add_argument(
+        "--dea-file", type=Path,
+        help="Optional local DEA Level-3 COG; otherwise stream the official public COG.",
+    )
+    parser.add_argument("--dea-year", type=int, default=2025)
+    parser.add_argument("--dea-grid-size-m", type=float, default=500.0)
+    parser.add_argument(
+        "--era5-file", type=Path,
+        help="Optional ERA5-Land NetCDF file or directory; otherwise use the CDS API.",
+    )
+    parser.add_argument("--era5-start", help="ERA5 first date: YYYY-MM-DD")
+    parser.add_argument("--era5-end", help="ERA5 last date: YYYY-MM-DD")
+    parser.add_argument(
+        "--model-bbox", nargs=4, type=float,
+        metavar=("WEST", "SOUTH", "EAST", "NORTH"),
+        help="Optional diagnostic extent; defaults to the official 2GMEL boundary bounds.",
+    )
     parser.add_argument(
         "--canopy-aggregate-file", type=Path,
         help="Completed .jsonl.gz from aggregate_vicmap_tree_extent.py.",
@@ -1477,6 +3276,14 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--address-file", type=Path, help="Reuse a gzip address JSONL extract")
     parser.add_argument("--property-file", type=Path, help="Reuse a gzip property JSONL extract")
     parser.add_argument("--urban-tree-file", type=Path, help="Reuse a gzip Tree Urban JSONL extract")
+    parser.add_argument(
+        "--city-tree-file", type=Path,
+        help="Reuse a gzip City of Melbourne named-tree JSONL extract.",
+    )
+    parser.add_argument(
+        "--council-tree-file", type=Path,
+        help="Reuse one downloaded council spatial file; use with one council-tree job.",
+    )
     parser.add_argument(
         "--vicmap-bbox", nargs=4, type=float,
         default=(144.4, -38.5, 146.0, -37.4),
@@ -1501,6 +3308,7 @@ def main() -> None:
             "Use a local DB_HOST or explicitly confirm the shared target."
         )
 
+    prepare_era5_land_download(args)
     connection = db.connect()
     try:
         for name in args.jobs:
@@ -1511,7 +3319,11 @@ def main() -> None:
             if result.get("rows_in", 0) and not result.get("rows_written", 0):
                 raise RuntimeError(result["message"])
     except Exception:
-        connection.rollback()
+        try:
+            connection.rollback()
+        except Exception:
+            # Preserve the original failure when the connection itself died.
+            pass
         raise
     finally:
         connection.close()

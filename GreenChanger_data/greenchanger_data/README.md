@@ -14,6 +14,10 @@ functions and perform database writes.
 | `bom.py` | Validate the Melbourne station registry, independently download official BOM feeds, preserve per-station failures, verify feed identity, flatten and normalise observations. |
 | `canopy.py` | Inspect and aggregate a binary tree-extent raster into Melbourne grid summaries. |
 | `canopy_baseline.py` | Define versioned baseline and source-provenance rules, including analytical-versus-proxy classification. |
+| `city_melbourne_trees.py` | Download, preserve and normalise the City of Melbourne tree inventory, including common/scientific names, taxonomy, DBH, planting information and coordinates. |
+| `council_tree_inventories.py` | Download and batch-normalise Brimbank, Yarra, Casey, Hobsons Bay, Wyndham, Port Phillip, Manningham and Glen Eira inventories into one source-labelled contract while preserving municipality, source-specific fields and limitations. |
+| `dea_land_cover.py` | Stream the official public annual DEA Level-3 COG, read only the Melbourne bounding window and aggregate the six 30 m classes into percentage covariates on aligned modelling cells. |
+| `era5_land.py` | Request monthly Melbourne subsets through the official CDS API and convert hourly NetCDF temperature, rainfall, soil-water, solar-radiation and wind variables into daily grid controls with explicit units. |
 | `classification.py` | Apply fixed 27°C/30°C temperature display bands, evidence-backed 15.3%/30% canopy progress bands and separate historical helpers, with explicit missing-data handling. |
 | `landsat.py` | Search Landsat Collection 2, sign/download assets, mask unusable pixels and calculate land-surface temperature. |
 | `heat_baseline.py` | Define and reference-test the latest-date/same-day-overlap baseline mosaic rule. |
@@ -23,9 +27,13 @@ functions and perform database writes.
 | `property_baseline.py` | Reference-test the project-defined small, medium and large lot-size categories used by Priority 4. |
 | `property_canopy.py` | Validate fine-resolution analytical canopy and calculate parcel-clipped canopy area, percentage and raster coverage without treating nodata as zero. |
 | `quality.py` | Record-level completeness, uniqueness, validity and consistency rules, including memory-safe stream validation. |
+| `research_tree_data.py` | Downloads checksum-pinned AusTraits and urban-tree-growth files; filters relevant traits, normalises tree rings, collapses exact climate duplicates and flags conflicting city-year variants. |
+| `tree_canopy_model.py` | Trains an experimental mature-tree crown-width benchmark from explicitly mature open council-tree records and derives circular mature/added canopy area without presenting cross-sectional data as longitudinal growth. |
 | `residential_scenarios.py` | Join real property baselines to four-action calculations and reviewed cost evidence while preserving measurement scope and warnings. |
 | `scenario_inputs.py` | Validate the versioned Residential Greening Scenario Simulation quantity, area, maturity, survival and suitability contract and translate it into evidence-bounded model inputs. |
 | `sources.py` | Load the source registry and calculate reproducibility checksums. |
+| `city_canopy_history.py` | Stream the official 2008/2015/2016/2021 City of Melbourne JSON-lines canopy exports, repair polygon geometry and normalise all years to one metric-area contract. |
+| `metropolitan_vegetation_change.py` | Read the large official 2014–2018 DataShare spatial download in bounded batches, reproject and repair Mesh-Block-based polygons, map the official `PP_*` percentage-point change fields, create a stable `MMB_CODE` + `UNIQUEID` key and preserve raw attributes. |
 | `spatial.py` | Read, repair, reproject, clip and write general vector datasets. |
 | `vicmap_features.py` | Extract, clean and normalise current Vicmap Address, Property and Tree Urban features from official ArcGIS APIs. |
 | `vicmap_tiles.py` | Build a georeferenced Vicmap Tree Extent proxy from official cached map tiles. |
@@ -41,6 +49,11 @@ functions and perform database writes.
 5. Quarantine failed records before integration.
 6. Transform accepted geometry into EPSG:7855 during the database load.
 7. Save the quality run, rule results and known limitations.
+
+DEA Land Cover remains a 30 m categorical satellite product even after its
+percentages are aggregated to 500 m cells; it is not used for parcel canopy.
+ERA5-Land remains approximately 9 km model reanalysis; its daily summaries are
+historical modelling controls and never replace current BOM station context.
 
 ## Canopy baseline preparation
 
@@ -66,6 +79,11 @@ API mosaic cannot satisfy this contract.
 When available, the parcel result populates `property_canopy_percentage` and
 uses scope `property_raster_clip`; it does not replace or reclassify the 500 m
 neighbourhood canopy baseline.
+
+The completed analytical run assessed 3,001,053 parcels and published
+2,984,934 available results (99.46%). The remaining 16,119 records retain
+`Unavailable` where raster coverage or safe processing eligibility was
+insufficient; they are not interpreted as zero canopy.
 
 ## Environmental classification logic
 
@@ -267,3 +285,14 @@ The tests cover normalisation, cross-record uniqueness, the unrounded quality
 gate, geometry conversion, BOM extraction, raster checks, migration history,
 classification boundaries/missing/non-finite values, scenario-input constraints,
 real-property scenario output checks and analytical calculations.
+
+Council coverage is also validated against
+`data/reference/council_tree_inventory_coverage.csv`: all 31 metropolitan
+councils appear exactly once, while only nine currently have a suitable
+integrated row-level inventory.
+
+Species popularity is deliberately calculated in PostGIS rather than this
+package because the query must resolve a searched address to its current LGA
+and aggregate only current application-ready council versions. It excludes
+unnamed Vicmap points and never converts observed frequency into planting
+approval or property suitability.

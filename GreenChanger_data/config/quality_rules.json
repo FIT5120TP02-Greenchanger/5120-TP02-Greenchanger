@@ -6,6 +6,21 @@
       {"code": "ANALYSIS_AREA_CODE_UNIQUE", "type": "unique", "fields": ["source_area_code", "source_year"]},
       {"code": "ANALYSIS_AREA_SIZE_POSITIVE", "type": "range", "field": "area_m2", "minimum": 0, "inclusive_minimum": false}
     ],
+    "local_government_area": [
+      {"code": "LGA_REQUIRED", "type": "required", "fields": ["source_feature_id", "lga_code", "lga_name", "lga_official_name", "geometry_wkt"]},
+      {"code": "LGA_CODE_UNIQUE", "type": "unique", "fields": ["lga_code"]}
+    ],
+    "council_species_guidance": [
+      {"code": "COUNCIL_GUIDANCE_REQUIRED", "type": "required", "fields": ["source_name", "publisher", "lga_code", "mature_size_class", "guidance_status", "effective_from", "source_url", "licence", "limitation"]},
+      {"code": "COUNCIL_GUIDANCE_ROW_UNIQUE", "type": "unique", "fields": ["source_row_number"]},
+      {"code": "COUNCIL_GUIDANCE_STATUS_ALLOWED", "type": "allowed", "field": "guidance_status", "values": ["approved", "recommended", "conditional", "approval_required", "not_recommended"]},
+      {"code": "COUNCIL_GUIDANCE_SIZE_ALLOWED", "type": "allowed", "field": "mature_size_class", "values": ["small", "medium", "large"]},
+      {"code": "COUNCIL_GUIDANCE_HEIGHT_MIN_POSITIVE", "type": "range", "field": "mature_height_min_m", "minimum": 0, "inclusive_minimum": false, "allow_blank": true},
+      {"code": "COUNCIL_GUIDANCE_HEIGHT_MAX_POSITIVE", "type": "range", "field": "mature_height_max_m", "minimum": 0, "inclusive_minimum": false, "allow_blank": true},
+      {"code": "COUNCIL_GUIDANCE_CANOPY_MIN_POSITIVE", "type": "range", "field": "mature_canopy_width_min_m", "minimum": 0, "inclusive_minimum": false, "allow_blank": true},
+      {"code": "COUNCIL_GUIDANCE_CANOPY_MAX_POSITIVE", "type": "range", "field": "mature_canopy_width_max_m", "minimum": 0, "inclusive_minimum": false, "allow_blank": true},
+      {"code": "COUNCIL_GUIDANCE_PLANTING_AREA_POSITIVE", "type": "range", "field": "minimum_planting_area_m2", "minimum": 0, "inclusive_minimum": false, "allow_blank": true}
+    ],
     "address": [
       {"code": "ADDRESS_REQUIRED", "type": "required", "fields": ["source_address_id", "full_address", "geometry_wkt"]},
       {"code": "ADDRESS_UNIQUE", "type": "unique", "fields": ["source_address_id"]}
@@ -20,6 +35,15 @@
       {"code": "URBAN_TREE_UNIQUE", "type": "unique", "fields": ["source_tree_id"]},
       {"code": "URBAN_TREE_CANOPY_RADIUS_POSITIVE", "type": "range", "field": "canopy_radius_m", "minimum": 0, "inclusive_minimum": false, "allow_blank": true},
       {"code": "URBAN_TREE_HEIGHT_POSITIVE", "type": "range", "field": "height_m", "minimum": 0, "inclusive_minimum": false, "allow_blank": true}
+    ],
+    "named_tree_inventory": [
+      {"code": "NAMED_TREE_REQUIRED", "type": "required", "fields": ["source_tree_id", "display_name", "geometry_wkt"]},
+      {"code": "NAMED_TREE_UNIQUE", "type": "unique", "fields": ["source_tree_id"]},
+      {"code": "NAMED_TREE_LATITUDE_RANGE", "type": "range", "field": "latitude", "minimum": -39.5, "maximum": -37.0},
+      {"code": "NAMED_TREE_LONGITUDE_RANGE", "type": "range", "field": "longitude", "minimum": 144.0, "maximum": 146.0},
+      {"code": "NAMED_TREE_DBH_POSITIVE", "type": "range", "field": "diameter_breast_height_cm", "minimum": 0, "inclusive_minimum": false, "allow_blank": true},
+      {"code": "NAMED_TREE_HEIGHT_POSITIVE", "type": "range", "field": "height_m", "minimum": 0, "inclusive_minimum": false, "allow_blank": true},
+      {"code": "NAMED_TREE_CANOPY_WIDTH_POSITIVE", "type": "range", "field": "canopy_width_m", "minimum": 0, "inclusive_minimum": false, "allow_blank": true}
     ],
     "weather_observation": [
       {"code": "WEATHER_REQUIRED", "type": "required", "fields": ["station_code", "station_name", "observed_at", "air_temperature_c", "geometry_wkt"]},
@@ -39,6 +63,64 @@
       {"code": "VEGETATION_CELL_UNIQUE", "type": "unique", "fields": ["observed_on", "geometry_wkt"]},
       {"code": "VEGETATION_PERCENT_RANGE", "type": "range", "field": "vegetation_percentage", "minimum": 0, "maximum": 100, "allow_blank": true},
       {"code": "CONFIDENCE_RANGE", "type": "range", "field": "confidence_score", "minimum": 0, "maximum": 100, "allow_blank": true}
+    ],
+    "dea_land_cover_observation": [
+      {"code": "DEA_LAND_COVER_REQUIRED", "type": "required", "fields": ["cell_key", "observed_year", "observed_on", "dominant_level3_code", "dominant_level3_name", "geometry_wkt"]},
+      {"code": "DEA_LAND_COVER_CELL_UNIQUE", "type": "unique", "fields": ["cell_key", "observed_year"]},
+      {"code": "DEA_LAND_COVER_CLASS_ALLOWED", "type": "allowed", "field": "dominant_level3_code", "values": [111, 112, 124, 215, 216, 220]},
+      {"code": "DEA_CULTIVATED_PERCENT_RANGE", "type": "range", "field": "cultivated_vegetation_pct", "minimum": 0, "maximum": 100},
+      {"code": "DEA_NATURAL_TERRESTRIAL_PERCENT_RANGE", "type": "range", "field": "natural_terrestrial_vegetation_pct", "minimum": 0, "maximum": 100},
+      {"code": "DEA_NATURAL_AQUATIC_PERCENT_RANGE", "type": "range", "field": "natural_aquatic_vegetation_pct", "minimum": 0, "maximum": 100},
+      {"code": "DEA_ARTIFICIAL_PERCENT_RANGE", "type": "range", "field": "artificial_surface_pct", "minimum": 0, "maximum": 100},
+      {"code": "DEA_BARE_PERCENT_RANGE", "type": "range", "field": "natural_bare_surface_pct", "minimum": 0, "maximum": 100},
+      {"code": "DEA_WATER_PERCENT_RANGE", "type": "range", "field": "water_pct", "minimum": 0, "maximum": 100},
+      {"code": "DEA_VALID_DATA_PERCENT_RANGE", "type": "range", "field": "valid_data_pct", "minimum": 0, "inclusive_minimum": false, "maximum": 100}
+    ],
+    "era5_land_daily_observation": [
+      {"code": "ERA5_LAND_REQUIRED", "type": "required", "fields": ["cell_key", "observed_on", "air_temperature_mean_c", "air_temperature_min_c", "air_temperature_max_c", "geometry_wkt", "hour_count"]},
+      {"code": "ERA5_LAND_CELL_DATE_UNIQUE", "type": "unique", "fields": ["cell_key", "observed_on"]},
+      {"code": "ERA5_LAND_MEAN_TEMPERATURE_PLAUSIBLE", "type": "range", "field": "air_temperature_mean_c", "minimum": -30, "maximum": 60},
+      {"code": "ERA5_LAND_MIN_TEMPERATURE_PLAUSIBLE", "type": "range", "field": "air_temperature_min_c", "minimum": -30, "maximum": 60},
+      {"code": "ERA5_LAND_MAX_TEMPERATURE_PLAUSIBLE", "type": "range", "field": "air_temperature_max_c", "minimum": -30, "maximum": 60},
+      {"code": "ERA5_LAND_TEMPERATURE_ORDER", "type": "field_order", "lower_field": "air_temperature_min_c", "upper_field": "air_temperature_max_c"},
+      {"code": "ERA5_LAND_PRECIPITATION_NONNEGATIVE", "type": "range", "field": "precipitation_total_mm", "minimum": 0, "allow_blank": true},
+      {"code": "ERA5_LAND_SOIL_WATER_RANGE", "type": "range", "field": "soil_water_layer_1_mean_m3_m3", "minimum": 0, "maximum": 1, "allow_blank": true},
+      {"code": "ERA5_LAND_SOLAR_NONNEGATIVE", "type": "range", "field": "surface_solar_radiation_total_mj_m2", "minimum": 0, "allow_blank": true},
+      {"code": "ERA5_LAND_WIND_NONNEGATIVE", "type": "range", "field": "wind_speed_mean_ms", "minimum": 0, "allow_blank": true},
+      {"code": "ERA5_LAND_HOUR_COVERAGE", "type": "range", "field": "hour_count", "minimum": 18, "maximum": 24}
+    ],
+    "canopy_snapshot_feature": [
+      {"code": "CANOPY_SNAPSHOT_REQUIRED", "type": "required", "fields": ["source_feature_key", "observed_year", "observed_on", "geometry_wkt", "calculated_area_m2"]},
+      {"code": "CANOPY_SNAPSHOT_UNIQUE", "type": "unique", "fields": ["source_feature_key"]},
+      {"code": "CANOPY_SNAPSHOT_YEAR_ALLOWED", "type": "allowed", "field": "observed_year", "values": [2008, 2015, 2016, 2021]},
+      {"code": "CANOPY_SNAPSHOT_AREA_POSITIVE", "type": "range", "field": "calculated_area_m2", "minimum": 0, "inclusive_minimum": false},
+      {"code": "CANOPY_SNAPSHOT_SOURCE_AREA_CONSISTENT", "type": "range", "field": "source_area_difference_pct", "minimum": 0, "maximum": 2, "allow_blank": true}
+    ],
+    "metropolitan_vegetation_change_feature": [
+      {"code": "VEGETATION_CHANGE_REQUIRED", "type": "required", "fields": ["source_feature_key", "observed_from", "observed_to", "geometry_wkt", "has_change_measure"]},
+      {"code": "VEGETATION_CHANGE_UNIQUE", "type": "unique", "fields": ["source_feature_key"]},
+      {"code": "VEGETATION_CHANGE_MEASURE_RECOGNISED", "type": "allowed", "field": "has_change_measure", "values": [true]},
+      {"code": "TREE_CHANGE_RANGE", "type": "range", "field": "tree_change_pct_points", "minimum": -100, "maximum": 100, "allow_blank": true},
+      {"code": "SHRUB_CHANGE_RANGE", "type": "range", "field": "shrub_change_pct_points", "minimum": -100, "maximum": 100, "allow_blank": true},
+      {"code": "GRASS_CHANGE_RANGE", "type": "range", "field": "grass_change_pct_points", "minimum": -100, "maximum": 100, "allow_blank": true},
+      {"code": "TOTAL_CHANGE_RANGE", "type": "range", "field": "total_vegetation_change_pct_points", "minimum": -100, "maximum": 100, "allow_blank": true}
+    ],
+    "plant_trait_observation": [
+      {"code": "PLANT_TRAIT_REQUIRED", "type": "required", "fields": ["source_row_number", "dataset_id", "taxon_name", "trait_name", "value_text"]},
+      {"code": "PLANT_TRAIT_SOURCE_ROW_UNIQUE", "type": "unique", "fields": ["source_row_number"]},
+      {"code": "PLANT_TRAIT_PROTOTYPE_SCOPE", "type": "allowed", "field": "trait_name", "values": ["establishment_light_environment_index", "leaf_water_use_efficiency_instantaneous", "leaf_water_use_efficiency_integrated", "leaf_water_use_efficiency_intrinsic", "lifespan", "plant_growth_form", "plant_height", "plant_tolerance_water_logged_soils", "root_structure", "root_system_type", "stem_growth_habit"]}
+    ],
+    "urban_tree_growth_observation": [
+      {"code": "TREE_GROWTH_REQUIRED", "type": "required", "fields": ["source_row_number", "city", "species_name", "tree_number", "ring_sequence", "tree_ring_width_mm"]},
+      {"code": "TREE_GROWTH_SOURCE_ROW_UNIQUE", "type": "unique", "fields": ["source_row_number"]},
+      {"code": "TREE_RING_WIDTH_PLAUSIBLE", "type": "range", "field": "tree_ring_width_mm", "minimum": 0, "inclusive_minimum": false, "maximum": 10},
+      {"code": "BASAL_AREA_INCREMENT_PLAUSIBLE", "type": "range", "field": "basal_area_increment_cm2_year", "minimum": 0, "maximum": 100, "allow_blank": true}
+    ],
+    "urban_tree_growth_climate": [
+      {"code": "TREE_GROWTH_CLIMATE_REQUIRED", "type": "required", "fields": ["source_row_number", "city", "year", "variant_number", "source_occurrence_count", "AP", "PDM", "PWM", "PDQ", "MTWM", "MAT", "MTCM", "IDM", "IP"]},
+      {"code": "TREE_GROWTH_CLIMATE_ROW_UNIQUE", "type": "unique", "fields": ["source_row_number"]},
+      {"code": "TREE_GROWTH_CLIMATE_YEAR_PLAUSIBLE", "type": "range", "field": "year", "minimum": 1900, "maximum": 2100},
+      {"code": "TREE_GROWTH_CLIMATE_PRECIPITATION_PLAUSIBLE", "type": "range", "field": "AP", "minimum": 0, "maximum": 10000}
     ],
     "cost_estimate": [
       {"code": "COST_REQUIRED", "type": "required", "fields": ["option_code", "cost_context", "cost_basis", "minimum_cost", "maximum_cost", "currency", "includes_installation", "source_name", "source_reference", "source_url", "valid_from", "valid_to", "last_verified_at", "confidence_level"]},

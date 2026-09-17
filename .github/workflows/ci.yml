@@ -2,17 +2,16 @@ name: CI
 
 on:
   push:
-    branches: [ main ]
+    branches: [main]
   pull_request:
-    branches: [ main ]
+    branches: [main]
 
 concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true
 
-
 permissions:
-    contents: read
+  contents: read
 
 jobs:
   # Run data component tests
@@ -22,29 +21,30 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
         with:
+          # Fetch all history so the migration check can compare with main.
           fetch-depth: 0
-        
-          # Fetch all history for all branches and tags to ensure that the migration 
-          # check script has access to the full commit history.
+
       - name: Setup Python
         uses: actions/setup-python@v5
         with:
           python-version: "3.12"
+          cache: pip
+          cache-dependency-path: GreenChanger_data/requirements.txt
 
       - name: Block edits to applied migrations
         if: github.event_name == 'pull_request'
+        run: python .github/scripts/check_migrations.py origin/main HEAD
 
-        #run the migration check script to ensure that no applied migrations have been edited in the pull request.
-        run: python .github/scripts/check_migrations.py origin/main HEAD 
-
-      - name: Install shapely
-        run: python -m pip install shapely
+      - name: Install data-component dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r GreenChanger_data/requirements.txt
 
       - name: Run data component tests
         run: python -m unittest discover -v
         working-directory: GreenChanger_data
 
-   # Run backend tests with linting and pytest     
+  # Run backend tests with linting and pytest
   backend-tests:
     runs-on: ubuntu-latest
     defaults:
@@ -68,8 +68,7 @@ jobs:
         run: ruff check .
 
       - name: Run tests
-        run: pytest -q 
-        # run pytest by pyproject.toml configuration, pointing to "tests" files in the backend directory.
+        run: pytest -q
 
   # Build and test the backend Docker image
   docker-build:
@@ -106,9 +105,8 @@ jobs:
           docker logs gs-ci
           docker rm -f gs-ci
           exit 1
-  # Exercise the one part of the deploy that is testable off the host: the sequence
-  # that swaps a built frontend into the directory nginx serves. Everything else in
-  # deploy.yml (SSM delivery, OIDC, the host itself) only runs on a push to main.
+
+  # Exercise the frontend publication sequence without deploying.
   deploy-script:
     runs-on: ubuntu-latest
     steps:

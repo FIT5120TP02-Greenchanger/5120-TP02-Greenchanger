@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import csv
+from datetime import date
 from pathlib import Path
 from typing import Any, Iterable, Mapping
 
@@ -19,11 +20,25 @@ COST_OPTIONS = {
 }
 
 
-def load_cost_rows(path: Path = DEFAULT_COSTS) -> list[dict[str, str]]:
-    """Load the reviewed, version-controlled cost evidence."""
+def load_cost_rows(
+    path: Path = DEFAULT_COSTS,
+    *,
+    as_of: date | None = None,
+) -> list[dict[str, str]]:
+    """Load reviewed cost evidence that is valid on ``as_of`` (today by default)."""
 
     with path.open(encoding="utf-8", newline="") as source:
-        return list(csv.DictReader(source))
+        rows = list(csv.DictReader(source))
+    effective_date = as_of or date.today()
+    return [
+        row
+        for row in rows
+        if date.fromisoformat(row["valid_from"]) <= effective_date
+        and (
+            not row["valid_to"]
+            or effective_date <= date.fromisoformat(row["valid_to"])
+        )
+    ]
 
 
 def _cost_units(action_type: str, inputs: Mapping[str, Any]) -> tuple[float, float]:

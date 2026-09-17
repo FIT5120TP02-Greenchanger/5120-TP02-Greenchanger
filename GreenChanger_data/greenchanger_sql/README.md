@@ -32,7 +32,29 @@ greenchanger_sql/
 │   ├── 020_evidence_backed_absolute_classifications.sql
 │   ├── 033_tree_type_costs.sql
 │   ├── 034_separate_predictive_models.sql
-│   └── 035_cost_estimate_tree_type_business_key.sql
+│   ├── 035_cost_estimate_tree_type_business_key.sql
+│   ├── 036_named_tree_inventory.sql
+│   ├── 037_metropolitan_named_tree_inventories.sql
+│   ├── 038_city_canopy_history.sql
+│   ├── 039_historical_canopy_and_vegetation_change.sql
+│   ├── 040_open_tree_research_evidence.sql
+│   ├── 041_dea_land_cover_and_era5_land.sql
+│   ├── 042_retire_superseded_era5_partition.sql
+│   ├── 043_council_species_guidance.sql
+│   ├── 044_council_tree_species_popularity.sql
+│   ├── 045_fix_council_species_popularity_status.sql
+│   ├── 046_require_source_council_for_popularity.sql
+│   ├── 047_fallback_to_metropolitan_tree_popularity.sql
+│   ├── 048_fix_council_inventory_availability_check.sql
+│   ├── 049_align_current_tree_costs.sql
+│   ├── 050_address_tree_catalog_with_images.sql
+│   ├── 051_fix_tree_catalog_currency_type.sql
+│   ├── 052_complete_tree_catalog_enrichment.sql
+│   ├── 053_complete_address_tree_catalog.sql
+│   ├── 054_align_gbif_supported_image_licences.sql
+│   ├── 055_include_priced_species_in_complete_catalog.sql
+│   ├── 056_wikimedia_commons_image_fallback.sql
+│   └── 057_property_categories.sql
 ├── seeds/001_reference_data.sql
 └── analytics/001_views.sql
 ```
@@ -52,6 +74,21 @@ greenchanger_sql/
 | `migrations/008_heat_baseline_mosaic.sql` | Creates the deduplicated 500 m Landsat heat baseline structure and current view. |
 | `migrations/009_canopy_baseline.sql` | Creates the aligned 500 m canopy baseline structure and current view. |
 | `migrations/025_current_dataset_sources.sql` | Registers the current multi-station Melbourne BOM source without changing the checksum of historical migration 002. |
+| `migrations/043_council_species_guidance.sql` | Adds authoritative Victorian LGA polygons, versioned council species guidance and address-based verified/approval-required species lists. |
+| `migrations/044_council_tree_species_popularity.sql` | Resolves an address to its LGA, ranks species in the latest named public-tree inventories, attaches separate guidance status and returns explicit unavailability where no inventory exists. |
+| `migrations/045_fix_council_species_popularity_status.sql` | Qualifies the popularity function's internal status alias and positional final ordering so PostgreSQL cannot confuse them with output-column variables. |
+| `migrations/046_require_source_council_for_popularity.sql` | Requires both source-municipality identity and spatial LGA membership, preventing a neighbouring council's boundary-edge record from creating false coverage. |
+| `migrations/047_fallback_to_metropolitan_tree_popularity.sql` | When an address council has no integrated inventory, returns at most the top ten species across all integrated Melbourne council inventories with an explicit warning and approval limitation. |
+| `migrations/048_fix_council_inventory_availability_check.sql` | Corrects the fallback availability test so it independently detects matching spatial and source-municipality inventory coverage. |
+| `migrations/049_align_current_tree_costs.sql` | Uses the Melbourne calendar date for current costs and removes superseded anonymous tree-price rows from the application view. |
+| `migrations/050_address_tree_catalog_with_images.sql` | Adds attributed public-domain tree images and one address-based catalogue function returning council status, current supply/installed cost ranges and image metadata. |
+| `migrations/051_fix_tree_catalog_currency_type.sql` | Casts the fixed-width database currency code to text so the address catalogue function satisfies its declared API return type. |
+| `migrations/052_complete_tree_catalog_enrichment.sql` | Adds an audited GBIF image-enrichment result for every scientific name and a complete catalogue view that separates exact prices/images from explicit generic or unavailable fallbacks. |
+| `migrations/053_complete_address_tree_catalog.sql` | Expands the address catalogue from three exact-price trees to exact stock plus locally popular species, retaining explicit generic-cost and unavailable-image states. |
+| `migrations/054_align_gbif_supported_image_licences.sql` | Aligns the image source contract with GBIF's supported open occurrence filters: record-level CC0 and CC BY 4.0. |
+| `migrations/055_include_priced_species_in_complete_catalog.sql` | Keeps current species-specific catalogue stock visible even when its botanical name is not yet present in `species_profile`. |
+| `migrations/056_wikimedia_commons_image_fallback.sql` | Adds a Wikimedia Commons fallback for missing images, requiring an exact Wikidata P225 match for an exact GBIF-backed taxon and retaining the file-level open licence, creator, source page and attribution. |
+| `migrations/057_property_categories.sql` | Adds controlled property/place categories such as House, Station and Road, source-backed parcel assignments, raw Vicmap code labels and an address lookup that remains explicitly Unclassified when no authoritative category source has been loaded. |
 | `migrations/010_property_baseline_lookup.sql` | Adds model validation gates and the application-facing property baseline lookup. |
 | `migrations/011_tree_urban_quality_scope.sql` | Adds Tree Urban record quality status and the dataset-version index required by API ingestion. |
 | `migrations/012_property_tree_limitations.sql` | Restricts property tree lookup to the current `2GMEL` version and always returns the machine-derived-data warning. |
@@ -66,7 +103,15 @@ greenchanger_sql/
 | `migrations/032_fixed_canopy_benchmark_bands.sql` | Replaces canopy terciles with fixed evidence-backed progress bands using the official 15.3% metropolitan baseline and 30% Plan for Victoria urban target. |
 | `migrations/033_tree_type_costs.sql` | Adds named tree type and botanical-name fields to cost estimates, indexes current tree-price lookup and publishes both fields through the application-ready cost view. |
 | `migrations/034_separate_predictive_models.sql` | Registers four separate predictive-model contracts with licence gates and suppressed outputs until validation. |
+| `migrations/038_city_canopy_history.sql` | Adds versioned 2016/2021 City of Melbourne canopy polygons and registers them as internal five-year model inputs. |
+| `migrations/039_historical_canopy_and_vegetation_change.sql` | Adds the 2008/2015 City canopy sources and allowed years, plus a separate versioned 2014–2018 metropolitan Mesh-Block vegetation-change table and latest view. |
+| `migrations/040_open_tree_research_evidence.sql` | Adds versioned AusTraits observations, seven-city tree-ring growth and climate evidence, conflict-safe views, licences and optional canopy-model links. |
+| `migrations/041_dea_land_cover_and_era5_land.sql` | Adds indexed, versioned 500 m DEA land-cover class fractions and daily approximately 9 km ERA5-Land weather controls while keeping both separate from parcel canopy, Landsat surface heat and BOM station observations. |
+| `migrations/042_retire_superseded_era5_partition.sql` | Removes observations from partial ERA5-Land versions only when every row is identically present in a complete-period version, then retires the partial version while preserving provenance. |
 | `migrations/035_cost_estimate_tree_type_business_key.sql` | Adds tree type to the cost-estimate source/version business key while treating null tree types as equal so non-tree options remain idempotent. |
+| `migrations/049_align_current_tree_costs.sql` | Retires pre-species anonymous backyard-tree prices and evaluates current price validity on the Australia/Melbourne calendar date. |
+| `migrations/036_named_tree_inventory.sql` | Adds a source-specific City of Melbourne named-tree table, species taxonomy, latest-version view and radius lookup function. |
+| `migrations/037_metropolitan_named_tree_inventories.sql` | Extends the named-tree contract to Brimbank, Yarra, Casey, Hobsons Bay and Wyndham; preserves municipality, taxonomic precision, observed dimensions and health; and adds the source-labelled metropolitan radius lookup. |
 | `migrations/018_environment_context_radius.sql` | Adds a bounded, application-facing radius query for current mapped-tree points and clipped 500 m heat cells. |
 | `migrations/019_environment_context_by_address.sql` | Resolves one unambiguous Melbourne address and delegates to the bounded coordinate-radius query. |
 | `migrations/020_evidence_backed_absolute_classifications.sql` | Stores threshold evidence with exact source locators and adds measurement-specific daily-mean air-temperature and canopy benchmark functions. |
@@ -78,8 +123,10 @@ greenchanger_sql/
 | `analytics/001_views.sql` | Defines reusable analytical views for dataset quality, site baselines and scenario comparison. |
 
 `schema.sql` must describe the same current structure as the cumulative
-migrations. Existing databases advance through migrations; new schema changes
-must be added as the next numbered migration.
+migrations. Its final include directive is expanded by `apply_database.py` to
+reuse migration 037 without duplicating the SQL. Existing databases advance
+through migrations; new schema changes must be added as the next numbered
+migration.
 
 ## Main entity groups
 
@@ -110,6 +157,14 @@ must be added as the next numbered migration.
 Vicmap Address `property_pfi` is stored in `address.source_property_id` and
 matches `parcel.source_parcel_id`. Migration 005 adds this join key plus useful
 address/property attributes and indexes.
+
+Migration 057 adds `property_category`, `property_category_assignment`,
+`application_ready_property_category` and `get_property_category(address,
+limit)`. Categories such as `house`, `station` and `road` require a cited
+building, land-use, transport or feature-of-interest source. Vicmap Property
+`O`/`G` and Vicmap Address `S`/`M` remain separately decoded raw fields and are
+never treated as those use categories. Existing rows therefore return
+`unclassified_source_not_loaded` until a supported classification is ingested.
 
 Migration 010 exposes `latest_greater_melbourne_address_property` and the
 selective `get_property_baseline(address, limit)` function. It attaches current
@@ -146,6 +201,20 @@ resolve coordinates, accepts a unique result or one exact full-address match,
 and rejects missing, unmatched or ambiguous searches. It then delegates radius,
 layer, boundary and result-limit enforcement to migration 018 rather than
 duplicating spatial-query logic.
+
+Migrations 044–048 expose and harden
+`get_council_tree_species_popularity_by_address(address, result_limit)`. It
+spatially assigns the searched address and current named-tree records to the
+same authoritative LGA and also requires the inventory's source municipality to
+match that LGA. It groups case-normalised scientific names (falling back to
+common names), ranks their frequency and reports their share of identifiable
+inventory records. It aggregates only the latest application-ready version of
+each council source. Recommendation status is joined separately from current
+council guidance; an inventory count never becomes planting approval.
+If the address council has no integrated named-tree inventory, migration 047
+returns at most ten overall Melbourne inventory-frequency results. Every such
+row has status `fallback_overall_observed_public_tree_frequency` and warning
+text stating that it is not council-specific evidence or planting approval.
 
 Migration 022 adds case/whitespace normalisation and expands unambiguous
 Australian street types including `RD`, `AVE`, `BLVD`, `CRES`, `CT`, `DR`,
@@ -202,9 +271,14 @@ historical values.
   source type, native source-pixel size and an explicit proxy flag. The
   `latest_greater_melbourne_canopy_baseline` view exposes the current version.
 - `vegetation_observation`, `canopy_patch`, `urban_tree`: canopy and greenery.
+- `named_tree_inventory`: City of Melbourne council inventory records with common/scientific names, taxonomy, DBH and planting metadata; deliberately separate from unnamed Vicmap points.
+- `local_government_area`: current versioned Vicmap property-aligned LGA polygons used to resolve an address to its council.
+- `council_species_guidance`: effective-dated, source- and licence-backed council planting guidance; explicit approval/recommendation remains separate from local inventory occurrence.
 - `species_profile`, `greening_option`: available intervention definitions.
 - `cost_estimate`: dated, source-backed indicative cost ranges, including named tree type and botanical name where applicable.
 - `application_ready_cost_estimate`: current cost contexts joined to greening-option labels with tree type, confidence, inclusions and the mandatory not-a-quote disclaimer.
+- `application_ready_tree_species_image`: active illustrative tree photographs with creator, licence, source page, alt text and mandatory image limitation.
+- `get_tree_planting_catalog_by_address(address, result_limit)`: the frontend-ready address → council → tree type → current cost → attributed image pipeline.
 - `model_version.validation_status`: explicit model gate. Only `validated`
   models can appear in `application_ready_measure_result`.
 - `model_version.output_precision`: independent precision gate. Validation can
@@ -252,8 +326,8 @@ To add a schema change:
 5. Run `python -m unittest discover -v`.
 6. Check status before applying to shared Aurora.
 
-The next migration number is `025`. Never modify `001`–`024` after they have
-been applied. Their checksums are part of the migration audit trail.
+The next migration number is `047`. Never modify an applied migration; its
+checksum is part of the migration audit trail.
 
 ## Data preparation and database integration
 
@@ -284,6 +358,11 @@ For address/property ingestion:
 - Unique constraints prevent duplicate source keys within one version.
 - Applied-migration checksum mismatches stop deployment rather than silently
   changing history.
+- Property-canopy rows with inadequate raster coverage or processing
+  eligibility remain `Unavailable`; database views never reinterpret them as
+  zero canopy.
+- Council inventory records remain source-labelled and municipality-specific;
+  a partial significant-tree register is not promoted as a complete inventory.
 - Shared destructive reset is blocked in `migrate.py`; use a local sandbox for
   rebuild testing.
 
@@ -348,5 +427,12 @@ FROM get_environment_context_by_address(
     500,
     ARRAY['trees', 'heat'],
     1000
+);
+
+-- Most commonly recorded public-tree species in the selected address council
+SELECT popularity_rank, display_name, recorded_tree_count,
+       recorded_tree_percentage, list_category, guidance_status, limitation
+FROM get_council_tree_species_popularity_by_address(
+    '1 COLLINS STREET MELBOURNE 3000', 20
 );
 ```

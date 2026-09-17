@@ -25,7 +25,7 @@ repository.
 | `__init__.py` | Marks this directory as the command package and supports imports shared by scripts and tests. |
 | `db.py` | PostgreSQL connection settings, local-password handling and shared Aurora IAM-token generation. |
 | `migrate.py` | Apply, inspect or baseline numbered SQL migrations. Shared reset is prohibited. |
-| `ingestion.py` | Unified source, boundary, BOM, cost, canopy, heat, address, property and mapped-tree ingestion jobs. |
+| `ingestion.py` | Unified source, boundary, BOM, cost, canopy, heat, DEA Land Cover, ERA5-Land, property, tree and open tree-research ingestion jobs. |
 | `check_source_registry.py` | Validate source configuration and print target SRID/quality threshold. |
 | `extract_bom.py` | Download and normalise the BOM feed without loading the database. |
 | `extract_vicmap_canopy_api.py` | Create the documented lower-resolution Vicmap canopy tile proxy. |
@@ -35,6 +35,8 @@ repository.
 | `prepare_vector.py` | Repair/reproject/clip a general vector source. |
 | `validate_csv.py` | Apply configured quality rules to a staging CSV and write rejected rows. |
 | `calculate_measures.py` | Calculate Data Analytics & Insight Development outputs or print all formulas with sample results. |
+| `train_tree_canopy_model.py` | Train and evaluate the experimental mature crown-width model, preserving a sealed test partition and writing the model plus metrics. |
+| `predict_tree_canopy.py` | Load the saved mature crown-width model and print mature width, current/mature crown area, added canopy and model-level held-out R² for one tree as JSON. |
 | `validate_intervention_model.py` | Run source-linked intervention cases and update model status only after every case passes. |
 | `validate_residential_greening_inputs.py` | Validate and print sample outputs for the four-action, versioned Residential Greening Scenario Simulation input contract without database writes. |
 | `run_residential_greening_scenarios.py` | Query representative small/medium/large Melbourne properties and print four-action area, heat, cost and output-check results. |
@@ -69,6 +71,54 @@ python greenchanger_script/ingestion.py property --confirm-shared
 
 # Load mapped individual-tree context from the official Tree Urban API
 python greenchanger_script/ingestion.py trees --confirm-shared
+python greenchanger_script/ingestion.py named-trees --confirm-shared
+
+# Extend named public-tree coverage across central, inner, western and
+# southeastern Melbourne. Each job creates a separate version and source label.
+python greenchanger_script/ingestion.py brimbank-trees --confirm-shared
+python greenchanger_script/ingestion.py yarra-trees --confirm-shared
+python greenchanger_script/ingestion.py casey-trees --confirm-shared
+python greenchanger_script/ingestion.py hobsons-bay-trees --confirm-shared
+python greenchanger_script/ingestion.py wyndham-trees --confirm-shared
+python greenchanger_script/ingestion.py port-phillip-trees --confirm-shared
+python greenchanger_script/ingestion.py manningham-trees --confirm-shared
+python greenchanger_script/ingestion.py glen-eira-trees --confirm-shared
+
+# Load the four City of Melbourne polygon snapshots. Each run preserves and
+# checksums a separate official API extraction.
+python greenchanger_script/ingestion.py city-canopy \
+  --city-canopy-year 2008 --confirm-shared
+python greenchanger_script/ingestion.py city-canopy \
+  --city-canopy-year 2015 --confirm-shared
+python greenchanger_script/ingestion.py city-canopy \
+  --city-canopy-year 2016 --confirm-shared
+python greenchanger_script/ingestion.py city-canopy \
+  --city-canopy-year 2021 --confirm-shared
+
+# DataShare uses an order/download workflow, so supply the downloaded SHP/GDB.
+python greenchanger_script/ingestion.py vegetation-change \
+  --vegetation-change-file /path/to/VEGETATION_COVER_2014_18_CHG.shp \
+  --confirm-shared
+
+# Stream only the Melbourne window of the official public 2025 Level-3 COG,
+# aggregate 30 m classes to 500 m model cells, then boundary-filter in PostGIS.
+python greenchanger_script/ingestion.py dea-land-cover \
+  --dea-year 2025 --dea-grid-size-m 500 --confirm-shared
+
+# Download an authenticated CDS subset and aggregate its hourly fields to daily
+# approximately 9 km weather-control points. Accept the dataset terms and set
+# ~/.cdsapirc first, following the official CDS API instructions.
+python greenchanger_script/ingestion.py era5-land \
+  --era5-start 2014-01-01 --era5-end 2018-12-31 --confirm-shared
+
+# Reuse already downloaded NetCDF files without another API request.
+python greenchanger_script/ingestion.py era5-land \
+  --era5-file data/raw/era5_land \
+  --era5-start 2014-01-01 --era5-end 2018-12-31 --confirm-shared
+
+# Versioned CC BY 4.0 research evidence; retained as internal model inputs.
+python greenchanger_script/ingestion.py austraits --confirm-shared
+python greenchanger_script/ingestion.py urban-growth --confirm-shared
 
 # Create application-ready Melbourne-only derived versions
 python greenchanger_script/clip_to_melbourne.py --confirm-shared
@@ -163,6 +213,17 @@ python greenchanger_script/ingestion.py property \
 python greenchanger_script/ingestion.py trees \
   --urban-tree-file data/raw/vicmap/urban_tree_TIMESTAMP.jsonl.gz \
   --confirm-shared
+
+# Reuse a preserved City of Melbourne named-tree extract
+python greenchanger_script/ingestion.py named-trees \
+  --city-tree-file data/raw/city_melbourne/named_trees_TIMESTAMP.jsonl.gz \
+  --confirm-shared
+
+# Reuse a downloaded council file instead of downloading it again. Select
+# exactly one council-tree job when this override is supplied.
+python greenchanger_script/ingestion.py yarra-trees \
+  --council-tree-file data/raw/council_trees/yarra/TIMESTAMP/yarra_trees.geojson \
+  --confirm-shared
 ```
 
 Override the project bbox only when the team has approved a different extent:
@@ -179,6 +240,11 @@ checksum, creates a `dataset_version`, applies the configured quality rules,
 records rule-level outcomes, rejects failed rows, inserts accepted rows in
 bounded batches, transforms spatial data into EPSG:7855 and marks only a
 successful version as `application_ready`.
+
+Historical City of Melbourne canopy is intentionally stricter: successful
+2016 and 2021 loads remain `internal` with `passed_with_limitations`. This
+prevents unvalidated cross-year differences from being treated as application
+measurements or ML targets.
 
 ## Melbourne boundary filtering
 
@@ -205,18 +271,19 @@ checksum and limitations in `melbourne_tree_extent_manifest.json`. The VRT is a
 catalogue of unchanged native GeoTIFFs, not a resampled image; all referenced
 raw tiles must remain available. On the development Mac, the first exact 500 m
 whole-mosaic pass was terminated after 4,117.70 seconds (68.6 minutes) without
-an output. The analytical aggregation must therefore be redesigned as a
-tile-wise resumable offline batch before database publication.
+an output. The replacement tile-wise resumable pipeline completed all
+3,001,053 parcels, published 2,984,934 available canopy results and retained
+16,119 as `Unavailable` rather than exhausting memory or treating missing
+coverage as zero.
 
 `build_canopy_baseline.py` retains zero-canopy cells, verifies percentages,
 geometry, uniqueness, Melbourne coverage and exact matching of every
 current heat-baseline cell. Its `coverage_confidence_pct` means complete raster
 coverage only; it is not classification or positional accuracy. The current
 official rendered-tile proxy is labelled `api_tile_proxy` and is appropriate
-for 500 m summaries, not property-level tree-crown decisions. The analytical
-source is locally prepared, but it must not replace the proxy in the database
-until ingestion, clipping, quality validation and a newly versioned baseline
-all complete successfully.
+for 500 m summaries, not property-level tree-crown decisions. Property-level
+results come only from the registered native analytical raster and remain
+separate from the 500 m neighbourhood baseline.
 
 Migration 010 provides `get_property_baseline(text, integer)` for the prototype.
 It performs a prefix address search, joins Vicmap Address to Vicmap Property by
@@ -313,6 +380,21 @@ This command is read-only and does not train or publish a model. Use repeated
 `--available-dataset KEY` arguments only after the corresponding aligned
 training table has passed data-quality checks.
 
+After migration 044, verify an address-based council species-frequency ranking
+without changing data:
+
+```sql
+SELECT popularity_rank, display_name, recorded_tree_count,
+       recorded_tree_percentage, list_category, guidance_status
+FROM get_council_tree_species_popularity_by_address(
+    '251A BELMORE ROAD BALWYN NORTH 3104', 20
+);
+```
+
+The ranking uses latest named council inventories only. It does not include
+unnamed Vicmap points or historical inventory versions, and “most common” does
+not mean approved or suitable to plant.
+
 Persist the complete case report and promote the range model only after all
 tests pass:
 
@@ -369,6 +451,8 @@ unpublished delivery, difficult-access, excavation, soil, staking and aftercare 
 | Multi-station BOM quality below 95% | Inspect failures by station. A wind-only or partially populated feed must not be treated as an air-temperature station; replace it with the correct official temperature feed rather than weakening `WEATHER_REQUIRED`. |
 | Landsat TIFF is HTML/unsupported | Do not reuse it. Current code signs Planetary Computer URLs and validates downloaded raster content. |
 | Canopy source value is ambiguous | Run `inspect_canopy.py`; never infer the tree class from display colours. |
+| ERA5-Land returns `required licences not accepted` | Sign in to Copernicus CDS, accept the ERA5-Land terms, configure `~/.cdsapirc`, then retry or reuse downloaded NetCDF files with `--era5-file`. |
+| Council inventory has no full reusable row-level source | Record it in the 31-council audit; do not load a partial register or assume permission. |
 
 ## Safety
 
