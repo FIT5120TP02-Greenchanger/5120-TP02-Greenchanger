@@ -112,8 +112,8 @@ export default function MapView({ selectedLocation, setSelectedLocation, simulat
     const [mode, setMode] = useState(null)
     const [showChooser, setShowChooser] = useState(false);
     
-    useEffect(() => { onPropertyStatsChange?.(propertySelected.stats); }, [propertySelected.stats]);
-    useEffect(() => { onCanopyStatsChange?.(trees); }, [trees.pct, trees.canopyM2]);
+    useEffect(() => { onPropertyStatsChange?.(propertySelected.stats); }, [propertySelected.stats, onPropertyStatsChange]);
+    useEffect(() => { onCanopyStatsChange?.(trees); }, [trees.pct, trees.canopyM2, onCanopyStatsChange]);
 
     const transitCoordinates = useCallback((longitude, latitude) => {
         mapRef.current?.flyTo({
@@ -189,7 +189,6 @@ export default function MapView({ selectedLocation, setSelectedLocation, simulat
         if (target instanceof Element && target.closest(".mapboxgl-marker")) return;
 
         // In-map planting: a click puts the tree there. Outside the selected lot is allowed, just hinted.
-        // if (placing) {
         if (awaitingPlantPosition) {
             const { lng, lat } = e.lngLat;
             setPendingPos({ lng, lat });
@@ -203,7 +202,7 @@ export default function MapView({ selectedLocation, setSelectedLocation, simulat
             setPropertyAnchor({ lng: e.lngLat.lng, lat: e.lngLat.lat });
         }
         await propertySelected.selectAtPoint(features, parcels.parcelFeatures, zoom < MIN_PARCEL_ZOOM, e.lngLat);
-    }, [placing, propertySelected, parcels.parcelFeatures, zoom]);
+    }, [awaitingPlantPosition, propertySelected, parcels.parcelFeatures, zoom]);
 
     // Restore the searched lot as the selection (card anchored on it)
     const backToHome = useCallback(() => {
@@ -318,11 +317,6 @@ export default function MapView({ selectedLocation, setSelectedLocation, simulat
             resetCursor();
             return;
         }
-        // if (mode === 'species') {
-        //     setPlacing(false);
-        //     setChoosingSpecies(true);
-        //     return;
-        // }
         // Quick mode
         const radiusM = TREE_SIZES[treeSize].radiusM;
         const tree = {
@@ -339,7 +333,7 @@ export default function MapView({ selectedLocation, setSelectedLocation, simulat
         setHoverPos(null);
         setSimulating(false);
         resetCursor();
-    }, [pendingPos, treeSize, setSimulatedTrees, selectedTreeId, mode]);
+    }, [pendingPos, treeSize, setSimulatedTrees, selectedTreeId]);
     const handleApplyScenario = useCallback((scenario) => {
         onScenarioChange?.(scenario);
         if (!scenario || !scenario.position) return;
@@ -370,7 +364,7 @@ export default function MapView({ selectedLocation, setSelectedLocation, simulat
         };
         setSimulatedTrees((prev) => [...(prev || []), tree]);
         setPlantedTreeId(tree.id)
-    }, [setSimulatedTrees, plantedTreeId, setPlantedTreeId]);
+    }, [setSimulatedTrees, onScenarioChange, plantedTreeId, setPlantedTreeId]);
 
 
     // Remove / Reset inside the comparison panel behave like the old page: with no trees left,
@@ -405,12 +399,11 @@ export default function MapView({ selectedLocation, setSelectedLocation, simulat
         const pos = pendingPos || hoverPos;
         return {
             type: "FeatureCollection",
-            // features: placing && pos
             features: awaitingPlantPosition && pos
                 ? [{ type: "Feature", properties: {}, geometry: circleMetres(pos.lng, pos.lat, TREE_SIZES[treeSize].radiusM) }]
                 : [],
         };
-    }, [placing, pendingPos, hoverPos, treeSize]);
+    }, [awaitingPlantPosition, pendingPos, hoverPos, treeSize]);
 
     // Same indicative numbers PlantTreePage used (viewport-based, see review #18)
     const projected = useMemo(() => {
@@ -446,7 +439,6 @@ export default function MapView({ selectedLocation, setSelectedLocation, simulat
     const handleMouseMove = useCallback((e) => {
         const map = mapRef.current?.getMap();
         if (!map) return;
-        // if (placing) {
         if (awaitingPlantPosition) {
             map.getCanvas().style.cursor = "crosshair";
             if (!pendingPos) setHoverPos({ lng: e.lngLat.lng, lat: e.lngLat.lat });
@@ -459,7 +451,7 @@ export default function MapView({ selectedLocation, setSelectedLocation, simulat
         }
         hoverId.current = e.features[0].id;
         map.setFeatureState({ source: "parcels", id: hoverId.current }, { hover: true });
-    }, [placing, pendingPos]);
+    }, [awaitingPlantPosition, pendingPos]);
 
     const handleMouseLeave = useCallback(() => {
         const map = mapRef.current?.getMap();

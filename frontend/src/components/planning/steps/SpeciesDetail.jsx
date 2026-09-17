@@ -15,15 +15,7 @@ export default function SpeciesDetail({ species, size, onSizeChange, setCompareA
     const [error, setError] = useState(null)
 
     useEffect(() => {
-        if (!species) { 
-            setGrowthBySize({
-                Small: null,
-                Medium: null,
-                Large: null
-            }) 
-            setCosts(null); 
-            return 
-        }
+        if (!species) return
         let cancelled = false
         setLoading(true)
         setGrowthBySize({

@@ -51,7 +51,7 @@ export default function TreeCompare({ compareArray = [], appliedScenario, rows, 
         })
 
         return () => { cancelled = true }
-    }, [compareArray])
+    }, [compareArray, appliedScenario, fetchScenarioFor, onRowsChange])
 
     function handleSizeChange(key, newSize) {
         const row = rows[key]
