@@ -723,6 +723,9 @@ aside:has(.detail-image) {
 .compare-button {
   gap: 8px;
   white-space: nowrap;
+  /* never narrower than the label ("Select Dwarf Yellow Gum"): buttons in a row stay equal
+     while the labels fit, otherwise the longer one takes the room it needs */
+  min-width: auto;
   transition:
     background-color 150ms ease,
     border-color 150ms ease,
@@ -736,26 +739,29 @@ aside:has(.detail-image) {
   transform: scale(0.97);
 }
 
-/* an exit-style button next to a primary one ("Change species", the intro's Exit):
-   the design shows the outline button there */
-.panel-footer > .exit-button {
+/* the intro's Exit (next to Explore species): the design shows the outline button there.
+   Other Exits (impact page, species list and details) keep the original brown. */
+.panel-footer > .exit-button:has(+ .explore-button) {
   border-color: var(--green);
   background: #fff;
   color: var(--green);
 }
 
-/* a back-style button on its own row above the footer ("Compare with another tree"):
-   the design's tinted full-width entry button */
-.panel-actions > .back-button {
-  flex: none;
-  width: 100%;
-  min-height: 40px;
-  border-color: #cfe3d6;
-  background: #eaf4ee;
+/* Impact page: two footer rows (Compare with another tree | Change species, Exit | View guidance)
+   laid out as one 2x2 grid, so the columns line up and no label is cut off.
+   "Compare with another tree" keeps the tinted entry style from the rules above. */
+.panel-actions:has(> .panel-footer + .panel-footer) {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(max-content, 1fr));
+  gap: 12px 8px;
 }
 
-/* "Compare trees" inside the footer is the page's primary action */
-.panel-footer > .compare-button {
+.panel-actions:has(> .panel-footer + .panel-footer) > .panel-footer {
+  display: contents;
+}
+
+/* "Compare trees" after Back (choose-trees step) is the page's primary action */
+.panel-footer > .back-button + .compare-button {
   width: auto;
   min-height: 44px;
   border-color: var(--green);
@@ -764,12 +770,12 @@ aside:has(.detail-image) {
 }
 
 @media (hover: hover) {
-  .panel-footer > .exit-button:hover:not(:disabled) {
+  .panel-footer > .exit-button:has(+ .explore-button):hover:not(:disabled) {
     border-color: var(--green);
     background: var(--tint);
   }
 
-  .panel-footer > .compare-button:hover:not(:disabled) {
+  .panel-footer > .back-button + .compare-button:hover:not(:disabled) {
     border-color: var(--green-hover);
     background: var(--green-hover);
   }
