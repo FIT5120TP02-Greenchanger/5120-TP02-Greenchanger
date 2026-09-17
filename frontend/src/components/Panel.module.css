@@ -143,28 +143,6 @@
     line-height: 1.3;
 }
 
-.lot-close {
-    flex-shrink: 0;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    width: 22px;
-    height: 22px;
-    padding: 0;
-    border: none;
-    border-radius: 50%;
-    background: transparent;
-    color: #8c949a;
-    font-size: 16px;
-    line-height: 1;
-    cursor: pointer;
-}
-
-.lot-close:hover {
-    background: #f6f7f5;
-    color: #5e666c;
-}
-
 .property-stat-grid {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -614,12 +592,13 @@
     cursor: pointer;
 }
 
-/* Close (x) on the lot card. `.property-panel button` styles every button as the green
-   CTA, so this needs the higher specificity to opt out. */
-/* .property-panel .lot-close {
-    position: absolute;
-    top: 6px;
-    right: 6px;
+/* Close (x) on the lot card. Keep this more specific than the generic .property-panel button rule
+   so the close button does not inherit CTA styling. */
+.property-panel .lot-close {
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
     width: 28px;
     height: 28px;
     margin: 0;
@@ -630,7 +609,9 @@
     color: #5E666C;
     font-size: 20px;
     line-height: 1;
-} */
+    cursor: pointer;
+}
+
 .property-panel .lot-close:hover {
     background: #F2F4F5;
 }
