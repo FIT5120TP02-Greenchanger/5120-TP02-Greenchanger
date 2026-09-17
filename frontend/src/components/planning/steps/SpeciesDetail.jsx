@@ -3,20 +3,24 @@ import styles from '../TreePlantingFlow.module.css'
 import { fetchGrowth, fetchCosts, PREVIEW_AGE_YEARS } from '../../../services/trees'
 
 const SIZE_OPTIONS = ['Small', 'Medium', 'Large']
-
+const EMPTY_GROWTH = {
+    Small: null,
+    Medium: null,
+    Large: null,
+}
 export default function SpeciesDetail({ species, size, onSizeChange, setCompareArray, onApply, applying, onBack, onExit }) {
-    const [growthBySize, setGrowthBySize] = useState({
-        Small: null,
-        Medium: null,
-        Large: null,
-    })
+    const [growthBySize, setGrowthBySize] = useState(EMPTY_GROWTH)
     const [costs, setCosts] = useState(null)
     const [loading, setLoading] = useState(false)
     const [error, setError] = useState(null)
 
     useEffect(() => {
         if (!species) return
+
         let cancelled = false
+        // Reset before fetching so a size flip mid-flight can't show stale data
+        // this is the "ignore" idiom from the React docs' fetch-in-effect guide
+        // eslint-disable-next-line react-hooks/set-state-in-effect
         setLoading(true)
         setGrowthBySize({
             Small: null,

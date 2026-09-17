@@ -113,7 +113,7 @@ export default function MapView({ selectedLocation, setSelectedLocation, simulat
     const [showChooser, setShowChooser] = useState(false);
     
     useEffect(() => { onPropertyStatsChange?.(propertySelected.stats); }, [propertySelected.stats, onPropertyStatsChange]);
-    useEffect(() => { onCanopyStatsChange?.(trees); }, [trees.pct, trees.canopyM2, onCanopyStatsChange]);
+    useEffect(() => { onCanopyStatsChange?.(trees); }, [trees, onCanopyStatsChange]);
 
     const transitCoordinates = useCallback((longitude, latitude) => {
         mapRef.current?.flyTo({
