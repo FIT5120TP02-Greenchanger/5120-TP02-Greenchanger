@@ -1,7 +1,5 @@
 import styles from '../TreePlantingFlow.module.css'
 
-const cx = (...names) => names.filter(Boolean).join(' ')
-
 export default function SpeciesList({ species = [], selectedSpecies, onSelect, onViewDetail, onBack, onExit }) {
     return (
         <>

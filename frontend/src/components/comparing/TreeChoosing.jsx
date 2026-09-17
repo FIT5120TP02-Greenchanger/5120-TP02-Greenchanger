@@ -1,7 +1,7 @@
-import { useState } from 'react'
 import styles from './TreeChoosing.module.css'
 import list_styles from '../planning/TreePlantingFlow.module.css'
 export default function TreeChoosing({species, selectedSpecies, compareArray, setCompareArray, onBack, onCompareTree}) {
+    console.log(selectedSpecies);
     function handleCheckbox(s) {
         setCompareArray(prev => {
             const alreadySelected = prev.some(
@@ -20,7 +20,7 @@ export default function TreeChoosing({species, selectedSpecies, compareArray, se
     return (
         <div>
             <div className={styles["panel-species-choosing"]}>
-                <h2 className={styles['panel-title']}>{species?.common_name} on your lot</h2>
+                <h2 className={styles['panel-title']}>{selectedSpecies?.common_name} on your lot</h2>
                 <p>Select one or more species to compare</p>
                 {species.map((s) => {
                     const isSelected = selectedSpecies?.id === s.id

@@ -3,9 +3,6 @@ import styles from '../TreePlantingFlow.module.css';
 export default function SpeciesIntro({ onExplore, onExit, nTrees, canopyM2, viewM2, canExplore }) {
     const hasTreeCount = Number.isFinite(nTrees)
     const hasCanopy = Number.isFinite(canopyM2)
-    const canopyShare = hasCanopy && Number.isFinite(viewM2) && viewM2 > 0
-        ? ((canopyM2 / viewM2) * 100).toFixed(1)
-        : null
     return (
         <div className={styles['panel-body']}>
             <span className={styles['user-note']}>CHOOSE A TREE SPECIES</span>

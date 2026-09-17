@@ -5,7 +5,6 @@ import { fetchGrowth, fetchCosts, PREVIEW_AGE_YEARS } from '../../../services/tr
 const SIZE_OPTIONS = ['Small', 'Medium', 'Large']
 
 export default function SpeciesDetail({ species, size, onSizeChange, setCompareArray, onApply, applying, onBack, onExit }) {
-    // const [growth, setGrowth] = useState(null)
     const [growthBySize, setGrowthBySize] = useState({
         Small: null,
         Medium: null,
@@ -17,7 +16,6 @@ export default function SpeciesDetail({ species, size, onSizeChange, setCompareA
 
     useEffect(() => {
         if (!species) { 
-            // setGrowth(null);
             setGrowthBySize({
                 Small: null,
                 Medium: null,
@@ -28,7 +26,6 @@ export default function SpeciesDetail({ species, size, onSizeChange, setCompareA
         }
         let cancelled = false
         setLoading(true)
-        // setGrowth(null)
         setGrowthBySize({
             Small: null,
             Medium: null,
@@ -98,13 +95,6 @@ export default function SpeciesDetail({ species, size, onSizeChange, setCompareA
     const canopyRange = growth
         ? `${growth.canopy_m2_min?.toFixed(0)}-${growth.canopy_m2_max?.toFixed(0)} m²`
         : '—'
-    const tree_size = growth
-    ? {
-        Small: { heightLabel: growth.height_m_min },
-        Medium: { heightLabel: growth.height_m_median },
-        Large: { heightLabel: growth.height_m_max },
-    }
-    : {};
     return (
         <div className={styles['panel-body']}>
             <img className={styles['detail-image']} src={species.image_url || undefined} alt={species.image_alt_text} />

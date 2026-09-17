@@ -8,7 +8,7 @@ const GUIDANCE_STEPS = [
     ['Confirm local guidance', 'Check council species lists, permits and underground services.'],
 ]
 
-export default function Guidance({ onBack, onStartAgain, onExit }) {
+export default function Guidance({ onBack, onStartAgain }) {
     return (
         <>
             <div className={styles['panel-body']}>

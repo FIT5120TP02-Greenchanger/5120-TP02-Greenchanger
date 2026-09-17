@@ -1,6 +1,5 @@
 import styles from '../TreePlantingFlow.module.css'
 import card_styles from '../../Panel.module.css'
-import { IMPACT_METRICS, formatMetric } from '../impactMetrics'
 
 export default function Impact({ scenario, onViewGuidance, onBack, onCompare }) {
     if (!scenario) return null
