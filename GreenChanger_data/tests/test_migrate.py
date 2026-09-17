@@ -9,7 +9,7 @@ class MigrationFileTests(unittest.TestCase):
     def test_migrations_are_numbered_and_ordered(self):
         self.assertEqual(
             [version for version, _ in migration_files()],
-            list(range(1, 65)),
+            list(range(1, 66)),
         )
 
     def test_current_costs_use_melbourne_date_and_retire_anonymous_trees(self):
@@ -61,6 +61,15 @@ class MigrationFileTests(unittest.TestCase):
         self.assertIn("scientific_name ~* '^(dead|stump)( |$)'", sql)
         self.assertIn("scientific_name LIKE '%,%'", sql)
         self.assertIn("no generic catalogue-wide price is substituted", sql)
+
+    def test_unresolved_common_and_cv_labels_are_separated(self):
+        migration = next(path for version, path in migration_files() if version == 65)
+        sql = expanded_sql(migration)
+        self.assertIn("identity_enrichment.match_type = 'EXACT'", sql)
+        self.assertIn("identity_enrichment.match_confidence >= 95", sql)
+        self.assertIn("scientific_name ~* '(^| )cv\\.?$'", sql)
+        self.assertIn("not a resolved botanical identity", sql)
+        self.assertIn("auditable taxon aliases", sql)
 
     def test_address_catalog_combines_exact_stock_and_local_popularity(self):
         migration = next(path for version, path in migration_files() if version == 53)

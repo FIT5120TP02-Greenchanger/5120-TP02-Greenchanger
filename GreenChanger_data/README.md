@@ -536,7 +536,10 @@ Species-specific prices use `species_specific_current_source_range`; trees
 without a current supplier quote use `unavailable_no_species_quote`. No generic
 catalogue-wide price is substituted. `size_price_status` distinguishes
 `species_size_price_available` from `species_price_size_unmapped`, and exact
-size-level rows are exposed through `application_ready_tree_cost_by_size`. GBIF enrichment
+size-level rows are exposed through `application_ready_tree_cost_by_size`.
+Malformed, placeholder, unnamed-`cv` and common-name-only labels without an exact
+high-confidence taxon resolution use `unavailable_unresolved_tree_identity` and
+retain null prices until their identity is resolved. GBIF enrichment
 publishes only exact Plantae matches with confidence at least 95 and individual
 media-level CC0 or CC BY 4.0 terms. The licence must be present on the selected media object;
 an occurrence-search licence filter is not sufficient. Missing licences, All Rights
@@ -964,6 +967,10 @@ mean local causal validation or permission to display a precise after-temperatur
   supplier prices by botanical name and stock size. Supplier ranges without an
   exact size-price pairing remain explicitly unmapped and are excluded from
   `application_ready_tree_cost_by_size`.
+- `data/reference/tree_price_taxon_aliases.csv` records every reviewed catalogue
+  label mapped to an already-priced species identity, including the match method,
+  verification URL where available, review date and limitation. A species-level
+  quote attached through this table is not presented as a distinct cultivar quote.
 - Exact advertised retail prices are high confidence; transparent multi-source calculations are medium confidence; broad installed-market guidance is low confidence.
 - The current coverage includes DIY and installed backyard trees by named type, potted plants, an installed garden bed, DIY and installed green walls, and an installed advanced/community tree context. The earlier container-tree estimate is retained only as expired history.
 - Named residential tree costs now match the Iteration 2 planting flow: Water Gum, Lemon-scented Gum and Crepe Myrtle. Earlier Ficus, citrus, elm and pistache estimates remain in the CSV as expired history and are excluded from current application results. `tree_type` and `botanical_name` are retained in the CSV, database and application-ready view.
