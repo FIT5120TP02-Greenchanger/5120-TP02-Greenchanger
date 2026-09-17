@@ -317,3 +317,116 @@
     text-decoration: underline;
     cursor: pointer;
 }
+
+/* ============================================================
+   Epic 3/4 design alignment (Figma file T862ovErRK3aMw1BTZ8vzC)
+   Appended for the restyle. The rules above are unchanged; the rules
+   below override them with the design values and add motion.
+   Delete a rule here to get the previous look back.
+   07 Compare scenarios and 08 Preferred scenario keep their original look.
+   ============================================================ */
+
+/* ---------- E4-00 Choose trees (TreeChoosing.jsx) ---------- */
+/* the design's page title (07 and 08 use the same class and keep their original title) */
+.panel-species-choosing .panel-title {
+  color: #14181b;
+  font-size: 25px;
+  line-height: 1.24;
+}
+
+/* The step fills the panel; only the title + list area scrolls, the buttons stay at the bottom.
+   (doubled class: must beat .panel-page > :not(.panel-actions) in TreePlantingFlow.module.css) */
+div:has(> .panel-species-choosing.panel-species-choosing) {
+  display: flex;
+  flex: 1 1 0;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.panel-species-choosing {
+  flex: 1 1 auto;
+  gap: 10px;
+  min-height: 0;
+  /* 5px of room (cancelled by the negative margin) so a card's focus ring is not clipped by the scroll box */
+  margin: -5px -9px -5px -5px;
+  padding: 5px 9px 5px 5px;
+  overflow-y: auto;
+}
+
+/* the <li>s have no <ul> around them, which drew a bullet dot beside every card */
+.panel-species-choosing > li {
+  list-style: none;
+}
+
+/* subtitle: 6px under the title, 12px above the first card */
+.panel-species-choosing > p {
+  margin: -4px 0 2px;
+  color: #5e666c;
+  font-size: 13px;
+}
+
+/* cards keep their original size (the panel width follows the content); only colours and states change */
+
+/* checkbox: the design's rounded square with a white tick, at the original 18px */
+.compare-checkbox {
+  appearance: none;
+  -webkit-appearance: none;
+  position: relative;
+  width: 18px;
+  height: 18px;
+  min-width: 18px;
+  min-height: 18px;
+  margin: 0;
+  border: 1.5px solid #c3cac5;
+  border-radius: 5px;
+  background: #fff;
+  transition:
+    background-color 150ms ease,
+    border-color 150ms ease;
+}
+
+.compare-checkbox:checked {
+  border-color: #2f7d5a;
+  background: #2f7d5a;
+}
+
+.compare-checkbox:checked::after {
+  content: "";
+  position: absolute;
+  left: 5px;
+  top: 1.5px;
+  width: 5px;
+  height: 9px;
+  border: solid #fff;
+  border-width: 0 2px 2px 0;
+  transform: rotate(45deg);
+}
+
+/* ---------- 07 Compare scenarios / 08 Preferred scenario ---------- */
+/* These two pages keep their original look, except that the panel has no black border (as in the rest
+   of the flow). TreePlantingFlow.module.css stretches every step to the panel height (buttons at the
+   bottom); undo that here so their buttons follow the content as before. */
+.compare-panel.compare-panel {
+  flex: none;
+}
+
+/* ---------- Motion: press feedback (the look is unchanged) ---------- */
+.compare-size-toggle button,
+.compare-preferred-button,
+.guidance-button {
+  transition: transform 130ms cubic-bezier(0.23, 1, 0.32, 1);
+}
+
+.compare-size-toggle button:active:not(:disabled),
+.compare-preferred-button:active:not(:disabled),
+.guidance-button:active:not(:disabled) {
+  transform: scale(0.97);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .compare-size-toggle button:active:not(:disabled),
+  .compare-preferred-button:active:not(:disabled),
+  .guidance-button:active:not(:disabled) {
+    transform: none;
+  }
+}
