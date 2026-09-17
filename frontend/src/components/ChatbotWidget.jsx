@@ -100,7 +100,7 @@ export default function ChatbotWidget({ context }) {
             setMessages(prev =>
                 prev.map(msg =>
                     msg.pending
-                        ? { role: 'assistant', content: "Sorry, I couldn't reach the server. Try again in a moment." }
+                        ? { role: 'assistant', content: `Sorry, I couldn't reach the server. Error ${err} Try again in a moment.` }
                         : msg
                 )
             )

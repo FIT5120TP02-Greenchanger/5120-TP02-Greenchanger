@@ -37,28 +37,28 @@ export default function TreePlantingFlow({ lot, position, onApply, onExit, nTree
     const [preferredKey, setPreferredKey] = useState(null)
 
     const [species, setSpecies] = useState([])
-    const [limitations, setLimitations] = useState(null)
     const [speciesError, setSpeciesError] = useState(null)
     const [applying, setApplying] = useState(false)
 
     useEffect(() => {
         let cancelled = false
         resetFlow()
-        setSpeciesError(null)
+        // setSpeciesError(null)
         fetchSpecies(lot?.address)
             .then((data) => {
                 if (cancelled) return
                 setSpecies((data.species || []).filter((s) => s.has_growth_model))
-                setLimitations(data.limitations || null)
+                setSpeciesError(null)
             })
             .catch(() => { if (!cancelled) setSpeciesError("Could not load tree species.") })
         return () => { cancelled = true }
-    }, [lot?.address]) // eslint-disable-line react-hooks/exhaustive-deps
+    }, [lot?.address])
 
     function resetFlow(nextStep = STEPS.INTRO) {
         setSelectedSpecies(null); setSelectedSize(DEFAULT_SIZE); setAppliedScenario(null)
         setCompareArray([]); setComparisonRows({}); setPreferredKey(null)
-        setStep(nextStep)
+        setStep(nextStep);
+        setSpeciesError(null)
     }
     function goBack() { setStep(BACK_TARGET[step] ?? STEPS.INTRO) }
     function handleSelectSpecies(species) {
@@ -129,7 +129,7 @@ export default function TreePlantingFlow({ lot, position, onApply, onExit, nTree
             case STEPS.INTRO:
                 return <SpeciesIntro onExplore={() => setStep(STEPS.LIST)} onExit={onExit} nTrees={nTrees} canopyM2={canopyM2} viewM2={viewM2} canExplore={!!position} />
             case STEPS.LIST:
-                return <SpeciesList species={species} error={speciesError} limitation={limitations} selectedSpecies={selectedSpecies} onSelect={handleSelectSpecies} onViewDetail={handleViewDetail} onBack={goBack} onExit={onExit} />
+                return <SpeciesList species={species} error={speciesError} selectedSpecies={selectedSpecies} onSelect={handleSelectSpecies} onViewDetail={handleViewDetail} onBack={goBack} onExit={onExit} />
             case STEPS.DETAIL:
                 return <SpeciesDetail species={selectedSpecies} size={selectedSize} setCompareArray={setCompareArray} onSizeChange={setSelectedSize} onApply={handleApply} applying={applying} onBack={goBack} onExit={onExit} />
             case STEPS.IMPACT:
