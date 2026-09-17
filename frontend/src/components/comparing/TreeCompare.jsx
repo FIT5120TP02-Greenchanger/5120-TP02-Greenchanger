@@ -9,23 +9,12 @@ import {
 const SIZES = ['Small', 'Medium', 'Large']
 const DEFAULT_ROW_SIZE = 'Medium'
 
-export default function TreeCompare({
-    compareArray = [],
-    appliedScenario,
-    rows,
-    onRowsChange,
-    fetchScenarioFor,
-    canopyM2,
-    viewM2,
-    preferredKey,
-    onChoosePreferred,
-    onBack,
-    onDone,
-}) {
+export default function TreeCompare({ compareArray = [], appliedScenario, rows, onRowsChange, fetchScenarioFor, canopyM2, viewM2, preferredKey, onChoosePreferred, onBack }) {
     // Kick off a fetch for any species in compareArray that doesn't have row data yet.
     // A ref (not `rows` itself) is used to check existence so this effect doesn't
     // re-fire every time onRowsChange updates state.
     const rowsRef = useRef(rows)
+    console.log(compareArray);
     useEffect(() => { rowsRef.current = rows }, [rows])
 
     useEffect(() => {
@@ -63,14 +52,11 @@ export default function TreeCompare({
         })
 
         return () => { cancelled = true }
-    }, [compareArray]) // eslint-disable-line react-hooks/exhaustive-deps
+    }, [compareArray])
 
     function handleSizeChange(key, newSize) {
         const row = rows[key]
         if (!row || row.size === newSize) return
-        // NOTE: this only changes the size shown in the comparison, not the tree already
-        // placed on the map for the applied species — hook that up separately if picking
-        // a different size here should also move the planted circle.
         onRowsChange((prev) => ({ ...prev, [key]: { ...prev[key], size: newSize, loading: true, error: null } }))
         fetchScenarioFor(row.species, newSize)
             .then((data) => onRowsChange((prev) => ({ ...prev, [key]: { ...data, loading: false, error: null } })))
@@ -80,7 +66,9 @@ export default function TreeCompare({
     const orderedRows = compareArray.map((s) => rows[s.species_key]).filter(Boolean)
 
     return (
-        <div className={styles['compare-panel']}>
+        <div className={styles['compare-panel']} style={{
+            '--compare-column-count': compareArray.length,
+        }}>
             <div className={styles['compare-header']}>
                 <h1 className={styles['panel-title']}>Compare scenarios</h1>
                 <p className={styles['compare-subtitle']}>
@@ -89,100 +77,128 @@ export default function TreeCompare({
             </div>
 
             <div className={styles['compare-species-grid']}>
-                {compareArray.map((s, index) => {
-                    const row = rows[s.species_key]
-                    const label = String.fromCharCode(65 + index)
-                    const price = row ? formatPrice(priceRange(row)) : '—'
-                    return (
-                        <div key={s.species_key} className={styles['compare-species-card']}>
-                            <div className={styles['compare-species-heading']}>
-                                <span className={styles['compare-species-badge']}>{label}</span>
-                                <div>
-                                    <h2>{s.common_name || 'Unknown species'}</h2>
-                                    <p>{row?.size ? `${row.size} · ${price} supply-only` : (row?.loading ? 'Loading…' : price)}</p>
-                                </div>
-                            </div>
+                <div className={styles['compare-label-column']} />
+                    {compareArray.map((s, index) => {
+                        const row = rows[s.species_key]
+                        const label = String.fromCharCode(65 + index)
 
-                            {s.image_url ? (
-                                <img className={styles['compare-species-image']} src={s.image_url} alt={s.image_alt_text || `Reference photograph of ${s.common_name}`} />
-                            ) : (
-                                <div className={styles['compare-species-image-placeholder']}>No image available</div>
-                            )}
+                        const price = row
+                            ? formatPrice(priceRange(row))
+                            : null
 
-                            <div className={styles['compare-size-toggle']}>
-                                {SIZES.map((sz) => (
-                                    <button
-                                        key={sz}
-                                        type="button"
-                                        aria-pressed={row?.size === sz}
-                                        disabled={!row || row.loading}
-                                        onClick={() => handleSizeChange(s.species_key, sz)}
-                                    >
-                                        {sz[0]}
-                                    </button>
-                                ))}
-                            </div>
-
-                            <button
-                                type="button"
-                                className={styles['compare-preferred-button']}
-                                disabled={!row || row.loading}
-                                aria-pressed={preferredKey === s.species_key}
-                                onClick={() => onChoosePreferred(s.species_key)}
+                        return (
+                            <div
+                                key={s.species_key}
+                                className={styles['compare-species-card']}
                             >
-                                {preferredKey === s.species_key ? 'Preferred' : 'Choose as preferred'}
-                            </button>
-                        </div>
-                    )
-                })}
-            </div>
+                                <div className={styles['compare-species-heading']}>
+                                    <span
+                                        className={
+                                            styles['compare-species-badge']
+                                        }
+                                    >
+                                        {label}
+                                    </span>
 
-            <div className={styles['compare-table']}>
-                <div className={styles['compare-section-label']}>CANOPY</div>
-                <CompareRow label="Added canopy at maturity" rows={orderedRows} render={(r) => `+${formatRange(canopyAddedRange(r), ' m²')}`} />
-                <CompareRow label="Canopy cover after planting" rows={orderedRows} render={(r) => {
-                    const c = canopyCoverAfter(r, canopyM2, viewM2)
-                    return c ? `${c.pct.toFixed(1)}%` : '—'
-                }} />
+                                    <div>
+                                        <h2>
+                                            {s.common_name || 'Unknown species'}
+                                        </h2>
 
-                <div className={styles['compare-section-label']}>SHADE & COOLING</div>
-                <CompareRow label="Shade potential" rows={orderedRows} render={(r) => shadeLevel(r) ?? '—'} />
-                <CompareRow label="Cooling potential" rows={orderedRows} render={(r) => coolingLevel(r) ?? '—'} />
+                                        <p>
+                                            {row?.loading
+                                                ? 'Loading data...'
+                                                : row?.size
+                                                ? `${row.size} · ${price} supply-only`
+                                                : 'Data unavailable'}
+                                        </p>
+                                    </div>
+                                </div>
 
-                <div className={styles['compare-section-label']}>SPACE</div>
-                <CompareRow label="Mature canopy width" rows={orderedRows} render={(r) => formatRange(matureCanopyWidthRange(r), ' m')} />
-                <CompareRow label="Space needed on lot" rows={orderedRows} render={(r) => {
-                    const m2 = spaceNeededM2(r)
-                    return m2 != null ? `${m2.toFixed(0)} m²` : '—'
-                }} />
+                                <div className={styles['compare-size-toggle']}>
+                                    {SIZES.map((size) => (
+                                        <button
+                                            key={size}
+                                            type="button"
+                                            aria-pressed={row?.size === size}
+                                            disabled={!row || row.loading}
+                                            onClick={() =>
+                                                handleSizeChange(
+                                                    s.species_key,
+                                                    size
+                                                )
+                                            }
+                                        >
+                                            {size[0]}
+                                        </button>
+                                    ))}
+                                </div>
 
-                <div className={styles['compare-section-label']}>COST</div>
-                <CompareRow label="Supply-only price" rows={orderedRows} render={(r) => formatPrice(priceRange(r))} />
-            </div>
+                                <button
+                                    type="button"
+                                    className={
+                                        styles['compare-preferred-button']
+                                    }
+                                    disabled={!row || row.loading}
+                                    aria-pressed={
+                                        preferredKey === s.species_key
+                                    }
+                                    onClick={() =>
+                                        onChoosePreferred(s.species_key)
+                                    }
+                                >
+                                    {preferredKey === s.species_key
+                                        ? 'Preferred'
+                                        : 'Choose as preferred'}
+                                </button>
+                            </div>
+                        )
+                    })}
 
-            <p className={styles['compare-note']}>
-                Results are indicative and are not guaranteed outcomes.
-            </p>
+                    <div className={styles['compare-section-label']}>CANOPY</div>
+                    <CompareRow label="Added canopy at maturity" rows={orderedRows} render={(r) => `+${formatRange(canopyAddedRange(r), ' m²')}`} />
+                    <CompareRow label="Canopy cover after planting" rows={orderedRows} render={(r) => {
+                        const c = canopyCoverAfter(r, canopyM2, viewM2)
+                        return c ? `${c.pct.toFixed(1)}%` : '—'
+                    }} />
 
-            <div className={list_styles['panel-actions']}>
-                <div className={list_styles['panel-footer']}>
-                    <button type="button" className={list_styles['back-button']} onClick={onBack}>Edit selection</button>
-                    <button type="button" className={styles['guidance-button']} disabled={!preferredKey} onClick={onDone}>Done</button>
+                    <div className={styles['compare-section-label']}>SHADE & COOLING</div>
+                    <CompareRow label="Shade potential" rows={orderedRows} render={(r) => shadeLevel(r) ?? '—'} />
+                    <CompareRow label="Cooling potential" rows={orderedRows} render={(r) => coolingLevel(r) ?? '—'} />
+
+                    <div className={styles['compare-section-label']}>SPACE</div>
+                    <CompareRow label="Mature canopy width" rows={orderedRows} render={(r) => formatRange(matureCanopyWidthRange(r), ' m')} />
+                    <CompareRow label="Space needed on lot" rows={orderedRows} render={(r) => {
+                        const m2 = spaceNeededM2(r)
+                        return m2 != null ? `${m2.toFixed(0)} m²` : '—'
+                    }} />
+
+                    <div className={styles['compare-section-label']}>COST</div>
+                    <CompareRow label="Supply-only price" rows={orderedRows} render={(r) => formatPrice(priceRange(r))} />
                 </div>
-            </div>
+
+                <p className={styles['compare-note']}>
+                    Results are indicative and are not guaranteed outcomes.
+                </p>
+
+                <div className={list_styles['panel-actions']}>
+                    <div className={list_styles['panel-footer']}>
+                        <button type="button" className={list_styles['back-button']} onClick={onBack}>Edit selection</button>
+                    </div>
+                </div>
         </div>
     )
 }
 
 function CompareRow({ label, rows, render }) {
     return (
-        <div className={styles['compare-row']}>
+        <>
             <div className={styles['compare-row-label']}>{label}</div>
             {rows.map((r) => (
                 <div key={r.species.species_key} className={styles['compare-row-value']}>
                     {r.loading ? '…' : (r.error ? '—' : render(r))}
                 </div>
             ))}
-        </div>
+        </>
     )
 }

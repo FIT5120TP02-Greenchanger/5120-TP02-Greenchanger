@@ -10,25 +10,9 @@ export default function SpeciesIntro({ onExplore, onExit, nTrees, canopyM2, view
         <div className={styles['panel-body']}>
             <span className={styles['user-note']}>CHOOSE A TREE SPECIES</span>
             <h2 className={styles['panel-title']}>Add a tree to your scenario</h2>
-            <p>Compare suitable tree types before adding one to your Melbourne scenario.</p>
+            <p>Compare suitable tree types before adding one to your scenario.</p>
 
             {(hasTreeCount || hasCanopy) && (
-                // <div className={styles['intro-stats']}>
-                //     {hasTreeCount && (
-                //         <div className={styles['intro-stat']}>
-                //             <span className={styles['intro-stat-label']}>Trees in view</span>
-                //             <span className={styles['intro-stat-value']}>{nTrees.toLocaleString()}</span>
-                //         </div>
-                //     )}
-                //     {hasCanopy && (
-                //         <div className={styles['intro-stat']}>
-                //             <span className={styles['intro-stat-label']}>Canopy in view</span>
-                //             <span className={styles['intro-stat-value']}>
-                //                 {Math.round(canopyM2).toLocaleString()} m²{canopyShare ? ` · ${canopyShare}%` : ''}
-                //             </span>
-                //         </div>
-                //     )}
-                // </div>
                 <div className={styles["intro-stats"]}>
                     <dl className={styles["intro-stat"]}>
                         {hasTreeCount && (
@@ -52,7 +36,8 @@ export default function SpeciesIntro({ onExplore, onExit, nTrees, canopyM2, view
                     </dl>
                 </div>
             )}
-            <p className={styles['note']}>Information is illustrative, not professional planting advice. Check local council guidance.</p>
+            <p className={styles['note']}>Information is illustrative, not professional planting advice.</p>
+            <p className={styles['note']}>Check local council guidance.</p>
             <div className={styles['panel-actions']}>
                 {!canExplore && (
                     <p className={styles['placement-hint']}>Click on the map to choose a spot first.</p>

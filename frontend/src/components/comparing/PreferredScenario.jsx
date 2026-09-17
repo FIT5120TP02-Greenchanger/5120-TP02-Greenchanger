@@ -37,7 +37,7 @@ export default function PreferredScenario({
                 </p>
             </div>
 
-            <div className={styles['compare-species-card']}>
+            <div className={styles['preferred-species-card']}>
                 <div className={styles['compare-species-heading']}>
                     <span className={styles['compare-species-badge']}>{label}</span>
                     <div>
@@ -47,24 +47,26 @@ export default function PreferredScenario({
                     <span className={styles['preferred-badge']}>PREFERRED</span>
                 </div>
 
-                <div className={styles['compare-table']}>
+                <dl className={styles['compare-table']}>
                     <SingleRow label="Added canopy at maturity" value={`+${formatRange(canopyAddedRange(preferred), ' m²')}`} />
                     <SingleRow label="Canopy cover after planting" value={coverAfter ? `${coverAfter.pct.toFixed(1)}%` : '—'} />
                     <SingleRow label="Shade potential" value={shadeLevel(preferred) ?? '—'} />
                     <SingleRow label="Cooling potential" value={coolingLevel(preferred) ?? '—'} />
                     <SingleRow label="Space needed on lot" value={spaceNeededM2(preferred) != null ? `${spaceNeededM2(preferred).toFixed(0)} m²` : '—'} />
-                </div>
+                </dl>
             </div>
 
             {other && (
-                <div className={styles['compare-table']}>
+                <div className={styles['preferred-compare-table']}>
                     <div className={styles['compare-section-label']}>
                         COMPARED WITH SCENARIO {String.fromCharCode(65 + otherIndex)} — {other.species.common_name}
                     </div>
-                    <SingleRow label="Canopy at maturity" value={canopyDiffLabel(preferred, other)} />
-                    <SingleRow label="Shade and cooling" value={levelDiffLabel(shadeLevel(preferred), shadeLevel(other))} />
-                    <SingleRow label="Space needed on lot" value={spaceDiffLabel(preferred, other)} />
-                    <SingleRow label="Supply-only price" value={priceDiffLabel(preferred, other)} />
+                    <dl className={styles['preferred-details']}>
+                        <SingleRow label="Canopy at maturity" value={canopyDiffLabel(preferred, other)} />
+                        <SingleRow label="Shade and cooling" value={levelDiffLabel(shadeLevel(preferred), shadeLevel(other))} />
+                        <SingleRow label="Space needed on lot" value={spaceDiffLabel(preferred, other)} />
+                        <SingleRow label="Supply-only price" value={priceDiffLabel(preferred, other)} />
+                    </dl>
                 </div>
             )}
 
@@ -85,9 +87,9 @@ export default function PreferredScenario({
 
 function SingleRow({ label, value }) {
     return (
-        <div className={styles['compare-row']}>
-            <div className={styles['compare-row-label']}>{label}</div>
-            <div className={styles['compare-row-value']}>{value}</div>
+        <div className={styles['preferred-detail-row']}>
+            <dt>{label}</dt>
+            <dd>{value}</dd>
         </div>
     )
 }

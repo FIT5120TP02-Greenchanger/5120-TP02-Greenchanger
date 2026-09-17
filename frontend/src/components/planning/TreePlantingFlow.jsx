@@ -151,7 +151,6 @@ export default function TreePlantingFlow({ lot, position, onApply, onExit, nTree
                         preferredKey={preferredKey}
                         onChoosePreferred={handleChoosePreferred}
                         onBack={() => setStep(STEPS.CHOOSE)}
-                        onDone={() => preferredKey && setStep(STEPS.PREFERRED)}
                     />
                 )
             case STEPS.PREFERRED:

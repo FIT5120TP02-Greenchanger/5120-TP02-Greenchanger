@@ -16,7 +16,7 @@ export default function Impact({ scenario, onViewGuidance, onBack, onCompare }) 
                 <span className={styles['user-note']}>Impact of planting a tree</span>
                 <h2 className={styles['panel-title']}>{species?.common_name} on your lot</h2>
                 <p className={styles['subtitle']}>
-                    {size} size placed at your simulated position, at {impact?.maturity_horizon_years} years. Figures are indicative ranges, not guarantees.
+                    {size} size placed at your simulated position, at {impact?.maturity_horizon_years} years. Figures are not guarantees.
                 </p>
 
                 <div className={styles['section']}>
