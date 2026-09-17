@@ -5,16 +5,115 @@ from pathlib import Path
 from unittest.mock import patch
 
 from greenchanger_script.enrich_tree_catalog import (
+    COMMONS_LICENCES,
+    commons_image_preference,
+    commons_taxon_candidates,
     deterministic_taxon_candidates,
+    enrich_full_tree_batch,
     enrich_species,
     enrich_species_with_commons,
+    file_title_is_detail_only,
+    image_is_blocked,
+    mediawiki_pages_by_requested_title,
     normalized_gbif_media_licence,
     read_checkpoint,
+    wikipedia_lead_file_title,
     wikipedia_title_candidate,
 )
 
 
 class TreeCatalogEnrichmentTests(unittest.TestCase):
+    def test_detail_filename_gate_keeps_explicit_mature_specimen(self):
+        self.assertTrue(file_title_is_detail_only("File:Example flowers and leaves.jpg"))
+        self.assertTrue(file_title_is_detail_only("File:Example distribution map.png"))
+        self.assertFalse(file_title_is_detail_only("File:Example mature specimen.jpg"))
+        self.assertFalse(file_title_is_detail_only("File:Example whole tree.jpg"))
+
+    def test_mediawiki_page_mapping_follows_normalization_and_redirects(self):
+        result = {"query": {
+            "normalized": [{"from": "Example_tree", "to": "Example tree"}],
+            "redirects": [{"from": "Example tree", "to": "Accepted tree"}],
+            "pages": {"1": {"title": "Accepted tree", "pageid": 1}},
+        }}
+        mapped = mediawiki_pages_by_requested_title(result, ["Example_tree"])
+        self.assertEqual(mapped["Example_tree"]["pageid"], 1)
+
+    def test_full_tree_batch_verifies_taxon_and_commons_licence(self):
+        wikipedia = {"query": {"pages": {"1": {
+            "title": "Example tree", "pageimage": "Example_tree.jpg",
+            "pageprops": {"wikibase_item": "Q123"},
+        }}}}
+        wikidata = {"entities": {"Q123": {"claims": {
+            "P225": [{"mainsnak": {"datavalue": {"value": "Example tree"}}}],
+        }}}}
+        commons = {"query": {"pages": {"2": {
+            "title": "File:Example tree.jpg",
+            "imageinfo": [{
+                "url": "https://upload.wikimedia.org/example-tree.jpg",
+                "descriptionurl": "https://commons.wikimedia.org/wiki/File:Example_tree.jpg",
+                "mime": "image/jpeg",
+                "extmetadata": {
+                    "LicenseShortName": {"value": "CC BY 4.0"},
+                    "Artist": {"value": "Example Creator"},
+                },
+            }],
+        }}}}
+        base = {"Example tree": {
+            "scientific_name": "Example tree", "enrichment_status": "verified_open_image",
+        }}
+        with patch(
+            "greenchanger_script.enrich_tree_catalog.get_wikimedia_json",
+            side_effect=[wikipedia, wikidata, commons],
+        ):
+            row = enrich_full_tree_batch(["Example tree"], base)[0]
+        self.assertEqual(row["commons_file_title"], "File:Example tree.jpg")
+        self.assertEqual(row["taxon_verification_id"], "Q123")
+        self.assertEqual(row["image_licence"], "CC BY 4.0")
+
+    def test_gfdl_is_accepted_as_commercially_reusable_commons_licence(self):
+        self.assertEqual(
+            COMMONS_LICENCES["gfdl 1.2"],
+            (
+                "GFDL 1.2",
+                "https://www.gnu.org/licenses/old-licenses/fdl-1.2.html",
+            ),
+        )
+
+    def test_commons_image_preference_favours_mature_whole_tree(self):
+        mature_tree = {
+            "title": "File:Example mature tree habit.jpg",
+            "imageinfo": [{"extmetadata": {
+                "ImageDescription": {"value": "A mature whole tree in a park"},
+            }}],
+        }
+        flower = {
+            "title": "File:Example flowers and leaves close-up.jpg",
+            "imageinfo": [{"extmetadata": {}}],
+        }
+        self.assertGreater(
+            commons_image_preference(mature_tree),
+            commons_image_preference(flower),
+        )
+
+    def test_commons_image_preference_uses_wikidata_lead_when_no_view_metadata(self):
+        lead = {"title": "File:Example.jpg", "imageinfo": [{"extmetadata": {}}]}
+        other = {"title": "File:Example 2.jpg", "imageinfo": [{"extmetadata": {}}]}
+        self.assertGreater(
+            commons_image_preference(lead, "File:Example.jpg"),
+            commons_image_preference(other, "File:Example.jpg"),
+        )
+
+    def test_wikipedia_lead_file_title_normalizes_pageimage_name(self):
+        response = {"query": {"pages": {"1": {
+            "pageimage": "700_yr_red_river_gum02.jpg",
+        }}}}
+        with patch(
+            "greenchanger_script.enrich_tree_catalog.get_wikimedia_json",
+            return_value=response,
+        ):
+            title = wikipedia_lead_file_title("Eucalyptus camaldulensis")
+        self.assertEqual(title, "File:700 yr red river gum02.jpg")
+
     def test_deterministic_candidates_extract_embedded_binomial(self):
         self.assertIn(
             ("Prunus armeniaca", "embedded_scientific_name"),
@@ -26,6 +125,46 @@ class TreeCatalogEnrichmentTests(unittest.TestCase):
             ("Acer × freemanii", "normalized_hybrid_name"),
             deterministic_taxon_candidates("Acer x freemanii 'Autumn Blaze'"),
         )
+
+    def test_taxon_corrections_are_used_by_standard_commons_fallback(self):
+        corrections = {
+            "Platanus x acerifolia": "Platanus × hispanica",
+            "Acacia ficifolia": "Acacia filicifolia",
+            "Flinders Range Wattle, Acacia iteaphylla": "Acacia iteaphylla",
+            "Leptospermum obavatum": "Leptospermum obovatum",
+            "Weeping tea tree, Leptospermum madidum": "Leptospermum madidum",
+        }
+
+        for catalogue_name, accepted_name in corrections.items():
+            with self.subTest(catalogue_name=catalogue_name):
+                candidates = commons_taxon_candidates(
+                    catalogue_name,
+                    {"gbif_taxon_key": None, "match_type": "EXACT"},
+                )
+
+                self.assertEqual(
+                    candidates[0],
+                    (accepted_name, "user_confirmed_wikipedia_correction"),
+                )
+                self.assertIn((catalogue_name, "exact_name"), candidates)
+
+    def test_distribution_map_filename_variants_are_rejected(self):
+        for title in (
+            "File:Acacia filifoliaDistMap357.png",
+            "File:Leptospermum confertumDistA10.png",
+            "File:Leptospermum obovatum distribution.png",
+        ):
+            with self.subTest(title=title):
+                self.assertTrue(file_title_is_detail_only(title))
+
+    def test_manifest_and_deep_zoom_urls_are_blocked_as_non_images(self):
+        for url in (
+            "https://example.test/specimen/123/manifest",
+            "https://example.test/specimen/123/manifest?download=1",
+            "https://example.test/specimen/123.dzi",
+        ):
+            with self.subTest(url=url):
+                self.assertTrue(image_is_blocked(url))
 
     def test_wikipedia_title_candidate_selects_unique_close_binomial(self):
         result = {"query": {"prefixsearch": [
@@ -128,6 +267,31 @@ class TreeCatalogEnrichmentTests(unittest.TestCase):
             "https://creativecommons.org/licenses/by-nd/4.0/",
         ):
             self.assertIsNone(normalized_gbif_media_licence(rejected))
+
+    def test_source_review_blocks_london_plane_specimen_image(self):
+        blocked_url = "https://sweetgum.nybg.org/images3/1967/024/02513824.jpg"
+        self.assertTrue(image_is_blocked(blocked_url))
+        match = {
+            "usageKey": 3152815, "speciesKey": 3152815,
+            "scientificName": "Platanus × acerifolia (Aiton) Willd.",
+            "rank": "SPECIES", "status": "SYNONYM", "confidence": 98,
+            "matchType": "EXACT", "kingdom": "Plantae",
+        }
+        blocked = {"results": [{
+            "key": 1930652320, "speciesKey": 3152815,
+            "media": [{
+                "identifier": blocked_url,
+                "creator": "The New York Botanical Garden",
+                "license": "https://creativecommons.org/licenses/by/4.0/",
+            }],
+        }]}
+        with patch(
+            "greenchanger_script.enrich_tree_catalog.get_json",
+            side_effect=[match, blocked, {"results": []}],
+        ):
+            row = enrich_species("Platanus x acerifolia")
+        self.assertEqual(row["enrichment_status"], "no_open_image")
+        self.assertIsNone(row["image_url"])
 
     def test_occurrence_filter_does_not_override_restricted_media_licence(self):
         match = {

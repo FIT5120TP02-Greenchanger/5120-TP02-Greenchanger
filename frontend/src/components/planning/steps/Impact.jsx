@@ -28,7 +28,7 @@ export default function Impact({ scenario, onViewGuidance, onBack, onCompare, on
                     <span className={card_styles['scenario-card-label']}>TEMPERATURE CHANGE</span>
                     <div className={card_styles['scenario-card-pct']}>+{temp_change}°C</div>
                 </div>
-    
+
                 <div className={`${card_styles['scenario-card']} ${card_styles['scenario-card--simulated']}`}>
                     <span className={card_styles['scenario-card-label']}>
                         SHADE CHANGE
@@ -62,7 +62,7 @@ export default function Impact({ scenario, onViewGuidance, onBack, onCompare, on
                     <button type="button" className={styles['back-button']} onClick={onBack}>
                         Change species
                     </button>
-                    
+
                 </div>
                 <div className={styles['panel-footer']}>
                     <button type="button" className={styles['exit-button']} onClick={onExit}>Exit</button>

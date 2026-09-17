@@ -3,6 +3,7 @@ initialize fastapi app and define health check endpoint
 
 running: localhost:8000/api/health
 """
+
 import itertools
 import os
 from contextlib import asynccontextmanager
@@ -102,6 +103,59 @@ MAX_PREFIX_CANDIDATES = 8
 # single-letter codes its training data was bucketed into. Accept both spellings
 # and either case here so this mapping lives in exactly one place.
 SIZE_ALIASES = {"S": "S", "SMALL": "S", "M": "M", "MEDIUM": "M", "L": "L", "LARGE": "L"}
+
+# Inventory feeds are not a governed taxonomy. Most common names can be
+# selected by frequency, but these two high-volume records need authoritative
+# display names rather than source typos or cultivar labels attached to the
+# base species.
+PREFERRED_SPECIES_COMMON_NAMES = {
+    "lophostemon confertus": "Brush Box",
+    "eucalyptus leucoxylon": "Yellow Gum",
+}
+
+
+POPULAR_SPECIES_QUERY = """
+    WITH species_counts AS (
+        SELECT lower(scientific_name) AS species_key,
+               MIN(scientific_name) AS scientific_name,
+               COUNT(*) AS tree_count
+        FROM named_tree_inventory
+        WHERE lower(scientific_name) = ANY(%(model_species)s)
+        GROUP BY lower(scientific_name)
+        ORDER BY tree_count DESC
+        LIMIT 10
+    ), common_name_counts AS (
+        SELECT lower(scientific_name) AS species_key,
+               common_name,
+               COUNT(*) AS common_name_count,
+               ROW_NUMBER() OVER (
+                   PARTITION BY lower(scientific_name)
+                   ORDER BY COUNT(*) DESC, common_name
+               ) AS common_name_rank
+        FROM named_tree_inventory
+        WHERE scientific_name IS NOT NULL
+          AND NULLIF(BTRIM(common_name), '') IS NOT NULL
+        GROUP BY lower(scientific_name), common_name
+    )
+    SELECT species_counts.*,
+           common_name_counts.common_name,
+           replace(img.image_url, '/original.', '/medium.') AS image_url,
+           img.image_page_url,
+           img.image_alt_text,
+           img.image_creator,
+           img.image_licence,
+           img.image_licence_url,
+           img.image_attribution,
+           img.image_status,
+           img.image_limitation
+    FROM species_counts
+    LEFT JOIN common_name_counts
+           ON common_name_counts.species_key = species_counts.species_key
+          AND common_name_counts.common_name_rank = 1
+    LEFT JOIN application_ready_tree_species_image AS img
+           ON lower(img.scientific_name) = species_counts.species_key
+    ORDER BY species_counts.tree_count DESC
+"""
 
 
 def _normalize_size(size: str) -> str:
@@ -228,10 +282,8 @@ def get_tree_costs(
     tree_type is the specific species or common name within that category -- they are
     different columns and neither is a substitute for the other.
 
-    A tree_type with no price row of its own (most species for now) gets the generic
-    'container_tree' (small container tree) rows instead, with is_generic_estimate true
-    so the UI can say it is not that species' price. Every row carries the flag.
-    Not applied when option_code is also given: that caller asked for one option only.
+    A tree_type with no species-specific row returns an empty list. Generic
+    container-tree prices must not be presented as though they quote that species.
     """
     clauses = []
     params: dict[str, str] = {}
@@ -247,15 +299,7 @@ def get_tree_costs(
         cur.execute(
             f"SELECT * FROM application_ready_cost_estimate {where} ORDER BY option_code", params
         )
-        rows = [jsonable_row(row) for row in cur.fetchall()]
-        generic = bool(tree_type) and not option_code and not rows
-        if generic:
-            cur.execute(
-                "SELECT * FROM application_ready_cost_estimate "
-                "WHERE option_code = 'container_tree' ORDER BY option_code"
-            )
-            rows = [jsonable_row(row) for row in cur.fetchall()]
-    return [{**row, "is_generic_estimate": generic} for row in rows]
+        return [jsonable_row(row) for row in cur.fetchall()]
 
 
 @lru_cache(maxsize=1)
@@ -263,30 +307,18 @@ def _popular_species() -> list[dict]:
     """Top 10 species by raw tree count across the councils currently covered
     by named_tree_inventory (9 of Victoria's 87 LGAs -- whichever have
     published open tree-inventory data), counting only species the growth
-    model covers (the planting flow can't use the others, so filtering after
-    the LIMIT left only 6 of the 10). Computed on first request, then
+    model covers (the planting flow cannot use the others). Filtering happens
+    before the top-10 limit. Computed on first request, then
     cached for the life of the process; not scoped by address yet.
 
-    Each species is left-joined to application_ready_tree_species_image (the
-    tree image catalogue) on scientific_name, case-insensitive. The join is
-    restricted to `curated_reference_image` rows, Wikimedia Commons images and
-    iNaturalist-hosted GBIF photos -- other GBIF sources were spot-checked and
-    include herbarium specimen scans and IIIF manifests (not images) that this
-    endpoint should not hand out as "the" photo for a species. Wikimedia was
-    excluded too until the data team's re-run (2026-09-17) switched it to the
-    species' Wikipedia/Wikidata lead image; the top-10 picks were checked by eye
-    and all show the named species. iNaturalist URLs are rewritten from /original. (up to ~12MB) to
-    /medium. (~150-200KB) so the frontend isn't asked to load full-res photos.
-
-    IMPORTANT -- image_licence/image_attribution are NOT currently trustworthy:
-    spot-checking against GBIF's own API found cases where this table's
-    image_licence says "CC BY 4.0" but the actual per-photo media license is
-    CC BY-NC 4.0 or CC BY-NC-SA 4.0 (the ingestion pipeline appears to have
-    recorded the GBIF *occurrence* record's license instead of the license on
-    the *image* itself). Do not display these images or their attribution
-    publicly until the data team fixes the source tables -- see PR discussion
-    on #36. image_status/image_limitation are still returned so callers can
-    tell a curated image from an unverified one.
+    Common names are chosen by frequency rather than alphabetically, with a
+    small authoritative override for known source errors. Each species is
+    left-joined to application_ready_tree_species_image, whose database view
+    already enforces the approved media-level licence rules. Curated images are
+    stored against the application's exact scientific name, so accepted-name
+    changes in external taxonomies cannot break this join. iNaturalist URLs are
+    rewritten from /original. (up to ~12MB) to /medium. (~150-200KB) so the
+    frontend isn't asked to load full-resolution photos.
 
     A species missing an image just gets null image fields --
     named_tree_inventory's scientific_name column isn't always a real
@@ -295,43 +327,13 @@ def _popular_species() -> list[dict]:
     """
     model_species = set(load_growth_model()["models"].keys())
     with pool.connection() as conn, conn.cursor() as cur:
-        cur.execute(
-            """
-            WITH top_species AS (
-                SELECT lower(scientific_name) AS species_key,
-                       MIN(scientific_name) AS scientific_name,
-                       MIN(common_name) AS common_name,
-                       COUNT(*) AS tree_count
-                FROM named_tree_inventory
-                WHERE lower(scientific_name) = ANY(%(model_species)s)
-                GROUP BY lower(scientific_name)
-                ORDER BY tree_count DESC
-                LIMIT 10
-            )
-            SELECT top_species.*,
-                   replace(img.image_url, '/original.', '/medium.') AS image_url,
-                   img.image_page_url,
-                   img.image_alt_text,
-                   img.image_creator,
-                   img.image_licence,
-                   img.image_licence_url,
-                   img.image_attribution,
-                   img.image_status,
-                   img.image_limitation
-            FROM top_species
-            LEFT JOIN application_ready_tree_species_image AS img
-                   ON lower(img.scientific_name) = top_species.species_key
-                  AND (img.image_status IN (
-                           'curated_reference_image', 'verified_wikimedia_commons_image'
-                       )
-                       OR img.image_url LIKE 'https://inaturalist-open-data.s3.amazonaws.com/%%')
-            ORDER BY top_species.tree_count DESC
-            """,
-            {"model_species": list(model_species)},
-        )
+        cur.execute(POPULAR_SPECIES_QUERY, {"model_species": list(model_species)})
         rows = [jsonable_row(row) for row in cur.fetchall()]
 
     for row in rows:
+        row["common_name"] = PREFERRED_SPECIES_COMMON_NAMES.get(
+            row["species_key"], row.get("common_name")
+        )
         row["has_growth_model"] = row["species_key"] in model_species
     return rows
 
