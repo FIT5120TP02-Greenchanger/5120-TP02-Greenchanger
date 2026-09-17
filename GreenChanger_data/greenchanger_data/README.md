@@ -28,6 +28,7 @@ functions and perform database writes.
 | `property_canopy.py` | Validate fine-resolution analytical canopy and calculate parcel-clipped canopy area, percentage and raster coverage without treating nodata as zero. |
 | `quality.py` | Record-level completeness, uniqueness, validity and consistency rules, including memory-safe stream validation. |
 | `research_tree_data.py` | Downloads checksum-pinned AusTraits and urban-tree-growth files; filters relevant traits, normalises tree rings, collapses exact climate duplicates and flags conflicting city-year variants. |
+| `tree_canopy_model.py` | Trains an experimental mature-tree crown-width benchmark from explicitly mature open council-tree records and derives circular mature/added canopy area without presenting cross-sectional data as longitudinal growth. |
 | `residential_scenarios.py` | Join real property baselines to four-action calculations and reviewed cost evidence while preserving measurement scope and warnings. |
 | `scenario_inputs.py` | Validate the versioned Residential Greening Scenario Simulation quantity, area, maturity, survival and suitability contract and translate it into evidence-bounded model inputs. |
 | `sources.py` | Load the source registry and calculate reproducibility checksums. |

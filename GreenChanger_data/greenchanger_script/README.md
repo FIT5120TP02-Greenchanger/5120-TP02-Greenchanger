@@ -35,6 +35,8 @@ repository.
 | `prepare_vector.py` | Repair/reproject/clip a general vector source. |
 | `validate_csv.py` | Apply configured quality rules to a staging CSV and write rejected rows. |
 | `calculate_measures.py` | Calculate Data Analytics & Insight Development outputs or print all formulas with sample results. |
+| `train_tree_canopy_model.py` | Train and evaluate the experimental mature crown-width model, preserving a sealed test partition and writing the model plus metrics. |
+| `predict_tree_canopy.py` | Load the saved mature crown-width model and print mature width, current/mature crown area, added canopy and model-level held-out R² for one tree as JSON. |
 | `validate_intervention_model.py` | Run source-linked intervention cases and update model status only after every case passes. |
 | `validate_residential_greening_inputs.py` | Validate and print sample outputs for the four-action, versioned Residential Greening Scenario Simulation input contract without database writes. |
 | `run_residential_greening_scenarios.py` | Query representative small/medium/large Melbourne properties and print four-action area, heat, cost and output-check results. |

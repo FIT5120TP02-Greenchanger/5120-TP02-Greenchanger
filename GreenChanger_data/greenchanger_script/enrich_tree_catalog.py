@@ -30,6 +30,18 @@ OPEN_LICENCES = (
     ("CC_BY_4_0", "https://creativecommons.org/licenses/by/4.0/", "CC BY 4.0"),
     ("CC0_1_0", "https://creativecommons.org/publicdomain/zero/1.0/", "CC0 1.0"),
 )
+GBIF_MEDIA_LICENCES = {
+    "cc_by_4_0": ("CC BY 4.0", "https://creativecommons.org/licenses/by/4.0/"),
+    "cc by 4.0": ("CC BY 4.0", "https://creativecommons.org/licenses/by/4.0/"),
+    "https://creativecommons.org/licenses/by/4.0": (
+        "CC BY 4.0", "https://creativecommons.org/licenses/by/4.0/",
+    ),
+    "cc0_1_0": ("CC0 1.0", "https://creativecommons.org/publicdomain/zero/1.0/"),
+    "cc0 1.0": ("CC0 1.0", "https://creativecommons.org/publicdomain/zero/1.0/"),
+    "https://creativecommons.org/publicdomain/zero/1.0": (
+        "CC0 1.0", "https://creativecommons.org/publicdomain/zero/1.0/",
+    ),
+}
 USER_AGENT = (
     "GreenChanger/1.0 tree catalogue enrichment "
     "(https://github.com/FIT5120TP02-Greenchanger/5120-TP02-Greenchanger)"
@@ -108,6 +120,17 @@ def clean_metadata_text(value):
     text = re.sub(r"<[^>]+>", " ", unescape(str(value)))
     text = re.sub(r"\s+", " ", text).strip()
     return text or None
+
+
+def normalized_gbif_media_licence(value) -> tuple[str, str] | None:
+    """Return an approved media-level licence, never an occurrence search filter."""
+    if not value:
+        return None
+    normalized = clean_metadata_text(value)
+    if not normalized:
+        return None
+    key = normalized.strip().casefold().replace("http://", "https://", 1).rstrip("/")
+    return GBIF_MEDIA_LICENCES.get(key)
 
 
 def claim_value(entity: dict, property_id: str):
@@ -481,7 +504,7 @@ def enrich_species(name: str) -> dict:
                 match,
             )
 
-        for licence_code, licence_url, licence_label in OPEN_LICENCES:
+        for licence_code, _requested_url, _requested_label in OPEN_LICENCES:
             result = get_json(
                 "occurrence/search",
                 {
@@ -498,9 +521,16 @@ def enrich_species(name: str) -> dict:
                     continue
                 for media in occurrence.get("media", []):
                     image_url = clean_https(media.get("identifier"))
+                    approved_licence = normalized_gbif_media_licence(media.get("license"))
+                    if not approved_licence:
+                        # The occurrence search filter does not establish the media
+                        # item's reuse rights. Missing, NC, ND, custom and
+                        # all-rights-reserved media licences are rejected.
+                        continue
+                    licence_label, licence_url = approved_licence
                     creator = media.get("creator") or media.get("rightsHolder")
                     rights_holder = media.get("rightsHolder") or creator
-                    if not image_url or (licence_code != "CC0_1_0" and not creator):
+                    if not image_url or (licence_label != "CC0 1.0" and not creator):
                         continue
                     occurrence_key = occurrence.get("key")
                     page_url = clean_https(media.get("references")) or (
@@ -535,7 +565,7 @@ def enrich_species(name: str) -> dict:
                     }
         return unresolved(
             name, "no_open_image",
-            "GBIF returned no usable CC0 or CC BY 4.0 still image for the exact matched taxon; no image was published.",
+            "GBIF returned no still image with a media-level CC0 1.0 or CC BY 4.0 licence for the exact matched taxon; no image was published.",
             match,
         )
     except Exception as error:
@@ -652,6 +682,13 @@ def main() -> None:
         "--retry-failed", action="store_true",
         help="retry only checkpoint rows whose last request failed",
     )
+    parser.add_argument(
+        "--revalidate-gbif-licences", action="store_true",
+        help=(
+            "re-enrich every published GBIF image and replace or quarantine records "
+            "that lack an approved media-level licence"
+        ),
+    )
     parser.add_argument("--load-only", action="store_true")
     parser.add_argument("--fetch-only", action="store_true")
     parser.add_argument("--confirm-shared", action="store_true")
@@ -662,10 +699,20 @@ def main() -> None:
     completed = read_checkpoint(args.checkpoint)
     if not args.load_only:
         commons_mode = args.commons_fallback or args.commons_broader_fallback
-        names = species_names(args.max_species) if not commons_mode else list(completed)
+        checkpoint_only_mode = commons_mode or args.revalidate_gbif_licences
+        names = list(completed) if checkpoint_only_mode else species_names(args.max_species)
         if commons_mode and args.max_species:
             names = names[:args.max_species]
-        if args.commons_broader_fallback:
+        if args.revalidate_gbif_licences:
+            names = list(completed)
+            if args.max_species:
+                names = names[:args.max_species]
+            pending = [
+                name for name in names
+                if completed.get(name, {}).get("enrichment_status") == "verified_open_image"
+                and completed.get(name, {}).get("image_source_name") == "GBIF occurrence media API"
+            ]
+        elif args.commons_broader_fallback:
             pending = [
                 name for name in names
                 if completed.get(name, {}).get("enrichment_status") != "verified_open_image"

@@ -8,6 +8,7 @@ from greenchanger_script.enrich_tree_catalog import (
     deterministic_taxon_candidates,
     enrich_species,
     enrich_species_with_commons,
+    normalized_gbif_media_licence,
     read_checkpoint,
     wikipedia_title_candidate,
 )
@@ -96,6 +97,7 @@ class TreeCatalogEnrichmentTests(unittest.TestCase):
                     "references": "https://records.example/456",
                     "creator": "Example Creator",
                     "rightsHolder": "Example Creator",
+                    "license": "https://creativecommons.org/licenses/by/4.0/",
                 }],
             }]
         }
@@ -108,6 +110,56 @@ class TreeCatalogEnrichmentTests(unittest.TestCase):
         self.assertEqual(row["image_licence"], "CC BY 4.0")
         self.assertEqual(row["gbif_occurrence_key"], 456)
         self.assertIn("Example Creator", row["image_attribution"])
+
+    def test_gbif_media_licence_accepts_only_policy_approved_values(self):
+        self.assertEqual(
+            normalized_gbif_media_licence("http://creativecommons.org/licenses/by/4.0/"),
+            ("CC BY 4.0", "https://creativecommons.org/licenses/by/4.0/"),
+        )
+        self.assertEqual(
+            normalized_gbif_media_licence("CC0_1_0"),
+            ("CC0 1.0", "https://creativecommons.org/publicdomain/zero/1.0/"),
+        )
+        for rejected in (
+            None,
+            "All rights reserved",
+            "https://creativecommons.org/licenses/by-nc/4.0/",
+            "https://creativecommons.org/licenses/by-nc-sa/4.0/",
+            "https://creativecommons.org/licenses/by-nd/4.0/",
+        ):
+            self.assertIsNone(normalized_gbif_media_licence(rejected))
+
+    def test_occurrence_filter_does_not_override_restricted_media_licence(self):
+        match = {
+            "usageKey": 123, "speciesKey": 123,
+            "scientificName": "Example tree L.", "rank": "SPECIES",
+            "status": "ACCEPTED", "confidence": 99,
+            "matchType": "EXACT", "kingdom": "Plantae",
+        }
+        restricted = {"results": [{
+            "key": 456, "speciesKey": 123,
+            "media": [{
+                "identifier": "https://images.example/tree.jpg",
+                "creator": "Example Creator",
+                "license": "All rights reserved",
+            }],
+        }]}
+        noncommercial = {"results": [{
+            "key": 789, "speciesKey": 123,
+            "media": [{
+                "identifier": "https://images.example/tree-2.jpg",
+                "creator": "Example Creator",
+                "license": "https://creativecommons.org/licenses/by-nc/4.0/",
+            }],
+        }]}
+        with patch(
+            "greenchanger_script.enrich_tree_catalog.get_json",
+            side_effect=[match, restricted, noncommercial],
+        ):
+            row = enrich_species("Example tree")
+        self.assertEqual(row["enrichment_status"], "no_open_image")
+        self.assertIsNone(row["image_url"])
+        self.assertIn("media-level", row["limitation"])
 
     def test_fuzzy_taxon_match_never_publishes_image(self):
         with patch(
@@ -142,7 +194,7 @@ class TreeCatalogEnrichmentTests(unittest.TestCase):
             row = enrich_species("Example tree")
         self.assertEqual(row["enrichment_status"], "no_open_image")
         self.assertIsNone(row["image_url"])
-        self.assertIn("no usable CC0", row["limitation"])
+        self.assertIn("media-level CC0", row["limitation"])
 
     def test_commons_fallback_requires_exact_wikidata_taxon_and_keeps_attribution(self):
         base = {

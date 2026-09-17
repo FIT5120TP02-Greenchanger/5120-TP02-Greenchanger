@@ -32,6 +32,120 @@ Versioned application-ready views and property lookup
 
 **Data Quality & Preparation** requires at least 95% of assessed records to pass the configured completeness, validity and consistency checks. Failed records are rejected or quarantined, and limitations are retained in the database. **Data Analytics & Insight Development** covers the analytical measures presented to users. Its calculations separate observed values from modelled scenarios and expose precise projected heat results only from validated model versions.
 
+## Experimental mature canopy-width model
+
+From the project root, create/activate the environment and install the model
+dependency with:
+
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+python -m pip install -r requirements.txt
+```
+
+Train the internal benchmark and print the train/test row counts, held-out R²,
+MAE and RMSE with:
+
+```bash
+python greenchanger_script/train_tree_canopy_model.py
+```
+
+The default run uses a reproducible 80/20 split. The fitted artifact contains
+only the 80% training partition; the 20% test partition remains untouched. The
+model and machine-readable metrics are written to:
+
+```text
+data/processed/models/tree_canopy_width/mature_canopy_width_model.joblib
+data/processed/models/tree_canopy_width/metrics.json
+```
+
+List the tree types that support automatic inputs:
+
+```bash
+python greenchanger_script/predict_tree_canopy.py --list-species
+```
+
+Choose one supported type to automatically fill representative mature height,
+DBH, health, structure, useful-life class and training-area location:
+
+```bash
+python greenchanger_script/predict_tree_canopy.py \
+  --species "River Red Gum"
+```
+
+When current canopy width is omitted, the command treats the selection as a new
+tree with 0 m² current canopy. The JSON response lists every auto-filled input
+and the assumption. User-supplied measurements always override the profile.
+
+For example, run the model with explicit measurements and property location:
+
+```bash
+python greenchanger_script/predict_tree_canopy.py \
+  --species "River Red Gum" \
+  --height-m 8 \
+  --dbh-cm 30 \
+  --current-canopy-width-m 3 \
+  --health "Good" \
+  --structure "Good" \
+  --useful-life "20-30 years" \
+  --longitude 144.66 \
+  --latitude -37.90
+```
+
+The command prints JSON containing `predicted_mature_canopy_width_m`,
+`current_canopy_area_m2`, `predicted_mature_canopy_area_m2`,
+`predicted_added_canopy_m2`, `model_held_out_test_r2` and
+`model_unseen_species_r2`, plus the model timestamp and limitation. R² is a
+model-level evaluation metric, not confidence for the individual prediction.
+Height or DBH is required; supply both when available. Longitude and latitude
+are optional but must be provided together.
+
+The equivalent Python API is:
+
+```bash
+python - <<'PY'
+import joblib
+
+from greenchanger_data.tree_canopy_model import predict_canopy
+
+artifact = joblib.load(
+    "data/processed/models/tree_canopy_width/"
+    "mature_canopy_width_model.joblib"
+)
+
+result = predict_canopy(
+    artifact["model"],
+    species_name="River Red Gum",
+    height_m=8,
+    diameter_breast_height_cm=30,
+    current_canopy_width_m=3,
+    health_status="Good",
+    structure_status="Good",
+    useful_life_expectancy="20-30 years",
+    longitude=144.66,
+    latitude=-37.90,
+)
+
+for name, value in result.items():
+    print(f"{name}: {value:.2f}")
+PY
+```
+
+Use exact Wyndham inventory species/common-name labels where possible. An
+unknown species can be scored because the model handles it explicitly, but that
+estimate relies more heavily on the other measurements and should be treated
+with greater caution.
+
+The trainer uses the open Wyndham inventory records explicitly labelled
+`Mature` or `Over mature`. It predicts observed mature crown width with
+categorical boosting from species, height, DBH, health, structure, remaining
+useful-life category and location. It also reports a stricter complete-species
+holdout diagnostic. The saved artifact is fitted only on the training partition;
+the test partition remains untouched. Mature crown area is derived as
+`π × (width / 2)²`, and added canopy is mature area minus current area, floored
+at zero. This is a cross-sectional benchmark, not longitudinal growth evidence or a production
+forecast; the existing validation gate remains in force.
+
 ## Initial setup
 
 Run commands from the `GreenChanger_data/` project root:
@@ -416,8 +530,11 @@ The complete named-species catalogue is exposed through
 `complete_tree_species_catalog`. Every distinct scientific name is retained.
 Species-specific prices use `species_specific_current_source_range`; all other
 rows use `generic_current_catalogue_range_not_species_quote`. GBIF enrichment
-publishes only exact Plantae matches with confidence at least 95 and record-level
-CC0 or CC BY 4.0 media. For names still missing images, the optional Wikimedia
+publishes only exact Plantae matches with confidence at least 95 and individual
+media-level CC0 or CC BY 4.0 terms. The licence must be present on the selected media object;
+an occurrence-search licence filter is not sufficient. Missing licences, All Rights
+Reserved, CC BY-NC, CC BY-ND and custom terms are rejected. For names still
+missing images, the optional Wikimedia
 Commons fallback is limited to rows with an exact GBIF taxon ID and requires an
 exact Wikidata P225 match for that name or its GBIF canonical taxon. This permits
 an explicitly labelled base-taxon reference for a cultivar while rejecting fuzzy
@@ -446,6 +563,17 @@ python greenchanger_script/enrich_tree_catalog.py \
 python greenchanger_script/enrich_tree_catalog.py \
   --commons-broader-fallback \
   --workers 4 \
+  --confirm-shared
+
+# Revalidate every existing GBIF image against its current media-level licence,
+# then load the replaced or quarantined results into the database.
+python greenchanger_script/enrich_tree_catalog.py \
+  --revalidate-gbif-licences \
+  --fetch-only \
+  --workers 12
+python greenchanger_script/migrate.py --confirm-shared
+python greenchanger_script/enrich_tree_catalog.py \
+  --load-only \
   --confirm-shared
 ```
 

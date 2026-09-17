@@ -9,7 +9,7 @@ class MigrationFileTests(unittest.TestCase):
     def test_migrations_are_numbered_and_ordered(self):
         self.assertEqual(
             [version for version, _ in migration_files()],
-            list(range(1, 58)),
+            list(range(1, 59)),
         )
 
     def test_current_costs_use_melbourne_date_and_retire_anonymous_trees(self):
@@ -97,6 +97,15 @@ class MigrationFileTests(unittest.TestCase):
         self.assertIn("unclassified_source_not_loaded", sql)
         self.assertIn("get_property_category", sql)
         self.assertIn("must not be presented as House", sql)
+
+    def test_tree_images_require_a_commercially_reusable_media_licence(self):
+        migration = next(path for version, path in migration_files() if version == 58)
+        sql = expanded_sql(migration)
+        self.assertIn("Quarantined: the stored media licence is not approved", sql)
+        self.assertIn("tree_species_image_enrichment_approved_licence_check", sql)
+        self.assertIn("CC BY 4.0", sql)
+        self.assertIn("CC0 1.0", sql)
+        self.assertIn("CREATE OR REPLACE VIEW application_ready_tree_species_image", sql)
 
     def test_include_is_expanded(self):
         with tempfile.TemporaryDirectory() as directory:
