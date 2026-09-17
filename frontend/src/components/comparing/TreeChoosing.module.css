@@ -1,0 +1,432 @@
+.compare-checkbox {
+    appearance: auto;
+    -webkit-appearance: checkbox;
+    width: 16px;
+    height: 16px;
+    min-width: 16px;
+    min-height: 16px;
+    accent-color: #2f855a;
+    cursor: pointer;
+}
+
+/* ---------- Species picker (TreeChoosing.jsx) ---------- */
+
+.panel-species-choosing {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.panel-title {
+    margin: 0;
+    font-size: 18px;
+    font-weight: 700;
+}
+
+.compare-checkbox {
+    width: 18px;
+    height: 18px;
+    flex-shrink: 0;
+    accent-color: #2F7D5A;
+    cursor: pointer;
+}
+
+/* ---------- Compare scenarios (TreeCompare.jsx) ---------- */
+
+.compare-panel {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+    padding: 4px 2px;
+}
+
+.compare-header {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.compare-subtitle {
+    margin: 0;
+    font-size: 13px;
+    color: #6B7280;
+}
+
+.compare-species-grid {
+    display: grid;
+    grid-template-columns:
+        minmax(125px, 0.8fr)
+        repeat(var(--compare-column-count), minmax(0, 1fr));
+    gap: 0;
+    align-items: stretch;
+    width: 100%;
+}
+.compare-label-column {
+    min-width: 0;
+}
+
+.compare-species-card {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    min-width: 0;
+    margin: 0 4px 18px;
+    padding: 10px;
+    border: 1px solid #d7ddd9;
+    border-radius: 10px;
+    background: #ffffff;
+}
+
+.compare-species-heading {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.compare-species-heading h2 {
+    margin: 0;
+    font-size: 14px;
+    font-weight: 700;
+    line-height: 1.2;
+}
+
+.compare-species-heading p {
+    margin: 2px 0 0;
+    font-size: 12px;
+    color: #6B7280;
+}
+
+.compare-species-badge {
+    flex-shrink: 0;
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 12px;
+    font-weight: 700;
+    color: #fff;
+    background: #2F7D5A;
+}
+
+/* Second, third... badges get a different color so A/B/C are distinguishable
+   without relying on the letter alone. Extend if you support >4 scenarios. */
+.compare-species-card:nth-child(2) .compare-species-badge {
+    background: #2F6FED;
+}
+.compare-species-card:nth-child(3) .compare-species-badge {
+    background: #C2570C;
+}
+.compare-species-card:nth-child(4) .compare-species-badge {
+    background: #7A3FC2;
+}
+
+.compare-size-toggle {
+    display: flex;
+    border: 1px solid #D1D5DB;
+    border-radius: 8px;
+    overflow: hidden;
+}
+
+.compare-size-toggle button {
+    flex: 1;
+    padding: 3px 0;
+    border: none;
+    background: #fff;
+    font-size: 0.675rem;
+    font-weight: 600;
+    color: #374151;
+    cursor: pointer;
+}
+
+.compare-size-toggle button + button {
+    border-left: 1px solid #D1D5DB;
+}
+
+.compare-size-toggle button[aria-pressed="true"] {
+    background: #EAF4EE;
+    color: #2F7D5A;
+}
+
+.compare-size-toggle button:disabled {
+    color: #D1D5DB;
+    cursor: not-allowed;
+}
+
+.compare-preferred-button {
+    padding: 8px 0;
+    border: 1px solid #2F7D5A;
+    border-radius: 8px;
+    background: #fff;
+    color: #2F7D5A;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.compare-preferred-button[aria-pressed="true"] {
+    background: #2F7D5A;
+    color: #fff;
+}
+
+.compare-preferred-button:disabled {
+    border-color: #E5E7EB;
+    color: #D1D5DB;
+    cursor: not-allowed;
+}
+
+/* ---------- Comparison table (shared by TreeCompare and PreferredScenario) ---------- */
+
+.compare-section-label {
+    grid-column: 1 / -1;
+    padding: 14px 0 7px;
+    border-bottom: 1px solid #dfe5e1;
+    color: #63806f;
+    font-size: 0.6875rem;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+}
+
+.compare-row-label {
+    min-width: 0;
+    padding: 13px 10px 13px 0;
+    border-bottom: 1px solid #ebefec;
+    color: #68736d;
+    font-size: 0.75rem;
+    line-height: 1.35;
+}
+
+.compare-row-value {
+    min-width: 0;
+    display: flex;
+    align-items: center;
+    padding: 13px 8px;
+    border-bottom: 1px solid #ebefec;
+    color: #17392e;
+    font-size: 0.8125rem;
+    font-weight: 600;
+    line-height: 1.35;
+    overflow-wrap: anywhere;
+}
+
+.compare-note {
+    margin: 0;
+    font-size: 11px;
+    color: #9CA3AF;
+}
+
+.guidance-button {
+    padding: 10px 16px;
+    border: none;
+    border-radius: 8px;
+    background: #2F7D5A;
+    color: #fff;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.guidance-button:disabled {
+    background: #D1D5DB;
+    cursor: not-allowed;
+}
+
+/* ---------- Preferred scenario (PreferredScenario.jsx) ---------- */
+
+.preferred-scenario-card {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    padding: 16px;
+    border: 1px solid #d7ddd9;
+    border-radius: 12px;
+    background: #ffffff;
+}
+
+.preferred-details {
+    display: flex;
+    flex-direction: column;
+    margin: 0;
+    padding: 0;
+}
+
+.preferred-detail-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    column-gap: 20px;
+    min-height: 44px;
+    border-bottom: 1px solid #e8edea;
+}
+
+.preferred-detail-row:first-child {
+    border-top: 1px solid #e8edea;
+}
+
+.preferred-detail-row dt {
+    margin: 0;
+    color: #68736d;
+    font-size: 12px;
+    font-weight: 400;
+    line-height: 1.4;
+}
+
+.preferred-detail-row dd {
+    margin: 0;
+    color: #17392e;
+    font-size: 13px;
+    font-weight: 600;
+    line-height: 1.4;
+    text-align: right;
+    white-space: nowrap;
+}
+
+.preferred-comparison-section {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+}
+
+.preference-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 16px;
+}
+
+.preferred-badge {
+    margin-left: auto;
+    align-self: flex-start;
+    padding: 3px 8px;
+    border-radius: 999px;
+    background: #EAF4EE;
+    color: #2F7D5A;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.03em;
+    white-space: nowrap;
+}
+
+.link-button {
+    padding: 0;
+    border: none;
+    background: none;
+    color: #2F7D5A;
+    font-size: 13px;
+    font-weight: 600;
+    text-decoration: underline;
+    cursor: pointer;
+}
+
+/* ============================================================
+   Epic 3/4 design alignment (Figma file T862ovErRK3aMw1BTZ8vzC)
+   Appended for the restyle. The rules above are unchanged; the rules
+   below override them with the design values and add motion.
+   Delete a rule here to get the previous look back.
+   07 Compare scenarios and 08 Preferred scenario keep their original look.
+   ============================================================ */
+
+/* ---------- E4-00 Choose trees (TreeChoosing.jsx) ---------- */
+/* the design's page title (07 and 08 use the same class and keep their original title) */
+.panel-species-choosing .panel-title {
+  color: #14181b;
+  font-size: 25px;
+  line-height: 1.24;
+}
+
+/* The step fills the panel; only the title + list area scrolls, the buttons stay at the bottom.
+   (doubled class: must beat .panel-page > :not(.panel-actions) in TreePlantingFlow.module.css) */
+div:has(> .panel-species-choosing.panel-species-choosing) {
+  display: flex;
+  flex: 1 1 0;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.panel-species-choosing {
+  flex: 1 1 auto;
+  gap: 10px;
+  min-height: 0;
+  /* 5px of room (cancelled by the negative margin) so a card's focus ring is not clipped by the scroll box */
+  margin: -5px -9px -5px -5px;
+  padding: 5px 9px 5px 5px;
+  overflow-y: auto;
+}
+
+/* the <li>s have no <ul> around them, which drew a bullet dot beside every card */
+.panel-species-choosing > li {
+  list-style: none;
+}
+
+/* subtitle: 6px under the title, 12px above the first card */
+.panel-species-choosing > p {
+  margin: -4px 0 2px;
+  color: #5e666c;
+  font-size: 13px;
+}
+
+/* cards keep their original size (the panel width follows the content); only colours and states change */
+
+/* checkbox: the design's rounded square with a white tick, at the original 18px */
+.compare-checkbox {
+  appearance: none;
+  -webkit-appearance: none;
+  position: relative;
+  width: 18px;
+  height: 18px;
+  min-width: 18px;
+  min-height: 18px;
+  margin: 0;
+  border: 1.5px solid #c3cac5;
+  border-radius: 5px;
+  background: #fff;
+  transition:
+    background-color 150ms ease,
+    border-color 150ms ease;
+}
+
+.compare-checkbox:checked {
+  border-color: #2f7d5a;
+  background: #2f7d5a;
+}
+
+.compare-checkbox:checked::after {
+  content: "";
+  position: absolute;
+  left: 5px;
+  top: 1.5px;
+  width: 5px;
+  height: 9px;
+  border: solid #fff;
+  border-width: 0 2px 2px 0;
+  transform: rotate(45deg);
+}
+
+/* ---------- 07 Compare scenarios / 08 Preferred scenario ---------- */
+/* These two pages keep their original look, except that the panel has no black border (as in the rest
+   of the flow). TreePlantingFlow.module.css stretches every step to the panel height (buttons at the
+   bottom); undo that here so their buttons follow the content as before. */
+.compare-panel.compare-panel {
+  flex: none;
+}
+
+/* ---------- Motion: press feedback (the look is unchanged) ---------- */
+.compare-size-toggle button,
+.compare-preferred-button,
+.guidance-button {
+  transition: transform 130ms cubic-bezier(0.23, 1, 0.32, 1);
+}
+
+.compare-size-toggle button:active:not(:disabled),
+.compare-preferred-button:active:not(:disabled),
+.guidance-button:active:not(:disabled) {
+  transform: scale(0.97);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .compare-size-toggle button:active:not(:disabled),
+  .compare-preferred-button:active:not(:disabled),
+  .guidance-button:active:not(:disabled) {
+    transform: none;
+  }
+}

@@ -1,6 +1,7 @@
 .side-panel {
     border: 1px solid black;
-    width: 350px;
+    width: auto;
+    max-width: fit-content;
     position: absolute;
     top: 26px;
     right: 26px;
@@ -94,10 +95,18 @@
     text-align: right;
     font-weight: 500;
 }
-
+/* Property panel */
 .property-panel {
-    padding: 15px 16px 15px 16px;
-    box-shadow: 0px 18px 40px 0px #0F171C2E;
+    box-sizing: border-box;
+    width: 100%;
+    padding: 15px 16px;
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 12px;
+    border-radius: 14px;
+    background: #fff;
+    font-family: "Instrument Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
 }
 .lot-hint {
     padding: 15px 16px;
@@ -108,20 +117,92 @@
     border-radius: 8px;
     box-shadow: 0px 18px 40px 0px #0F171C2E;
 }
-.property-panel p {
-    font-weight: 600;
-    font-size: 0.875rem;
-}
-.property-panel button {
-    color: #FFFFFF;
-    background-color: #2F7D5A;
+
+.property-panel-header {
     width: 100%;
-    padding: 10px 0;
-    border-radius: 7px;
-    margin-top: 5px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
 }
-.property-panel button:hover {
+.property-panel-header p {
+    margin: 0;
+    color: #0F171C;
+    font-family: "Instrument Sans";
+    font-size: 16px;
+    font-weight: 700;
+    line-height: 130%;
+    letter-spacing: 0.16px;
+}
+
+.property-title {
+    margin: 0;
+    color: #14181b;
+    font-size: 15px;
+    font-weight: 700;
+    line-height: 1.3;
+}
+
+.property-stat-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+}
+
+.property-stat-tile {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    padding: 12px 14px;
+    border-radius: 11px;
+    background: #f6f7f5;
+}
+
+.property-stat-tile--full {
+    grid-column: 1 / -1;
+}
+
+.property-stat-label {
+    color: #8c949a;
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+}
+
+.property-stat-value {
+    color: #14181b;
+    font-size: 18px;
+    font-weight: 700;
+    line-height: 1.25;
+}
+
+.plant-button {
+    width: 100%;
+    min-height: 44px;
+    padding: 10px 16px;
+    border: none;
+    border-radius: 8px;
+    background: #2f7d5a;
+    color: #fff;
+    font-size: 14px;
+    font-weight: 700;
     cursor: pointer;
+}
+
+.plant-button:hover {
+    background: #256548;
+}
+
+/* Kept for the earlier no-selection state, unchanged by this pass */
+.lot-hint {
+    margin: 0;
+    padding: 10px 14px;
+    border-radius: 10px;
+    background: #fff;
+    box-shadow: 0 8px 24px rgba(20, 24, 27, 0.12);
+    color: #5e666c;
+    font-size: 13px;
 }
 
 .lot-rows {
@@ -511,12 +592,13 @@
     cursor: pointer;
 }
 
-/* Close (x) on the lot card. `.property-panel button` styles every button as the green
-   CTA, so this needs the higher specificity to opt out. */
+/* Close (x) on the lot card. Keep this more specific than the generic .property-panel button rule
+   so the close button does not inherit CTA styling. */
 .property-panel .lot-close {
-    position: absolute;
-    top: 6px;
-    right: 6px;
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
     width: 28px;
     height: 28px;
     margin: 0;
@@ -527,13 +609,15 @@
     color: #5E666C;
     font-size: 20px;
     line-height: 1;
+    cursor: pointer;
 }
+
 .property-panel .lot-close:hover {
     background: #F2F4F5;
 }
-.property-panel > p:first-of-type {
+/* .property-panel > p:first-of-type {
     padding-right: 28px;
-}
+} */
 
 /* Plant button waits for a map click (2026-09-03) */
 .place-button:disabled {

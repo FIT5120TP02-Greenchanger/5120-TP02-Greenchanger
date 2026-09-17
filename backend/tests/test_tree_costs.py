@@ -41,3 +41,25 @@ def test_get_tree_costs_filters_by_option_code(override_db):
     response = TestClient(app).get("/api/trees/costs", params={"option_code": "container_tree"})
     assert response.status_code == 200
     assert response.json()[0]["option_code"] == "container_tree"
+
+
+def test_tree_type_with_a_price_returns_the_species_row(override_db):
+    override_db([[{"option_code": "backyard_tree_diy", "tree_type": "Water Gum"}]])
+    response = TestClient(app).get("/api/trees/costs", params={"tree_type": "Water Gum"})
+    assert response.json() == [{"option_code": "backyard_tree_diy", "tree_type": "Water Gum"}]
+
+
+def test_tree_type_without_a_price_does_not_use_a_generic_substitute(override_db):
+    override_db([[]])
+    response = TestClient(app).get("/api/trees/costs", params={"tree_type": "Dwarf Yellow Gum"})
+    assert response.status_code == 200
+    assert response.json() == []
+
+
+def test_no_fallback_when_an_option_code_is_also_given(override_db):
+    override_db([[]])
+    response = TestClient(app).get(
+        "/api/trees/costs",
+        params={"tree_type": "Dwarf Yellow Gum", "option_code": "backyard_tree_installed"},
+    )
+    assert response.json() == []

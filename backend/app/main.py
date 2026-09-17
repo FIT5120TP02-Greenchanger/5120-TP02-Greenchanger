@@ -15,6 +15,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from psycopg import Connection
 from pydantic import BaseModel
 
+from app.chat import router as chat_router
 from app.db import get_db, jsonable_row, pool
 from app.greening_model.scenario_inputs import calculate_simulated_action, load_input_contract
 from app.greening_model.tree_growth import load_model as load_growth_model
@@ -57,6 +58,9 @@ app.add_middleware(
     allow_methods=["GET", "POST"],
     allow_headers=["*"],
 )
+
+# GreenBot: POST /api/chat, defined in app/chat.py.
+app.include_router(chat_router)
 
 
 def _like_prefix(text: str) -> str:
@@ -116,7 +120,7 @@ POPULAR_SPECIES_QUERY = """
                MIN(scientific_name) AS scientific_name,
                COUNT(*) AS tree_count
         FROM named_tree_inventory
-        WHERE scientific_name IS NOT NULL
+        WHERE lower(scientific_name) = ANY(%(model_species)s)
         GROUP BY lower(scientific_name)
         ORDER BY tree_count DESC
         LIMIT 10
@@ -277,6 +281,9 @@ def get_tree_costs(
     option_code is the greening-option category (container/backyard/community/...);
     tree_type is the specific species or common name within that category -- they are
     different columns and neither is a substitute for the other.
+
+    A tree_type with no species-specific row returns an empty list. Generic
+    container-tree prices must not be presented as though they quote that species.
     """
     clauses = []
     params: dict[str, str] = {}
@@ -299,7 +306,9 @@ def get_tree_costs(
 def _popular_species() -> list[dict]:
     """Top 10 species by raw tree count across the councils currently covered
     by named_tree_inventory (9 of Victoria's 87 LGAs -- whichever have
-    published open tree-inventory data). Computed on first request, then
+    published open tree-inventory data), counting only species the growth
+    model covers (the planting flow cannot use the others). Filtering happens
+    before the top-10 limit. Computed on first request, then
     cached for the life of the process; not scoped by address yet.
 
     Common names are chosen by frequency rather than alphabetically, with a
@@ -307,20 +316,20 @@ def _popular_species() -> list[dict]:
     left-joined to application_ready_tree_species_image, whose database view
     already enforces the approved media-level licence rules. Curated images are
     stored against the application's exact scientific name, so accepted-name
-    changes in external taxonomies cannot break this join. iNaturalist URLs are rewritten from
-    /original. (up to ~12MB) to /medium. (~150-200KB) so the frontend isn't
-    asked to load full-resolution photos.
+    changes in external taxonomies cannot break this join. iNaturalist URLs are
+    rewritten from /original. (up to ~12MB) to /medium. (~150-200KB) so the
+    frontend isn't asked to load full-resolution photos.
 
     A species missing an image just gets null image fields --
     named_tree_inventory's scientific_name column isn't always a real
     scientific name (e.g. "Chinese Elm" is a common name), so not every entry
     will match.
     """
+    model_species = set(load_growth_model()["models"].keys())
     with pool.connection() as conn, conn.cursor() as cur:
-        cur.execute(POPULAR_SPECIES_QUERY)
+        cur.execute(POPULAR_SPECIES_QUERY, {"model_species": list(model_species)})
         rows = [jsonable_row(row) for row in cur.fetchall()]
 
-    model_species = set(load_growth_model()["models"].keys())
     for row in rows:
         row["common_name"] = PREFERRED_SPECIES_COMMON_NAMES.get(
             row["species_key"], row.get("common_name")

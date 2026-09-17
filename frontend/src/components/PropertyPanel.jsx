@@ -16,30 +16,28 @@ export default function PropertyPanel({ stats, hint, onPlantTree, onClose }) {
         onMouseOver={(e) => e.stopPropagation()}
         onMouseMove={(e) => e.stopPropagation()}
         >
-            {onClose && (
-                <button type="button" className={styles["lot-close"]} onClick={onClose} aria-label="Close">×</button>
-            )}
-            <p>{stats.address.split(',')[0]}</p>
-            <dl className={styles["lot-rows"]}>
-                <dt>Lot area</dt>
-                <dd>{stats.areaLabel}</dd>
-                <dt>Trees on lot</dt>
-                <dd>{stats.treeCount}</dd>
-
+            <div className={styles["property-panel-header"]}>
+                <p>{stats.address.split(',')[0]}</p>
+                {onClose && (
+                    <button type="button" className={styles["lot-close"]} onClick={onClose} aria-label="Close">×</button>
+                )}
+            </div>
+            <div className={styles["property-stat-grid"]}>
+                <div className={styles["property-stat-tile"]}>
+                    <span className={styles["property-stat-label"]}>Lot area</span>
+                    <strong className={styles["property-stat-value"]}>{stats.areaLabel.toFixed(0)}</strong>
+                </div>
+                <div className={styles["property-stat-tile"]}>
+                    <span className={styles["property-stat-label"]}>Trees on lot</span>
+                    <strong className={styles["property-stat-value"]}>{stats.treeCount}</strong>
+                </div>
                 {stats.propertyCanopyPct != null && (
-                    <>
-                        <dt>Property canopy</dt>
-                        <dd>{stats.propertyCanopyPct.toFixed(1)}%</dd>
-                    </>
+                    <div className={`${styles["property-stat-tile"]} ${styles["property-stat-tile--full"]}`}>
+                        <span className={styles["property-stat-label"]}>Property canopy</span>
+                        <strong className={styles["property-stat-value"]}>{stats.propertyCanopyPct.toFixed(1)}%</strong>
+                    </div>
                 )}
-                {stats.canopyClassification && (
-                    <>
-                        <dt>Neighbourhood Classification</dt>
-                        <dd>{stats.canopyClassification}</dd>
-                    </>
-                )}
-            </dl>
-            
+            </div>
             <button className={styles["plant-button"]} onClick={onPlantTree}>Plant a tree here</button>
         </div>
     );

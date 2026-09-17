@@ -1,14 +1,11 @@
-// import { useEffect, useRef, useState, useCallback } from 'react';
-import { useEffect, useRef, useState, useCallback, useMemo } from 'react'; // useMemo added (in-map planting, 2026-09-03)
+import { useEffect, useRef, useState, useCallback, useMemo } from 'react';
 
 import Map, { Marker, Source, Layer } from 'react-map-gl/mapbox';
 import 'mapbox-gl/dist/mapbox-gl.css';
-// import { SearchBox } from '@mapbox/search-js-react';
 import styles from './MapView.module.css';
 import { useParcels } from '../hooks/parcels';
 import { useTreeCanopy } from '../hooks/canopy';
 import { useSelectedProperty } from "../hooks/property";
-// import { circleMetres, centroidOfGeometry } from '../utils/geo';
 import { circleMetres, centroidOfGeometry, pointInPolygon } from '../utils/geo'; // pointInPolygon: outside-lot hint (2026-09-03)
 
 import SidePanel from '../components/SidePanel';
@@ -73,12 +70,11 @@ function sameAddress(a, b) {
 // onNavigate added (2026-09-03) so the home button below can go back to the landing page
 // export default function MapView({ selectedLocation, setSelectedLocation, simulatedTrees, onPlantTree, onNavigate }) {
 // setSimulatedTrees replaces onPlantTree (2026-09-03): planting happens here, App only stores the trees
-export default function MapView({ selectedLocation, setSelectedLocation, simulatedTrees, setSimulatedTrees, onNavigate }) {
+export default function MapView({ selectedLocation, setSelectedLocation, simulatedTrees, setSimulatedTrees, onNavigate, onPropertyStatsChange, onCanopyStatsChange, onScenarioChange }) {
     const mapRef = useRef(null);
     const hoverId = useRef(null);
     const debounceRef = useRef(null);
     const consumedInitialLocation = useRef(false);
-    const shouldFlyToSelection = useRef(false);
 
     const [zoom, setZoom] = useState(START_ZOOM);
     // const [isPropertyclicked, setIsPropertyClick] = useState(false)
@@ -106,32 +102,29 @@ export default function MapView({ selectedLocation, setSelectedLocation, simulat
     const [treeSize, setTreeSize] = useState("Medium");
     // Clicking tree to update
     const [selectedTreeId, setSelectedTreeId] = useState(null);
+    const [plantedTreeId, setPlantedTreeId] = useState(null); // Track id of tree planted during current placement session
     const [updatePos, setUpdatePos] = useState(false); // for updating the position of an existing tree
+    const [choosingSpecies, setChoosingSpecies] = useState(false);
 
     // Scenario mode (2026-09-03): from "Plant a tree here" until Done. While open, the side panel
     // shows only the planting / comparison panels, like the old PlantTreePage sidebar did.
     const [scenarioOpen, setScenarioOpen] = useState(false);
+    const [mode, setMode] = useState(null)
+    const [showChooser, setShowChooser] = useState(false);
     
-
+    useEffect(() => { onPropertyStatsChange?.(propertySelected.stats); }, [propertySelected.stats, onPropertyStatsChange]);
+    useEffect(() => { onCanopyStatsChange?.(trees); }, [trees, onCanopyStatsChange]);
 
     const transitCoordinates = useCallback((longitude, latitude) => {
         mapRef.current?.flyTo({
             center: [longitude, latitude],
-            zoom: zoom,
+            zoom: START_ZOOM,
             duration: 2000,
         });
         setMarkerCoordinates({ latitude, longitude });
         setPropertyAnchor({ lng: longitude, lat: latitude });
     }, []);
 
-    // const flyToFeature = useCallback((result) => {
-        // const geom = result?.feature?.geometry;
-        // if (!geom) return;
-        // const centroid = centroidOfGeometry(geom);
-        // if (centroid) transitCoordinates(centroid.lng, centroid.lat);
-    // }, [transitCoordinates]);
-    // Arrive flow (2026-09-03): the searched lot is remembered as "home" so the pin and the
-    // "back to my home" action can restore it, and arriving always starts in the pinned view.
     const flyToFeature = useCallback((result, address) => {
         const geom = result?.feature?.geometry;
         if (!geom) return;
@@ -157,7 +150,6 @@ export default function MapView({ selectedLocation, setSelectedLocation, simulat
         consumedInitialLocation.current = true;
         let cancelled = false;
         resolveFromBaseline(selectedLocation.address).then((result) => {
-            // if (!cancelled) flyToFeature(result);
             if (!cancelled) flyToFeature(result, selectedLocation.address); // arrive flow: pass the address
         });
         return () => { cancelled = true; };
@@ -186,21 +178,7 @@ export default function MapView({ selectedLocation, setSelectedLocation, simulat
         refreshAll();
     }
 
-    // const handleClick = useCallback(async (e) => {
-        // const map = mapRef.current?.getMap();
-        // if (!map) return;
-
-        // const features = map.queryRenderedFeatures(e.point, { layers: ["parcel-hit"] });
-        // setPropertyAnchor({ lng: e.lngLat.lng, lat: e.lngLat.lat });
-
-        // await propertySelected.selectAtPoint(features, parcels.parcelFeatures, zoom < MIN_PARCEL_ZOOM, e.lngLat);
-
-        // // setIsPropertyClick(true);
-    // }, [propertySelected, parcels.parcelFeatures, zoom]);
-    // Arrive flow: clicking a lot only changes the selection (outline + side panel). The card
-    // opens solely through "Simulate a change"; if it is already open it follows the selection.
-    // A click that hits no lot (road, reserve) keeps the current selection; selectAtPoint only
-    // sets a hint.
+    const awaitingPlantPosition = placing || (mode === 'species' && choosingSpecies && !plantedTreeId);
     const handleClick = useCallback(async (e) => {
         const map = mapRef.current?.getMap();
         if (!map) return;
@@ -211,7 +189,7 @@ export default function MapView({ selectedLocation, setSelectedLocation, simulat
         if (target instanceof Element && target.closest(".mapboxgl-marker")) return;
 
         // In-map planting: a click puts the tree there. Outside the selected lot is allowed, just hinted.
-        if (placing) {
+        if (awaitingPlantPosition) {
             const { lng, lat } = e.lngLat;
             setPendingPos({ lng, lat });
             const lotGeom = propertySelected.selected?.geometry;
@@ -224,7 +202,7 @@ export default function MapView({ selectedLocation, setSelectedLocation, simulat
             setPropertyAnchor({ lng: e.lngLat.lng, lat: e.lngLat.lat });
         }
         await propertySelected.selectAtPoint(features, parcels.parcelFeatures, zoom < MIN_PARCEL_ZOOM, e.lngLat);
-    }, [placing, propertySelected, parcels.parcelFeatures, zoom]);
+    }, [awaitingPlantPosition, propertySelected, parcels.parcelFeatures, zoom]);
 
     // Restore the searched lot as the selection (card anchored on it)
     const backToHome = useCallback(() => {
@@ -253,7 +231,11 @@ export default function MapView({ selectedLocation, setSelectedLocation, simulat
     const startPlacing = useCallback(() => {
         setPendingPos(null);
         setHoverPos(null);
-        setPlacing(true);
+        setPlacing(false);
+        setPlantedTreeId(null);
+        setChoosingSpecies(false);
+        setMode(null);
+        setShowChooser(true);
         setScenarioOpen(true);
 
         const map = mapRef.current?.getMap();
@@ -285,21 +267,41 @@ export default function MapView({ selectedLocation, setSelectedLocation, simulat
     const closeScenario = useCallback(() => {
         setScenarioOpen(false);
         setPlacing(false);
+        setChoosingSpecies(false);
         setPendingPos(null);
         setHoverPos(null);
         setSimulating(false);
+        setPlantedTreeId(null)
         resetCursor();
     }, []);
     // Cancel while placing: back to the comparison if trees exist, otherwise leave scenario mode
     const cancelPlacing = useCallback(() => {
         setPlacing(false);
+        setChoosingSpecies(false);
+        setShowChooser(false);
         setPendingPos(null);
         setHoverPos(null);
         setSelectedTreeId(null);
+        setUpdatePos(false);
+        setPlantedTreeId(null);
+        setMode(null);
         resetCursor();
-        setSimulating(false); // the lot card has no meaning inside a scenario; keeps Escape from flying home later
+        setSimulating(false);
         if (!simulatedTrees?.length) setScenarioOpen(false);
     }, [simulatedTrees]);
+
+    const chooseQuickMode = useCallback(() => {
+        setMode('quick');
+        setShowChooser(false);
+        setPlacing(true);
+    }, []);
+
+    const chooseSpeciesMode = useCallback(() => {
+        setMode('species');
+        setShowChooser(false);
+        setChoosingSpecies(true);
+        setPlantedTreeId(null);
+    }, []);
     const confirmPlacing = useCallback(() => {
         if (!pendingPos) return;
         if (selectedTreeId) {
@@ -307,20 +309,62 @@ export default function MapView({ selectedLocation, setSelectedLocation, simulat
                 prev.map((t) => t.id === selectedTreeId ? {...t, lng: pendingPos.lng, lat: pendingPos.lat, size: treeSize, radiusM: TREE_SIZES[treeSize].radiusM} : t)
             );
             setSelectedTreeId(null);
-        } else {
-            const tree = { 
-                id: crypto.randomUUID(), 
-                lng: pendingPos.lng, lat: pendingPos.lat, 
-                radiusM: TREE_SIZES[treeSize].radiusM, size: treeSize };
-            setSimulatedTrees((prev) => [...(prev || []), tree]);
+            setUpdatePos(false);
+            setPlacing(false);
+            setPendingPos(null);
+            setHoverPos(null);
+            setSimulating(false);
+            resetCursor();
+            return;
         }
-        setUpdatePos(false);
+        // Quick mode
+        const radiusM = TREE_SIZES[treeSize].radiusM;
+        const tree = {
+            id: crypto.randomUUID(),
+            lng: pendingPos.lng,
+            lat: pendingPos.lat,
+            radiusM,
+            size: treeSize
+        }
+        setSimulatedTrees((prev) => [...(prev || []), tree]);
+        setPlantedTreeId(tree.id);
         setPlacing(false);
         setPendingPos(null);
         setHoverPos(null);
         setSimulating(false);
         resetCursor();
     }, [pendingPos, treeSize, setSimulatedTrees, selectedTreeId]);
+    const handleApplyScenario = useCallback((scenario) => {
+        onScenarioChange?.(scenario);
+        if (!scenario || !scenario.position) return;
+        const crownWidthM = scenario.growth?.crown_width_m_median;
+        const radiusM = crownWidthM
+            ? crownWidthM / 2
+            : (TREE_SIZES[scenario.size]?.radiusM ?? TREE_SIZES.Medium.radiusM);
+        if (plantedTreeId) {
+            // Re-applying within the same session (via "Start Again") — update the
+            // tree already placed instead of stacking a duplicate on top of it.
+            setSimulatedTrees((prev) =>
+                prev.map((t) => t.id === plantedTreeId
+                    ? { ...t, radiusM, size: scenario.size, species: scenario.species?.scientific_name }
+                    : t
+                )
+            );
+            return;
+        }
+
+        const tree = {
+            id: crypto.randomUUID(),
+            lng: scenario.position.lng,
+            lat: scenario.position.lat,
+            radiusM,
+            size: scenario.size,
+            species: scenario.species?.scientific_name,
+            speciesName: scenario.species?.common_name,
+        };
+        setSimulatedTrees((prev) => [...(prev || []), tree]);
+        setPlantedTreeId(tree.id)
+    }, [setSimulatedTrees, onScenarioChange, plantedTreeId, setPlantedTreeId]);
 
 
     // Remove / Reset inside the comparison panel behave like the old page: with no trees left,
@@ -355,11 +399,11 @@ export default function MapView({ selectedLocation, setSelectedLocation, simulat
         const pos = pendingPos || hoverPos;
         return {
             type: "FeatureCollection",
-            features: placing && pos
+            features: awaitingPlantPosition && pos
                 ? [{ type: "Feature", properties: {}, geometry: circleMetres(pos.lng, pos.lat, TREE_SIZES[treeSize].radiusM) }]
                 : [],
         };
-    }, [placing, pendingPos, hoverPos, treeSize]);
+    }, [awaitingPlantPosition, pendingPos, hoverPos, treeSize]);
 
     // Same indicative numbers PlantTreePage used (viewport-based, see review #18)
     const projected = useMemo(() => {
@@ -392,23 +436,10 @@ export default function MapView({ selectedLocation, setSelectedLocation, simulat
         debounceRef.current = setTimeout(refreshAll, 250);
     }, [refreshAll]);
 
-
-    // const handleMouseMove = useCallback((e) => {
-        // const map = mapRef.current?.getMap();
-        // if (!map || !e.features?.length) return;
-        // map.getCanvas().style.cursor = "pointer";
-        // if (hoverId.current !== null) {
-        // map.setFeatureState({ source: "parcels", id: hoverId.current }, { hover: false });
-        // }
-        // hoverId.current = e.features[0].id;
-        // map.setFeatureState({ source: "parcels", id: hoverId.current }, { hover: true });
-    // }, []);
-    // In-map planting (2026-09-03): while placing, the cursor is a crosshair and the preview
-    // circle follows it until the first click. Parcel hover is unchanged otherwise.
     const handleMouseMove = useCallback((e) => {
         const map = mapRef.current?.getMap();
         if (!map) return;
-        if (placing) {
+        if (awaitingPlantPosition) {
             map.getCanvas().style.cursor = "crosshair";
             if (!pendingPos) setHoverPos({ lng: e.lngLat.lng, lat: e.lngLat.lat });
             return;
@@ -420,18 +451,8 @@ export default function MapView({ selectedLocation, setSelectedLocation, simulat
         }
         hoverId.current = e.features[0].id;
         map.setFeatureState({ source: "parcels", id: hoverId.current }, { hover: true });
-    }, [placing, pendingPos]);
+    }, [awaitingPlantPosition, pendingPos]);
 
-
-    // const handleMouseLeave = useCallback(() => {
-        // const map = mapRef.current?.getMap();
-        // if (!map) return;
-        // map.getCanvas().style.cursor = "";
-        // if (hoverId.current !== null) {
-        // map.setFeatureState({ source: "parcels", id: hoverId.current }, { hover: false });
-        // }
-        // hoverId.current = null;
-    // }, []);
     const handleMouseLeave = useCallback(() => {
         const map = mapRef.current?.getMap();
         if (!map) return;
@@ -447,45 +468,17 @@ export default function MapView({ selectedLocation, setSelectedLocation, simulat
         consumedInitialLocation.current = false;
     }, [selectedLocation?.addressId]);
 
-    useEffect(() => {
-        if (!isMapLoaded || !selectedLocation?.address || consumedInitialLocation.current) return;
-        consumedInitialLocation.current = true;
-        shouldFlyToSelection.current = true;
-        resolveFromBaseline( selectedLocation.address );
-    }, [isMapLoaded, selectedLocation, resolveFromBaseline]);
+    // useEffect(() => {
+    //     if (!isMapLoaded || !selectedLocation?.address || consumedInitialLocation.current) return;
+    //     consumedInitialLocation.current = true;
+    //     shouldFlyToSelection.current = true;
+    //     resolveFromBaseline( selectedLocation.address );
+    // }, [isMapLoaded, selectedLocation, resolveFromBaseline]);
 
     return (
         <div className={styles["map-container"]}>
             <div className={styles["address-container"]}>
                 <div className={styles["search-box-container"]}>
-                    {/* <SearchBox
-                        accessToken={import.meta.env.VITE_MAPBOX_ACCESS_TOKEN}
-                        onRetrieve={handleAddressSelect}
-                        onChange={handleAddressChange}
-                        value={addressInput}
-                        placeholder="Search for an address"
-                        options={{
-                            country: 'AU',
-                            language: 'en',
-                            types: 'address',
-                            bbox: [
-                                144.4,
-                                -38.3,
-                                145.5,
-                                -37.4
-                            ]
-                        }}
-                        theme={{
-                            variables: {
-                                fontFamily: 'inherit',
-                                fontSize: '16px',
-                                borderRadius: '10px',
-                            },
-                            icons: {
-                                search: ''
-                            }
-                        }}
-                    /> */}
                     <AddressAutocomplete
                         value={addressInput}
                         onChange={handleAddressChange}
@@ -648,6 +641,14 @@ export default function MapView({ selectedLocation, setSelectedLocation, simulat
                 onSimulate={startSimulating}
                 onBackHome={backToHome}
                 placing={placing}
+                plantMode={mode}
+                onQuickSimulation={chooseQuickMode}
+                onExploreSpecies={chooseSpeciesMode}
+                choosingSpecies={choosingSpecies}
+                pendingPos={pendingPos}
+                onApplyScenario={handleApplyScenario}
+                onExitPlanting={cancelPlacing}
+                showChooser={showChooser}
                 placement={{
                     size: treeSize,
                     onSizeChange: setTreeSize,

@@ -13,7 +13,7 @@ const SCOPE_LABEL = {
 const BAND_CLASS = { High: "band-high", Medium: "band-medium", Low: "band-low" };
 
 export default function HeatPanel({ stats }) {
-    const [open, setOpen] = useState(null); // "heat" | "air" | null
+    const [openKeys, setOpenKeys] = useState(() => new Set()); // "heat" | "air" | null
     if (!stats) {
         return null; // nothing selected yet — SidePanel is always mounted, so bail quietly
     }
@@ -22,18 +22,25 @@ export default function HeatPanel({ stats }) {
     const heatNote = stats.limitations?.heat;
     const airNote = stats.limitations?.air_temperature;
     const airUnavailable = stats.weatherContext === WEATHER_UNAVAILABLE || stats.airTemperatureC == null;
-    const toggle = (key) => setOpen((current) => (current === key ? null : key));
+    const toggle = (key) => setOpenKeys((current) => {
+        const next = new Set(current);
+        next.has(key) ? next.delete(key) : next.add(key);
+        return next;
+    });
+    const isOpen = (key) => openKeys.has(key);
     const why = (key, label) => (
         <button
             type="button"
             className={styles["why-button"]}
-            aria-expanded={open === key}
+            aria-expanded={isOpen(key)}
             aria-label={label}
             onClick={() => toggle(key)}
         >
             ?
         </button>
     );
+    const hasMeasurementDetails = stats.landSurfaceTempDate || stats.classificationScope;
+
 
     return (
         <div className={styles["heat-panel"]}>
@@ -45,12 +52,26 @@ export default function HeatPanel({ stats }) {
                 <div className={styles["band-lead"]}>
                     <span className={`${styles["band"]} ${styles[BAND_CLASS[band] || "band-na"]}`}>{band}</span>
                     {scope && <span className={styles["band-scope"]}>{scope}</span>}
-                    {/* {heatNote && why("heat", "Why this heat value")} */}
+                    {hasMeasurementDetails && why("details", "Measurement date and classification baseline")}
                 </div>
-                {open === "heat" && heatNote && (
+                {isOpen("heat") && heatNote && (
                     <p className={styles["why-note"]}>
                         <span className={styles["why-key"]}>limitations.heat</span>
                         {heatNote}
+                    </p>
+                )}
+                {isOpen("details") && hasMeasurementDetails && (
+                    <p className={styles["why-note"]}>
+                        <span className={styles["why-key"]}>measurement & classification</span>
+                        {stats.landSurfaceTempDate && (
+                            <>Measured {stats.landSurfaceTempDate} · Landsat land surface<br /></>
+                        )}
+                        {stats.classificationScope && (
+                            <>
+                                Band relative to the Greater Melbourne application-ready baseline
+                                {stats.classificationSchemeVersion && ` · ${stats.classificationSchemeVersion}`}
+                            </>
+                        )}
                     </p>
                 )}
 
@@ -67,10 +88,7 @@ export default function HeatPanel({ stats }) {
                             : `${stats.airTemperatureC.toFixed(1)}°C`}
                     </dd>
                 </dl>
-                {stats.landSurfaceTempDate && (
-                    <p className={styles["heat-caveat"]}>Measured {stats.landSurfaceTempDate} · Landsat land surface</p>
-                )}
-                {open === "air" && airUnavailable && airNote && (
+                {isOpen("air") && airUnavailable && airNote && (
                     <p className={styles["why-note"]}>
                         <span className={styles["why-key"]}>limitations.air_temperature</span>
                         {airNote}
@@ -86,15 +104,8 @@ export default function HeatPanel({ stats }) {
                 {!airUnavailable && stats.weatherContext !== WEATHER_REGIONAL && stats.weatherStationName && (
                     <p className={styles["heat-caveat"]}>
                         {stats.weatherStationName}
-                        {stats.weatherObservedAt && `, observed ${stats.weatherObservedAt}`}
+                        {stats.weatherObservedAt && `, observed ${new Date(stats.weatherObservedAt).toISOString().split('T')[0]}`}
                         {stats.weatherDistanceKm != null && ` (${stats.weatherDistanceKm.toFixed(1)}km away)`}.
-                    </p>
-                )}
-
-                {stats.classificationScope && (
-                    <p className={styles["heat-scope"]}>
-                        Band relative to the Greater Melbourne application-ready baseline
-                        {stats.classificationSchemeVersion ? ` · ${stats.classificationSchemeVersion}` : ""}
                     </p>
                 )}
             </div>

@@ -1,0 +1,306 @@
+/* GreenBot — styles for the existing ChatbotWidget.jsx, matched to Figma "03 · GreenBot open".
+   Based on the teammate's drop-in version. No new wrapper, icons or animation dependency. */
+
+/* 1. Shared styling. Launcher sits left of the side panel where the old map controls were:
+      side panel is 396 wide at right 26, plus a 28px gap. */
+.widget {
+  --green: #2f7d5a;
+  --ink: #14181b;
+  --muted: #5e666c;
+  --line: #e4e7e4;
+  position: fixed;
+  right: calc(26px + 396px + 28px);
+  bottom: 26px;
+  z-index: 10000;
+  color: var(--ink);
+  font-family: "Instrument Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.widget,
+.widget * {
+  box-sizing: border-box;
+}
+
+.widget button,
+.widget input {
+  font: inherit;
+}
+
+/* 2. Open state: dim the page, park the side panel off the right edge, fade the card in.
+      The panel only exists while open, so :has(.panel) is the open flag. */
+.widget:has(.panel)::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  background: rgb(15 23 28 / 28%);
+  animation: dim-in 300ms ease-out;
+}
+
+:global(aside) {
+  transition: transform 400ms ease-in-out;
+}
+
+/* the parked side panel must not make the page scrollable sideways (also while it slides back).
+   The map container is full-screen at 0,0, so making it the containing block moves nothing. */
+:global(:has(> aside)) {
+  position: relative;
+  overflow: clip;
+}
+
+:global(body):has(.panel) :global(aside) {
+  transform: translateX(calc(100% + 26px));
+}
+
+@keyframes dim-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes card-in {
+  from { opacity: 0; transform: translate(-50%, calc(-50% + 24px)); }
+  to { opacity: 1; transform: translate(-50%, -50%); }
+}
+
+/* Centered conversation card */
+.panel {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  display: flex;
+  flex-direction: column;
+  width: min(520px, calc(100vw - 32px));
+  height: min(600px, calc(100dvh - 160px));
+  min-height: 0;
+  overflow: hidden;
+  border-radius: 16px;
+  background: #fff;
+  box-shadow: 0 12px 40px rgb(15 23 28 / 25%);
+  transform: translate(-50%, -50%);
+  animation: card-in 330ms ease-out 120ms both;
+}
+
+/* 3. Header and existing icon elements */
+.header {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 14px 14px 20px;
+  border-bottom: 1px solid var(--line);
+}
+
+.headerTitle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  font-size: 16px;
+  font-weight: 700;
+}
+
+.leaf,
+.bubbleLeaf {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  font-size: 20px;
+  line-height: 1;
+}
+
+.contextDot {
+  width: 8px;
+  height: 8px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  background: #3e9870;
+}
+
+.headerActions {
+  display: flex;
+  gap: 4px;
+}
+
+.iconButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  padding: 8px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+}
+
+.iconButton svg,
+.sendButton svg {
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+}
+
+/* 4. Scrollable history and messages */
+.history {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 12px;
+  min-height: 0;
+  padding: 20px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.intro,
+.botMsg,
+.userMsg {
+  flex-shrink: 0;
+  max-width: 90%;
+  margin: 0;
+  padding: 12px 14px;
+  border-radius: 12px;
+  overflow-wrap: anywhere;
+}
+
+.intro,
+.botMsg {
+  align-self: flex-start;
+  background: #f0f7f2;
+}
+
+.intro {
+  width: 400px;
+  max-width: 100%;
+}
+
+.userMsg {
+  align-self: flex-end;
+  background: var(--green);
+  color: #fff;
+}
+
+:is(.botMsg, .userMsg) > :first-child {
+  margin-top: 0;
+}
+
+:is(.botMsg, .userMsg) > :last-child {
+  margin-bottom: 0;
+}
+
+.history :is(pre, table) {
+  display: block;
+  max-width: 100%;
+  overflow-x: auto;
+}
+
+.history img {
+  max-width: 100%;
+  height: auto;
+}
+
+.botMsg a {
+  color: var(--green);
+}
+
+.userMsg a {
+  color: inherit;
+}
+
+/* 5. Composer — stays outside the scrolling history */
+.controls {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 20px 16px;
+  border-top: 1px solid var(--line);
+}
+
+.input {
+  width: 100%;
+  min-width: 0;
+  height: 44px;
+  padding: 0 16px;
+  border: 1px solid #d7ddd9;
+  border-radius: 22px;
+  background: #fff;
+  color: var(--ink);
+}
+
+.input::placeholder {
+  color: #8c949a;
+}
+
+.sendButton,
+.bubble {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: var(--green);
+  color: #fff;
+  cursor: pointer;
+}
+
+.sendButton:disabled {
+  background: rgb(47 125 90 / 45%);
+  cursor: not-allowed;
+}
+
+/* 6. Launcher and unread badge */
+.bubble {
+  position: relative;
+  width: 48px;
+  height: 48px;
+  box-shadow: 0 4px 12px rgb(15 23 28 / 22%);
+}
+
+.badge {
+  position: absolute;
+  top: -3px;
+  right: -3px;
+  width: 12px;
+  height: 12px;
+  border: 2px solid #fff;
+  border-radius: 50%;
+  background: #c45d38;
+}
+
+/* 7. Interaction */
+.widget :is(button, input, a):focus-visible {
+  outline: 3px solid var(--green);
+  outline-offset: 3px;
+}
+
+@media (hover: hover) {
+  .iconButton:hover {
+    background: #f0f7f2;
+  }
+
+  :is(.bubble, .sendButton):hover:not(:disabled) {
+    background: #256548;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .panel,
+  .widget:has(.panel)::before {
+    animation: none;
+  }
+
+  :global(aside) {
+    transition: none;
+  }
+}

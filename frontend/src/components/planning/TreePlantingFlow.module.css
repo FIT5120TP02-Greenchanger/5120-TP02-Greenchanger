@@ -1,0 +1,901 @@
+/* ============================================================
+   Tree planting flow — one stylesheet for every step (00–05).
+   .panel-page is rendered once by TreePlantingFlow.jsx, so the
+   tokens below are in scope for every step component.
+   ============================================================ */
+.panel-page {
+  --green: #2f7d5a;
+  --green-hover: #256548;
+  --ink: #14181b;
+  --muted: #5e666c;
+  --faint: #8c949a;
+  --line: #e4e7e4;
+  --soft: #f6f7f5;
+  --tint: #f0f7f2;
+  --image: #f1f6ee;
+  --caution: #a86f1a;
+  --exit: #795f55;
+  --exit-hover: #634c44;
+
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
+  min-height: 100%;
+  color: var(--ink);
+  font-family: "Instrument Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-size: 13px;
+  line-height: 1.24;
+}
+
+.panel-page *,
+.panel-page *::before,
+.panel-page *::after {
+  box-sizing: border-box;
+}
+
+.panel-page :focus-visible {
+  outline: 3px solid var(--green);
+  outline-offset: 2px;
+}
+
+/* ---------- Layout ---------- */
+.panel-body {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  gap: 4px;
+}
+
+.panel-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: auto;
+  padding-top: 16px;
+}
+
+.panel-footer {
+  display: flex;
+  gap: 8px;
+}
+
+.section {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid #EBEEF0;
+  display: flex;
+  flex-direction: column;
+}
+
+.divider {
+  width: 100%;
+  height: 1px;
+  margin: 18px 0 0;
+  border: 0;
+  background: var(--line);
+}
+
+/* ---------- Text ---------- */
+.user-note {
+  margin-bottom: 6px;
+  color: var(--faint);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.panel-title {
+  margin: 0;
+  color: var(--ink);
+  font-size: 22px;
+  font-weight: 700;
+  line-height: 1.2;
+}
+
+.subtitle {
+  margin: 4px 0 0;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.note {
+  margin: 12px 0 0;
+  color: var(--faint);
+  font-size: 12px;
+}
+
+.placement-hint, .select-hint {
+  margin: 0;
+  color: var(--caution);
+  font-size: 12px;
+  text-align: center;
+}
+
+/* ---------- Buttons ---------- */
+.back-button,
+.compare-button,
+.exit-button,
+.explore-button,
+.apply-button,
+.detail-button,
+.benefits-button,
+.guidance-button,
+.start-again-button,
+.compare-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 1 1 0;
+  min-width: 0;
+  min-height: 44px;
+  padding: 10px 6px;
+  border: 1px solid var(--green);
+  border-radius: 7px;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1.3;
+  cursor: pointer;
+}
+
+.back-button:disabled,
+.exit-button:disabled,
+.explore-button:disabled,
+.apply-button:disabled,
+.detail-button:disabled,
+.benefits-button:disabled,
+.guidance-button:disabled,
+.start-again-button:disabled,
+.compare-button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+/* Primary (filled green) */
+.explore-button,
+.apply-button,
+.detail-button,
+.benefits-button,
+.guidance-button,
+.start-again-button {
+  background: var(--green);
+  color: #fff;
+}
+
+/* Secondary (outline) */
+.back-button {
+  background: #fff;
+  color: var(--green);
+}
+
+/* Exit — deliberately a different colour so "leave the flow" never
+   reads as a step-forward action. */
+.exit-button {
+  background: var(--exit);
+  color: #fff;
+  border-color: var(--exit);
+}
+
+/* Full-width entry action that sits above the footer row */
+.compare-button {
+  width: 100%;
+  min-height: 40px;
+  border-color: #cfe3d6;
+  background: #eaf4ee;
+  color: var(--green);
+}
+
+@media (hover: hover) {
+  .explore-button:hover:not(:disabled),
+  .apply-button:hover:not(:disabled),
+  .detail-button:hover:not(:disabled),
+  .benefits-button:hover:not(:disabled),
+  .guidance-button:hover:not(:disabled),
+  .start-again-button:hover:not(:disabled) {
+    background: var(--green-hover);
+    border-color: var(--green-hover);
+  }
+
+  .back-button:hover:not(:disabled),
+  .compare-button:hover:not(:disabled) {
+    background: var(--tint);
+  }
+
+  .exit-button:hover:not(:disabled) {
+    background: var(--exit-hover);
+    border-color: var(--exit-hover);
+  }
+}
+
+/* ============================================================
+   00 · Species intro
+   ============================================================ */
+.intro-stats {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 16px;
+  padding: 14px 16px;
+  border-radius: 11px;
+  background: var(--soft);
+}
+
+.intro-stat {
+  /* display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px; */
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 8px 20px;
+  margin: 0;
+  gap: 11px;
+}
+
+.intro-stat-label {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.intro-stat-value {
+  color: var(--ink);
+  font-size: 15px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ============================================================
+   01 · Explore species
+   ============================================================ */
+.species-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  max-height: 560px;
+  margin: 16px 0 0;
+  padding: 0 4px 0 0;
+  overflow-y: auto;
+  list-style: none;
+}
+
+.species-card {
+  display: grid;
+  grid-template-columns: 88px minmax(0, 1fr) 12px;
+  align-items: center;
+  gap: 14px;
+  width: 100%;
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: 13px;
+  background: #fff;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.species-card--selected {
+  border-color: var(--green);
+  background: var(--tint);
+  box-shadow: inset 0 0 0 1px var(--green);
+}
+
+.species-card-image {
+  width: 88px;
+  height: 122px;
+  border-radius: 10px;
+  background: var(--image);
+  object-fit: cover;
+}
+
+.species-card-text {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.species-name {
+  color: var(--ink);
+  font-size: 15px;
+  font-weight: 700;
+  line-height: 1.3;
+}
+
+.species-latin {
+  color: var(--faint);
+  font-size: 10px;
+  font-style: italic;
+}
+
+.chevron {
+  color: var(--green);
+  font-size: 24px;
+  line-height: 1;
+}
+
+@media (hover: hover) {
+  .species-card:not(.species-card--selected):hover {
+    border-color: var(--green);
+    background: var(--tint);
+  }
+}
+
+/* ============================================================
+  02 · Species details
+   ============================================================ */
+
+.detail-image-placeholder {
+    width: 100%;
+    height: 160px;
+    border-radius: 8px;
+    background: #EFF1F3;
+}
+.detail-image {
+  display: block;
+  width: 100%;
+  height: 184px;
+  border-radius: 13px;
+  background: var(--image);
+  object-fit: cover;
+}
+
+.detail-latin {
+  margin: 0;
+  color: var(--faint);
+  font-size: 13px;
+  font-style: italic;
+}
+
+.detail-description {
+  margin: 6px 0 0;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.fact-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  margin-top: 16px;
+}
+
+.fact-tile {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 12px 14px;
+  border-radius: 11px;
+  background: var(--soft);
+}
+
+.fact-label {
+  color: var(--faint);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.fact-value {
+  color: var(--ink);
+  font-size: 18px;
+  font-weight: 700;
+  line-height: 1.25;
+}
+
+.price-container {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.size-option {
+  display: grid;
+  grid-template-columns: 20px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 12px 16px 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: 11px;
+  background: #fff;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.size-option--selected {
+  border-color: var(--green);
+  background: var(--tint);
+  box-shadow: inset 0 0 0 1px var(--green);
+}
+
+.size-radio {
+  position: relative;
+  width: 20px;
+  height: 20px;
+  border: 1.5px solid #c3cac5;
+  border-radius: 50%;
+}
+
+.size-option--selected .size-radio {
+  border: 2px solid var(--green);
+}
+
+.size-option--selected .size-radio::after {
+  content: "";
+  position: absolute;
+  inset: 3px;
+  border-radius: 50%;
+  background: var(--green);
+}
+
+.size-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.size-name {
+  color: var(--ink);
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.size-height {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.size-price {
+  color: var(--ink);
+  font-size: 15px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.size-option--selected .size-price {
+  color: var(--green);
+}
+
+@media (hover: hover) {
+  .size-option:not(.size-option--selected):hover {
+    border-color: var(--green);
+  }
+}
+
+/* ============================================================
+   03 · Impact  /  04 · Benefits
+   Both screens render the same metric rows, so they share
+   .metric-list and differ only in their headline.
+   ============================================================ */
+.impact-value {
+  margin: 0;
+  color: var(--green);
+  font-size: 30px;
+  font-weight: 700;
+  line-height: 1.2;
+}
+
+.impact-caption {
+  margin: 2px 0 0;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.metric-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin: 5px 0 0;
+  padding: 10px 10px;
+  border-radius: 10px;
+  background: var(--soft);
+  list-style: none;
+}
+
+.metric-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.metric-label {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.metric-value {
+  color: var(--ink);
+  font-size: 13px;
+  font-weight: 700;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.metric-value--good {
+  color: var(--green);
+}
+
+.map-key {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 16px;
+  padding: 14px 16px;
+  border-radius: 11px;
+  background: var(--tint);
+}
+
+.map-key-title {
+  margin: 0;
+  color: var(--ink);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.map-key-item {
+  margin: 0;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+/* ============================================================
+   05 · Planting guidance
+   ============================================================ */
+.guidance-steps {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 18px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.guidance-step {
+  display: grid;
+  grid-template-columns: 28px minmax(0, 1fr);
+  align-items: center;
+  gap: 14px;
+  padding: 16px;
+  border-radius: 11px;
+  background: var(--soft);
+}
+
+.step-number {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: var(--tint);
+  color: var(--green);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.step-text {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.step-title {
+  color: var(--ink);
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.step-description {
+  margin: 0;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.limitation {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 16px;
+  padding: 14px 16px;
+  border-radius: 11px;
+  background: #fbf3e2;
+}
+
+.limitation-title {
+  margin: 0;
+  color: var(--ink);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.limitation-text {
+  margin: 0;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+/* ============================================================
+   Epic 3/4 design alignment (Figma file T862ovErRK3aMw1BTZ8vzC)
+   Appended for the restyle. The rules above are unchanged; the rules
+   below override them with the design values and add motion.
+   Delete a rule here to get the previous look back.
+   ============================================================ */
+
+/* ---------- Panel shell ---------- */
+.panel-page {
+  --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+  /* was min-height: 100%: a fixed height lets a step keep its buttons at the bottom */
+  height: 100%;
+  min-height: 0;
+}
+
+/* design side panels have no border (Panel.module.css sets 1px black).
+   Panels keep Panel.module.css's content-based width; only 02 Species details uses the design width
+   (below). The width is not animated: between two content-based widths the browser can only jump. */
+aside:has(> .panel-page) {
+  border-color: transparent;
+}
+
+/* 02 Species details: the design's 350px content width (396px panel) */
+aside:has(.detail-image) {
+  width: 350px;
+  max-width: none;
+}
+
+/* every step fills the panel, so .panel-actions (margin-top: auto) sits at the bottom */
+.panel-page > :not(.panel-actions) {
+  display: flex;
+  flex: 1 0 auto;
+  flex-direction: column;
+}
+
+.panel-actions {
+  flex-shrink: 0;
+  gap: 12px;
+}
+
+/* ---------- Text ---------- */
+/* eyebrows and section labels: the design's small mono label */
+.panel-page .user-note,
+.panel-page .eyebrow,
+.panel-page .section > span:not([class]) {
+  display: block;
+  margin: 0 0 8px;
+  color: var(--faint);
+  font-family: "IBM Plex Mono", ui-monospace, monospace;
+  font-size: 11px;
+  font-weight: 400;
+  letter-spacing: 0;
+  text-transform: uppercase;
+}
+
+.panel-title {
+  font-size: 25px;
+  line-height: 1.24;
+}
+
+/* 2px + the 4px .panel-body gap = the design's 6px */
+.subtitle {
+  margin: 2px 0 0;
+}
+
+/* sections: no top rule in the design */
+.section {
+  margin-top: 16px;
+  padding-top: 0;
+  border-top: 0;
+}
+
+/* ...except the first one under a page subtitle (03 on your lot), where the design has a divider */
+.subtitle + .section {
+  margin-top: 14px;
+  padding-top: 16px;
+  border-top: 1px solid var(--line);
+}
+
+/* status lines that had no styles */
+.detail-loading,
+.detail-error,
+.cost-disclaimer {
+  margin: 12px 0 0;
+  color: var(--faint);
+  font-size: 12px;
+}
+
+/* ---------- Buttons ---------- */
+.back-button,
+.exit-button,
+.explore-button,
+.apply-button,
+.detail-button,
+.benefits-button,
+.guidance-button,
+.start-again-button,
+.compare-button {
+  gap: 8px;
+  white-space: nowrap;
+  /* never narrower than the label ("Select Dwarf Yellow Gum"): buttons in a row stay equal
+     while the labels fit, otherwise the longer one takes the room it needs */
+  min-width: auto;
+  transition:
+    background-color 150ms ease,
+    border-color 150ms ease,
+    color 150ms ease,
+    opacity 150ms ease,
+    transform 130ms var(--ease-out);
+}
+
+:is(.back-button, .exit-button, .explore-button, .apply-button, .detail-button,
+    .benefits-button, .guidance-button, .start-again-button, .compare-button):active:not(:disabled) {
+  transform: scale(0.97);
+}
+
+/* the intro's Exit (next to Explore species): the design shows the outline button there.
+   Other Exits (impact page, species list and details) keep the original brown. */
+.panel-footer > .exit-button:has(+ .explore-button) {
+  border-color: var(--green);
+  background: #fff;
+  color: var(--green);
+}
+
+/* Impact page: two footer rows (Compare with another tree | Change species, Exit | View guidance)
+   laid out as one 2x2 grid, so the columns line up and no label is cut off.
+   "Compare with another tree" keeps the tinted entry style from the rules above. */
+.panel-actions:has(> .panel-footer + .panel-footer) {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(max-content, 1fr));
+  gap: 12px 8px;
+}
+
+.panel-actions:has(> .panel-footer + .panel-footer) > .panel-footer {
+  display: contents;
+}
+
+/* "Compare trees" after Back (choose-trees step) is the page's primary action */
+.panel-footer > .back-button + .compare-button {
+  width: auto;
+  min-height: 44px;
+  border-color: var(--green);
+  background: var(--green);
+  color: #fff;
+}
+
+@media (hover: hover) {
+  .panel-footer > .exit-button:has(+ .explore-button):hover:not(:disabled) {
+    border-color: var(--green);
+    background: var(--tint);
+  }
+
+  .panel-footer > .back-button + .compare-button:hover:not(:disabled) {
+    border-color: var(--green-hover);
+    background: var(--green-hover);
+  }
+}
+
+/* ---------- 01 Explore species ---------- */
+/* the list shrinks on short windows so Back / Select stay at the bottom of the panel */
+.panel-page > .panel-body:has(> .species-list) {
+  flex: 1 1 0;
+  min-height: 0;
+}
+
+/* 5px of room so a card's focus ring is not clipped by the scroll box; the negative margin
+   cancels it except for the original 4px on the right, which the content-based panel width includes */
+.panel-page .species-list {
+  flex: 0 1 auto;
+  min-height: 0;
+  margin: 11px -5px -5px -5px;
+  padding: 5px 9px 5px 5px;
+}
+
+/* ---------- 02 Species details ---------- */
+.detail-image + .panel-title {
+  margin-top: 12px;
+}
+
+.panel-page .fact-label {
+  font-family: "IBM Plex Mono", ui-monospace, monospace;
+  font-weight: 400;
+  letter-spacing: 0;
+}
+
+.price-container {
+  margin-top: 0;
+}
+
+/* ---------- 03 Species on your lot ---------- */
+.metric-list {
+  gap: 6px;
+  margin: 0;
+  padding: 14px 16px;
+  border-radius: 11px;
+}
+
+.map-key {
+  background: #eaf4ee;
+}
+
+/* ---------- 05 Guidance ---------- */
+.step-number {
+  background: #eaf4ee;
+}
+
+/* ---------- Motion ---------- */
+/* each step mounts fresh, so its content fades up into place */
+.panel-page > * {
+  animation: step-in 200ms var(--ease-out);
+}
+
+@keyframes step-in {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes step-fade {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.species-card,
+.size-option {
+  transition:
+    background-color 150ms ease,
+    border-color 150ms ease,
+    box-shadow 150ms ease,
+    transform 130ms var(--ease-out);
+}
+
+.species-card:active,
+.size-option:active {
+  transform: scale(0.98);
+}
+
+.size-radio {
+  transition: border-color 150ms ease;
+}
+
+/* the radio dot is always there and fades/scales in when its row is selected */
+.size-radio::after {
+  content: "";
+  position: absolute;
+  inset: 3px;
+  border-radius: 50%;
+  background: var(--green);
+  opacity: 0;
+  transform: scale(0.5);
+  transition:
+    opacity 150ms ease,
+    transform 150ms var(--ease-out);
+}
+
+.size-option--selected .size-radio::after {
+  opacity: 1;
+  transform: scale(1);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .panel-page > * {
+    animation-name: step-fade;
+  }
+
+  :is(.back-button, .exit-button, .explore-button, .apply-button, .detail-button,
+      .benefits-button, .guidance-button, .start-again-button, .compare-button):active:not(:disabled),
+  .species-card:active,
+  .size-option:active {
+    transform: none;
+  }
+
+  .size-radio::after,
+  .size-option--selected .size-radio::after {
+    transform: none;
+  }
+}
