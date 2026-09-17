@@ -9,7 +9,7 @@ class MigrationFileTests(unittest.TestCase):
     def test_migrations_are_numbered_and_ordered(self):
         self.assertEqual(
             [version for version, _ in migration_files()],
-            list(range(1, 64)),
+            list(range(1, 65)),
         )
 
     def test_current_costs_use_melbourne_date_and_retire_anonymous_trees(self):
@@ -51,6 +51,16 @@ class MigrationFileTests(unittest.TestCase):
         self.assertIn("generic_current_catalogue_range_not_species_quote", sql)
         self.assertIn("must not be represented as this species price", sql)
         self.assertIn("Do not substitute an unverified image", sql)
+
+    def test_unresolved_tree_identities_are_not_treated_as_species_quotes(self):
+        migration = next(path for version, path in migration_files() if version == 64)
+        sql = expanded_sql(migration)
+        self.assertIn("classified_species", sql)
+        self.assertIn("unavailable_unresolved_tree_identity", sql)
+        self.assertIn("unavailable_no_species_quote", sql)
+        self.assertIn("scientific_name ~* '^(dead|stump)( |$)'", sql)
+        self.assertIn("scientific_name LIKE '%,%'", sql)
+        self.assertIn("no generic catalogue-wide price is substituted", sql)
 
     def test_address_catalog_combines_exact_stock_and_local_popularity(self):
         migration = next(path for version, path in migration_files() if version == 53)
