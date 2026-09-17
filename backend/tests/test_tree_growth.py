@@ -16,8 +16,10 @@ def lines():
 def test_returns_every_field():
     result = predict_canopy(SPECIES, 5, size="M")
     assert set(result) == {
-        "canopy_m2_min", "canopy_m2_max", "crown_width_m_min", "crown_width_m_max",
-        "height_m_min", "height_m_max", "dbh_cm_min", "dbh_cm_max", "equivalent_age_years",
+        "canopy_m2_min", "canopy_m2_max", "canopy_m2_median",
+        "crown_width_m_min", "crown_width_m_max", "crown_width_m_median",
+        "height_m_min", "height_m_max", "height_m_median",
+        "dbh_cm_min", "dbh_cm_max", "dbh_cm_median", "equivalent_age_years",
     }
 
 
@@ -34,9 +36,25 @@ def test_every_range_grows_with_years(field):
 def test_each_range_comes_from_its_own_p10_and_p90_lines(target):
     result = predict_canopy(SPECIES, 7, size="S")
     x = math.log1p(7)
-    for end, name in (("min", "p10"), ("max", "p90")):
+    for end, name in (("min", "p10"), ("max", "p90"), ("median", "p50")):
         a, b = lines()[target][name]
         assert result[f"{target}_{end}"] == round(math.exp(a + b * x), 1)
+
+
+@pytest.mark.parametrize("target", TARGETS)
+def test_median_is_not_the_naive_midpoint_of_min_and_max(target):
+    # p10/p90/p50 are separate log-linear fits, not guaranteed symmetric -- the
+    # median must come from the model's own p50 line, not (min + max) / 2.
+    result = predict_canopy(SPECIES, 10, size="M")
+    naive_midpoint = (result[f"{target}_min"] + result[f"{target}_max"]) / 2
+    assert result[f"{target}_median"] != naive_midpoint
+    assert result[f"{target}_min"] < result[f"{target}_median"] < result[f"{target}_max"]
+
+
+def test_crown_width_median_is_the_diameter_of_the_canopy_area_median():
+    result = predict_canopy(SPECIES, 10, size="L")
+    width = 2 * math.sqrt(result["canopy_m2_median"] / math.pi)
+    assert math.isclose(result["crown_width_m_median"], width, abs_tol=0.1)
 
 
 # test the canopy area and crown width are consistent with each other
@@ -54,6 +72,7 @@ def test_species_without_a_height_line_returns_none_for_height():
         pytest.skip("every species in this model has a height line")
     result = predict_canopy(species, 0, size="S")
     assert result["height_m_min"] is None and result["height_m_max"] is None
+    assert result["height_m_median"] is None
     assert result["canopy_m2_min"] is not None
 
 # test the larger size starts at an older equivalent age than a smaller size, for the same years

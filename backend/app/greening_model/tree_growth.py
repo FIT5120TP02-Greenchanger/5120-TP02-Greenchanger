@@ -27,6 +27,16 @@ def _range(lines, target, x):
     return math.exp(a10 + b10 * x), math.exp(a90 + b90 * x)
 
 
+def _point(lines, target, x):
+    # p50 (median) of one target at x = ln(age + 1) -- the model's actual central
+    # estimate, not a naive average of p10/p90 (these are log-linear fits, so the
+    # arithmetic midpoint of the two bounds is not the same value as the p50 line).
+    if target not in lines:
+        return None
+    a50, b50 = lines[target]["p50"]
+    return math.exp(a50 + b50 * x)
+
+
 def _round(value):
     return None if value is None else round(value, 1)
 
@@ -69,16 +79,24 @@ def predict_canopy(species, years, size=None, start_width_m=None):
     area = _range(lines, "canopy_m2", x)
     height = _range(lines, "height_m", x)
     dbh = _range(lines, "dbh_cm", x)
+    area_median = _point(lines, "canopy_m2", x)
+    height_median = _point(lines, "height_m", x)
+    dbh_median = _point(lines, "dbh_cm", x)
     # crown width is the diameter of a circle with that area
     width = [2 * math.sqrt(a / math.pi) for a in area]
+    width_median = 2 * math.sqrt(area_median / math.pi) if area_median is not None else None
     return {
         "canopy_m2_min": _round(area[0]),
         "canopy_m2_max": _round(area[1]),
+        "canopy_m2_median": _round(area_median),
         "crown_width_m_min": _round(width[0]),
         "crown_width_m_max": _round(width[1]),
+        "crown_width_m_median": _round(width_median),
         "height_m_min": _round(height[0]),
         "height_m_max": _round(height[1]),
+        "height_m_median": _round(height_median),
         "dbh_cm_min": _round(dbh[0]),
         "dbh_cm_max": _round(dbh[1]),
+        "dbh_cm_median": _round(dbh_median),
         "equivalent_age_years": round(age, 1),
     }
