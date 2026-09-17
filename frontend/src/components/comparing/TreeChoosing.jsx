@@ -16,6 +16,7 @@ export default function TreeChoosing({species, selectedSpecies, compareArray, se
             return [...prev, s]
         })
     }
+    const comparable = compareArray.length > 1;
     return (
         <div>
             <div className={styles["panel-species-choosing"]}>
@@ -59,6 +60,9 @@ export default function TreeChoosing({species, selectedSpecies, compareArray, se
                         </li>
                     )
                 })}
+                {!comparable && (
+                    <p className={list_styles["select-hint"]}>Select one or more trees to compare</p>
+                )}
             </div>
             <div className={list_styles['panel-actions']}>
                 <div className={list_styles['panel-footer']}>
@@ -69,7 +73,7 @@ export default function TreeChoosing({species, selectedSpecies, compareArray, se
                         type="button"
                         className={list_styles['compare-button']}
                         onClick={onCompareTree}
-                        disabled={!selectedSpecies}
+                        disabled={!comparable}
                     >
                         Compare trees
                     </button>
