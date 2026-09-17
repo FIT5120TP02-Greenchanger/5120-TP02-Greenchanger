@@ -21,14 +21,14 @@ WITH species_candidates AS (
 ), classified_species AS (
     SELECT species.*,
            NOT (
-               scientific_name ~* '(^|[ ,])sp\.?($|[ ,])'
-               OR scientific_name ~* '^(dead|stump)( |$)'
-               OR scientific_name ~* '(^| )(unknown|unidentified)( |$)'
-               OR scientific_name ~* '(^| )(species|cultivar|varieties)( |$)'
-               OR scientific_name ~* '(^| )cv\.?$'
-               OR scientific_name LIKE '%,%'
+               species.scientific_name ~* '(^|[ ,])sp\.?($|[ ,])'
+               OR species.scientific_name ~* '^(dead|stump)( |$)'
+               OR species.scientific_name ~* '(^| )(unknown|unidentified)( |$)'
+               OR species.scientific_name ~* '(^| )(species|cultivar|varieties)( |$)'
+               OR species.scientific_name ~* '(^| )cv\.?$'
+               OR species.scientific_name LIKE '%,%'
                OR (
-                   scientific_name !~ '^[A-Z][A-Za-z.-]+([[:space:]]+[x×])?[[:space:]]+[a-z][A-Za-z.-]+'
+                   species.scientific_name !~ '^[A-Z][A-Za-z.-]+([[:space:]]+[x×])?[[:space:]]+[a-z][A-Za-z.-]+'
                    AND NOT (
                        identity_enrichment.match_type = 'EXACT'
                        AND identity_enrichment.match_confidence >= 95
