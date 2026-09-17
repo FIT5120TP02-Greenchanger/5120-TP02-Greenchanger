@@ -46,8 +46,12 @@ GBIF_MEDIA_LICENCES = {
 # carries incompatible copyright wording. Keep exact URLs here so future
 # refreshes cannot reintroduce a manually rejected image.
 BLOCKED_IMAGE_URLS = {
+    "https://ibss-images.calacademy.org/static/botany/originals/be/99/be990872-82ef-450e-ba57-cb784cbfdffb.JPG",
+    "https://media.canadensys.net/mt-specimens/large/MT00194244.jpg",
+    "https://mediaphoto.mnhn.fr/media/1446828003557tuBw6250az1DTVL5",
     "https://sweetgum.nybg.org/images3/1967/024/02513824.jpg",
 }
+BLOCKED_IMAGE_URL_PATTERN = re.compile(r"(?:/manifest(?:[?#]|$)|\.dzi(?:[?#]|$))", re.IGNORECASE)
 USER_AGENT = (
     "GreenChanger/1.0 tree catalogue enrichment "
     "(https://github.com/FIT5120TP02-Greenchanger/5120-TP02-Greenchanger)"
@@ -68,6 +72,12 @@ COMMONS_LICENCES = {
 CATALOG_TAXON_CORRECTIONS = {
     # User-confirmed against the linked Wikipedia taxon page and its Wikidata P225 claim.
     "Acacia ficifolia": "Acacia filicifolia",
+    "Flinders Range Wattle, Acacia iteaphylla": "Acacia iteaphylla",
+    "Leptospermum obavatum": "Leptospermum obovatum",
+    "Weeping tea tree, Leptospermum madidum": "Leptospermum madidum",
+    # Kew and Wikipedia use Platanus × hispanica as the accepted name; the
+    # council inventories and application model use the synonym below.
+    "Platanus x acerifolia": "Platanus × hispanica",
 }
 WIKIMEDIA_REQUEST_INTERVAL_SECONDS = 0.5
 _wikimedia_request_lock = threading.Lock()
@@ -81,8 +91,9 @@ DETAIL_IMAGE_TERMS = {
     "herbarium", "leaf", "leaves", "seed", "seedling", "specimen", "twig",
 }
 DETAIL_FILE_PATTERN = re.compile(
-    r"\b(bark|branch|bud|close[ -]?up|distribution|flower|flowers|foliage|fruit|"
-    r"herbarium|leaf|leaves|map|range|seed|seedling|sapling|specimen|twig)\b",
+    r"(?:\b(bark|branch|bud|close[ -]?up|distribution|flower|flowers|foliage|fruit|"
+    r"herbarium|leaf|leaves|map|range|seed|seedling|sapling|specimen|twig)\b|"
+    r"dist(?:map|[a-z]?\d+))",
     re.IGNORECASE,
 )
 WHOLE_TREE_FILE_PATTERN = re.compile(
@@ -159,7 +170,8 @@ def normalized_gbif_media_licence(value) -> tuple[str, str] | None:
 
 def image_is_blocked(value) -> bool:
     """Return whether source review has explicitly rejected this image URL."""
-    return clean_https(value) in BLOCKED_IMAGE_URLS
+    url = clean_https(value)
+    return bool(url and (url in BLOCKED_IMAGE_URLS or BLOCKED_IMAGE_URL_PATTERN.search(url)))
 
 
 def claim_value(entity: dict, property_id: str):
@@ -587,7 +599,7 @@ def enrich_full_tree_batch(names: list[str], completed: dict[str, dict]) -> list
 
 def commons_taxon_candidates(name: str, base_row: dict, broader: bool = False) -> list[tuple[str, str]]:
     candidates = []
-    if broader and name in CATALOG_TAXON_CORRECTIONS:
+    if name in CATALOG_TAXON_CORRECTIONS:
         candidates.append((
             CATALOG_TAXON_CORRECTIONS[name],
             "user_confirmed_wikipedia_correction",

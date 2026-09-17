@@ -9,7 +9,7 @@ class MigrationFileTests(unittest.TestCase):
     def test_migrations_are_numbered_and_ordered(self):
         self.assertEqual(
             [version for version, _ in migration_files()],
-            list(range(1, 61)),
+            list(range(1, 64)),
         )
 
     def test_current_costs_use_melbourne_date_and_retire_anonymous_trees(self):
@@ -123,6 +123,28 @@ class MigrationFileTests(unittest.TestCase):
             "'https://www.gnu.org/licenses/old-licenses/fdl-1.2.html'",
             sql,
         )
+
+    def test_london_plane_has_an_exact_curated_commons_image(self):
+        migration = next(path for version, path in migration_files() if version == 62)
+        sql = expanded_sql(migration)
+        self.assertIn("'London Plane'", sql)
+        self.assertIn("'Platanus x acerifolia'", sql)
+        self.assertIn("Berkeley_Square_-_geograph.org.uk_-_911963.jpg", sql)
+        self.assertIn("'Richard Croft'", sql)
+        self.assertIn("'CC BY-SA 2.0'", sql)
+        self.assertIn("ON CONFLICT (tree_type, scientific_name) DO UPDATE", sql)
+
+    def test_non_image_tree_media_is_quarantined_and_replaced(self):
+        migration = next(path for version, path in migration_files() if version == 63)
+        sql = expanded_sql(migration)
+        self.assertIn("tree_species_image_enrichment_renderable_asset_check", sql)
+        self.assertIn("/manifest", sql)
+        self.assertIn("\\.dzi", sql)
+        self.assertIn("dist(map|[a-z]?[0-9]+)", sql)
+        self.assertIn("'Acacia ficifolia'", sql)
+        self.assertIn("'Flinders Range Wattle, Acacia iteaphylla'", sql)
+        self.assertIn("'Leptospermum obavatum'", sql)
+        self.assertIn("'Weeping tea tree, Leptospermum madidum'", sql)
 
     def test_include_is_expanded(self):
         with tempfile.TemporaryDirectory() as directory:

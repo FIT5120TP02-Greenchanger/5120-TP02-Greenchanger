@@ -256,6 +256,10 @@ python greenchanger_script/validate_csv.py cost_estimate \
   data/reference/cost_estimates.csv
 python greenchanger_script/ingestion.py costs \
   --cost-file data/reference/cost_estimates.csv --confirm-shared
+python greenchanger_script/validate_csv.py cost_estimate \
+  data/reference/tree_supplier_size_prices.csv
+python greenchanger_script/ingestion.py costs \
+  --cost-file data/reference/tree_supplier_size_prices.csv --confirm-shared
 
 # 8. Verify code and schema
 python greenchanger_script/migrate.py --status
@@ -521,15 +525,18 @@ The function always includes exact-priced catalogue stock, then adds the most
 frequently recorded species for the address council (or the documented
 metropolitan fallback). `available_now` means the loaded council source
 explicitly uses `approved` or `recommended`; every other row is labelled
-`council_approval_required`. Missing species prices use the explicitly labelled
-generic catalogue range, and missing verified images remain unavailable.
+`council_approval_required`. Missing species prices remain unavailable with
+null price fields, and missing verified images remain unavailable.
 Images are illustrative reference photographs, not the exact nursery stock;
 the returned attribution and limitation must be retained with every image.
 
 The complete named-species catalogue is exposed through
 `complete_tree_species_catalog`. Every distinct scientific name is retained.
-Species-specific prices use `species_specific_current_source_range`; all other
-rows use `generic_current_catalogue_range_not_species_quote`. GBIF enrichment
+Species-specific prices use `species_specific_current_source_range`; trees
+without a current supplier quote use `unavailable_no_species_quote`. No generic
+catalogue-wide price is substituted. `size_price_status` distinguishes
+`species_size_price_available` from `species_price_size_unmapped`, and exact
+size-level rows are exposed through `application_ready_tree_cost_by_size`. GBIF enrichment
 publishes only exact Plantae matches with confidence at least 95 and individual
 media-level CC0 or CC BY 4.0 terms. The licence must be present on the selected media object;
 an occurrence-search licence filter is not sufficient. Missing licences, All Rights
@@ -953,6 +960,10 @@ mean local causal validation or permission to display a precise after-temperatur
 
 - No suitable government dataset provides current Melbourne residential greening prices.
 - The version-controlled file `data/reference/cost_estimates.csv` uses current advertised supplier prices and clearly labelled composite scenarios.
+- `data/reference/tree_supplier_size_prices.csv` stores current product-level
+  supplier prices by botanical name and stock size. Supplier ranges without an
+  exact size-price pairing remain explicitly unmapped and are excluded from
+  `application_ready_tree_cost_by_size`.
 - Exact advertised retail prices are high confidence; transparent multi-source calculations are medium confidence; broad installed-market guidance is low confidence.
 - The current coverage includes DIY and installed backyard trees by named type, potted plants, an installed garden bed, DIY and installed green walls, and an installed advanced/community tree context. The earlier container-tree estimate is retained only as expired history.
 - Named residential tree costs now match the Iteration 2 planting flow: Water Gum, Lemon-scented Gum and Crepe Myrtle. Earlier Ficus, citrus, elm and pistache estimates remain in the CSV as expired history and are excluded from current application results. `tree_type` and `botanical_name` are retained in the CSV, database and application-ready view.

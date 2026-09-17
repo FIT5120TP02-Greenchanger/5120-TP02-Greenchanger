@@ -7,6 +7,7 @@ from unittest.mock import patch
 from greenchanger_script.enrich_tree_catalog import (
     COMMONS_LICENCES,
     commons_image_preference,
+    commons_taxon_candidates,
     deterministic_taxon_candidates,
     enrich_full_tree_batch,
     enrich_species,
@@ -124,6 +125,46 @@ class TreeCatalogEnrichmentTests(unittest.TestCase):
             ("Acer × freemanii", "normalized_hybrid_name"),
             deterministic_taxon_candidates("Acer x freemanii 'Autumn Blaze'"),
         )
+
+    def test_taxon_corrections_are_used_by_standard_commons_fallback(self):
+        corrections = {
+            "Platanus x acerifolia": "Platanus × hispanica",
+            "Acacia ficifolia": "Acacia filicifolia",
+            "Flinders Range Wattle, Acacia iteaphylla": "Acacia iteaphylla",
+            "Leptospermum obavatum": "Leptospermum obovatum",
+            "Weeping tea tree, Leptospermum madidum": "Leptospermum madidum",
+        }
+
+        for catalogue_name, accepted_name in corrections.items():
+            with self.subTest(catalogue_name=catalogue_name):
+                candidates = commons_taxon_candidates(
+                    catalogue_name,
+                    {"gbif_taxon_key": None, "match_type": "EXACT"},
+                )
+
+                self.assertEqual(
+                    candidates[0],
+                    (accepted_name, "user_confirmed_wikipedia_correction"),
+                )
+                self.assertIn((catalogue_name, "exact_name"), candidates)
+
+    def test_distribution_map_filename_variants_are_rejected(self):
+        for title in (
+            "File:Acacia filifoliaDistMap357.png",
+            "File:Leptospermum confertumDistA10.png",
+            "File:Leptospermum obovatum distribution.png",
+        ):
+            with self.subTest(title=title):
+                self.assertTrue(file_title_is_detail_only(title))
+
+    def test_manifest_and_deep_zoom_urls_are_blocked_as_non_images(self):
+        for url in (
+            "https://example.test/specimen/123/manifest",
+            "https://example.test/specimen/123/manifest?download=1",
+            "https://example.test/specimen/123.dzi",
+        ):
+            with self.subTest(url=url):
+                self.assertTrue(image_is_blocked(url))
 
     def test_wikipedia_title_candidate_selects_unique_close_binomial(self):
         result = {"query": {"prefixsearch": [
