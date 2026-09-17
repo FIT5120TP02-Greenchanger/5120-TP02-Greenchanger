@@ -11,14 +11,21 @@ export function canopyAddedRange(row) {
     return { min: canopy_m2_min, max: canopy_m2_max }
 }
 
+export function addedCanopyCentral(row) {
+    if (!row?.growth) return
+    const { canopy_m2_min, canopy_m2_median, canopy_m2_max } = row.growth
+    if (canopy_m2_median != null) return canopy_m2_median
+    if (canopy_m2_median != null && canopy_m2_max != null) return (canopy_m2_min + canopy_m2_max) / 2
+    return null
+}
+
 // Canopy cover for the *whole current view*, before vs after adding this one tree.
 // Mirrors the calc MapView already does for `projected` (see MapView.jsx).
 export function canopyCoverAfter(row, canopyM2, viewM2) {
-    const added = canopyAddedRange(row)
-    if (!added || !viewM2) return null
-    const addedMedian = (added.min + added.max) / 2
+    const addedCentral = addedCanopyCentral(row)
+    if(addedCentral == null || !view2) return null
     const basePct = (canopyM2 / viewM2) * 100
-    const afterPct = ((canopyM2 + addedMedian) / viewM2) * 100
+    const afterPct = ((canopyM2 + addedCentral) / viewM2) * 100
     return { pct: afterPct, deltaPts: afterPct - basePct }
 }
 

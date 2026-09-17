@@ -81,7 +81,7 @@ export default function ChatbotWidget({ context }) {
             const response = await fetch('/api/chat', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ message: textToSend, history: messages.sliace(-18), context: context || null })
+                body: JSON.stringify({ message: textToSend, history: messages.slice(-18), context: context || null })
             })
             if (!response.ok) {
                 const errBody = await response.json().catch(() => ({}));
