@@ -10,7 +10,9 @@ export default function SpeciesList({ species = [], selectedSpecies, onSelect, o
 
                 <ul className={styles['species-list']}>
                     {species.map((s) => {
-                        const isSelected = selectedSpecies?.id === s.id
+                        // const isSelected = selectedSpecies?.id === s.id
+                        // species rows have no id, so undefined === undefined made every card look selected
+                        const isSelected = !!selectedSpecies && selectedSpecies.species_key === s.species_key
                         return (
                             <li key={s.species_key} onClick={() => onSelect(s)}>
                                 <button

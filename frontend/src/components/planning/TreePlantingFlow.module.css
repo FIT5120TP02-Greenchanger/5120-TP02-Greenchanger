@@ -621,3 +621,274 @@
   color: var(--muted);
   font-size: 12px;
 }
+
+/* ============================================================
+   Epic 3/4 design alignment (Figma file T862ovErRK3aMw1BTZ8vzC)
+   Appended for the restyle. The rules above are unchanged; the rules
+   below override them with the design values and add motion.
+   Delete a rule here to get the previous look back.
+   ============================================================ */
+
+/* ---------- Panel shell ---------- */
+.panel-page {
+  --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+  /* was min-height: 100%: a fixed height lets a step keep its buttons at the bottom */
+  height: 100%;
+  min-height: 0;
+}
+
+/* design side panels have no border (Panel.module.css sets 1px black).
+   Panels keep Panel.module.css's content-based width; only 02 Species details uses the design width
+   (below). The width is not animated: between two content-based widths the browser can only jump. */
+aside:has(> .panel-page) {
+  border-color: transparent;
+}
+
+/* 02 Species details: the design's 350px content width (396px panel) */
+aside:has(.detail-image) {
+  width: 350px;
+  max-width: none;
+}
+
+/* every step fills the panel, so .panel-actions (margin-top: auto) sits at the bottom */
+.panel-page > :not(.panel-actions) {
+  display: flex;
+  flex: 1 0 auto;
+  flex-direction: column;
+}
+
+.panel-actions {
+  flex-shrink: 0;
+  gap: 12px;
+}
+
+/* ---------- Text ---------- */
+/* eyebrows and section labels: the design's small mono label */
+.panel-page .user-note,
+.panel-page .eyebrow,
+.panel-page .section > span:not([class]) {
+  display: block;
+  margin: 0 0 8px;
+  color: var(--faint);
+  font-family: "IBM Plex Mono", ui-monospace, monospace;
+  font-size: 11px;
+  font-weight: 400;
+  letter-spacing: 0;
+  text-transform: uppercase;
+}
+
+.panel-title {
+  font-size: 25px;
+  line-height: 1.24;
+}
+
+/* 2px + the 4px .panel-body gap = the design's 6px */
+.subtitle {
+  margin: 2px 0 0;
+}
+
+/* sections: no top rule in the design */
+.section {
+  margin-top: 16px;
+  padding-top: 0;
+  border-top: 0;
+}
+
+/* ...except the first one under a page subtitle (03 on your lot), where the design has a divider */
+.subtitle + .section {
+  margin-top: 14px;
+  padding-top: 16px;
+  border-top: 1px solid var(--line);
+}
+
+/* status lines that had no styles */
+.detail-loading,
+.detail-error,
+.cost-disclaimer {
+  margin: 12px 0 0;
+  color: var(--faint);
+  font-size: 12px;
+}
+
+/* ---------- Buttons ---------- */
+.back-button,
+.exit-button,
+.explore-button,
+.apply-button,
+.detail-button,
+.benefits-button,
+.guidance-button,
+.start-again-button,
+.compare-button {
+  gap: 8px;
+  white-space: nowrap;
+  transition:
+    background-color 150ms ease,
+    border-color 150ms ease,
+    color 150ms ease,
+    opacity 150ms ease,
+    transform 130ms var(--ease-out);
+}
+
+:is(.back-button, .exit-button, .explore-button, .apply-button, .detail-button,
+    .benefits-button, .guidance-button, .start-again-button, .compare-button):active:not(:disabled) {
+  transform: scale(0.97);
+}
+
+/* an exit-style button next to a primary one ("Change species", the intro's Exit):
+   the design shows the outline button there */
+.panel-footer > .exit-button {
+  border-color: var(--green);
+  background: #fff;
+  color: var(--green);
+}
+
+/* a back-style button on its own row above the footer ("Compare with another tree"):
+   the design's tinted full-width entry button */
+.panel-actions > .back-button {
+  flex: none;
+  width: 100%;
+  min-height: 40px;
+  border-color: #cfe3d6;
+  background: #eaf4ee;
+}
+
+/* "Compare trees" inside the footer is the page's primary action */
+.panel-footer > .compare-button {
+  width: auto;
+  min-height: 44px;
+  border-color: var(--green);
+  background: var(--green);
+  color: #fff;
+}
+
+@media (hover: hover) {
+  .panel-footer > .exit-button:hover:not(:disabled) {
+    border-color: var(--green);
+    background: var(--tint);
+  }
+
+  .panel-footer > .compare-button:hover:not(:disabled) {
+    border-color: var(--green-hover);
+    background: var(--green-hover);
+  }
+}
+
+/* ---------- 01 Explore species ---------- */
+/* the list shrinks on short windows so Back / Select stay at the bottom of the panel */
+.panel-page > .panel-body:has(> .species-list) {
+  flex: 1 1 0;
+  min-height: 0;
+}
+
+/* 5px of room so a card's focus ring is not clipped by the scroll box; the negative margin
+   cancels it except for the original 4px on the right, which the content-based panel width includes */
+.panel-page .species-list {
+  flex: 0 1 auto;
+  min-height: 0;
+  margin: 11px -5px -5px -5px;
+  padding: 5px 9px 5px 5px;
+}
+
+/* ---------- 02 Species details ---------- */
+.detail-image + .panel-title {
+  margin-top: 12px;
+}
+
+.panel-page .fact-label {
+  font-family: "IBM Plex Mono", ui-monospace, monospace;
+  font-weight: 400;
+  letter-spacing: 0;
+}
+
+.price-container {
+  margin-top: 0;
+}
+
+/* ---------- 03 Species on your lot ---------- */
+.metric-list {
+  gap: 6px;
+  margin: 0;
+  padding: 14px 16px;
+  border-radius: 11px;
+}
+
+.map-key {
+  background: #eaf4ee;
+}
+
+/* ---------- 05 Guidance ---------- */
+.step-number {
+  background: #eaf4ee;
+}
+
+/* ---------- Motion ---------- */
+/* each step mounts fresh, so its content fades up into place */
+.panel-page > * {
+  animation: step-in 200ms var(--ease-out);
+}
+
+@keyframes step-in {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes step-fade {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.species-card,
+.size-option {
+  transition:
+    background-color 150ms ease,
+    border-color 150ms ease,
+    box-shadow 150ms ease,
+    transform 130ms var(--ease-out);
+}
+
+.species-card:active,
+.size-option:active {
+  transform: scale(0.98);
+}
+
+.size-radio {
+  transition: border-color 150ms ease;
+}
+
+/* the radio dot is always there and fades/scales in when its row is selected */
+.size-radio::after {
+  content: "";
+  position: absolute;
+  inset: 3px;
+  border-radius: 50%;
+  background: var(--green);
+  opacity: 0;
+  transform: scale(0.5);
+  transition:
+    opacity 150ms ease,
+    transform 150ms var(--ease-out);
+}
+
+.size-option--selected .size-radio::after {
+  opacity: 1;
+  transform: scale(1);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .panel-page > * {
+    animation-name: step-fade;
+  }
+
+  :is(.back-button, .exit-button, .explore-button, .apply-button, .detail-button,
+      .benefits-button, .guidance-button, .start-again-button, .compare-button):active:not(:disabled),
+  .species-card:active,
+  .size-option:active {
+    transform: none;
+  }
+
+  .size-radio::after,
+  .size-option--selected .size-radio::after {
+    transform: none;
+  }
+}
