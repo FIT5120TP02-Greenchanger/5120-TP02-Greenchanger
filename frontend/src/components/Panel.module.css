@@ -95,7 +95,7 @@
     text-align: right;
     font-weight: 500;
 }
-
+/* Property panel */
 .property-panel {
     padding: 15px 16px 15px 16px;
     box-shadow: 0px 18px 40px 0px #0F171C2E;
@@ -109,20 +109,124 @@
     border-radius: 8px;
     box-shadow: 0px 18px 40px 0px #0F171C2E;
 }
-.property-panel p {
-    font-weight: 600;
-    font-size: 0.875rem;
+.property-panel {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    width: 280px;
+    padding: 16px;
+    border-radius: 14px;
+    background: #fff;
+    box-shadow: 0 8px 24px rgba(20, 24, 27, 0.12);
+    font-family: "Instrument Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
 }
-.property-panel button {
-    color: #FFFFFF;
-    background-color: #2F7D5A;
-    width: 100%;
-    padding: 10px 0;
-    border-radius: 7px;
-    margin-top: 5px;
+
+.property-panel-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 8px;
 }
-.property-panel button:hover {
+.property-panel-header p {
+    color: #0F171C;
+    font-family: "Instrument Sans";
+    font-size: 16px;
+    font-style: normal;
+    font-weight: 700;
+    line-height: 130%;
+    letter-spacing: 0.16px;
+}
+
+.property-title {
+    margin: 0;
+    color: #14181b;
+    font-size: 15px;
+    font-weight: 700;
+    line-height: 1.3;
+}
+
+.lot-close {
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 22px;
+    height: 22px;
+    padding: 0;
+    border: none;
+    border-radius: 50%;
+    background: transparent;
+    color: #8c949a;
+    font-size: 16px;
+    line-height: 1;
     cursor: pointer;
+}
+
+.lot-close:hover {
+    background: #f6f7f5;
+    color: #5e666c;
+}
+
+.property-stat-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+}
+
+.property-stat-tile {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    padding: 12px 14px;
+    border-radius: 11px;
+    background: #f6f7f5;
+}
+
+.property-stat-tile--full {
+    grid-column: 1 / -1;
+}
+
+.property-stat-label {
+    color: #8c949a;
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+}
+
+.property-stat-value {
+    color: #14181b;
+    font-size: 18px;
+    font-weight: 700;
+    line-height: 1.25;
+}
+
+.plant-button {
+    width: 100%;
+    min-height: 44px;
+    padding: 10px 16px;
+    border: none;
+    border-radius: 8px;
+    background: #2f7d5a;
+    color: #fff;
+    font-size: 14px;
+    font-weight: 700;
+    cursor: pointer;
+}
+
+.plant-button:hover {
+    background: #256548;
+}
+
+/* Kept for the earlier no-selection state, unchanged by this pass */
+.lot-hint {
+    margin: 0;
+    padding: 10px 14px;
+    border-radius: 10px;
+    background: #fff;
+    box-shadow: 0 8px 24px rgba(20, 24, 27, 0.12);
+    color: #5e666c;
+    font-size: 13px;
 }
 
 .lot-rows {

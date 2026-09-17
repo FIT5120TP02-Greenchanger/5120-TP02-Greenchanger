@@ -1,7 +1,7 @@
 import styles from '../TreePlantingFlow.module.css'
 import card_styles from '../../Panel.module.css'
 
-export default function Impact({ scenario, onViewGuidance, onBack, onCompare }) {
+export default function Impact({ scenario, onViewGuidance, onBack, onCompare, onExit }) {
     if (!scenario) return null
     const { species, size, impact, growth } = scenario
     const temp_change = `${impact.temperature_change_range_c.minimum}-${impact.temperature_change_range_c.maximum}`
@@ -13,7 +13,10 @@ export default function Impact({ scenario, onViewGuidance, onBack, onCompare }) 
                 <span className={styles['user-note']}>Impact of planting a tree</span>
                 <h2 className={styles['panel-title']}>{species?.common_name} on your lot</h2>
                 <p className={styles['subtitle']}>
-                    {size} size placed at your simulated position, at {impact?.maturity_horizon_years} years. Figures are not guarantees.
+                    {size} size placed at your simulated position, at {impact?.maturity_horizon_years} years.
+                </p>
+                <p className={styles['subtitle']}>
+                    Figures are not guarantees.
                 </p>
 
                 <div className={styles['section']}>
@@ -52,13 +55,17 @@ export default function Impact({ scenario, onViewGuidance, onBack, onCompare }) 
             </div>
 
             <div className={styles['panel-actions']}>
-                <button type="button" className={styles['back-button']} onClick={onCompare}>
-                    Compare with another tree
-                </button>
                 <div className={styles['panel-footer']}>
-                    <button type="button" className={styles['exit-button']} onClick={onBack}>
+                    <button type="button" className={styles['compare-button']} onClick={onCompare}>
+                        Compare with another tree
+                    </button>
+                    <button type="button" className={styles['back-button']} onClick={onBack}>
                         Change species
                     </button>
+                    
+                </div>
+                <div className={styles['panel-footer']}>
+                    <button type="button" className={styles['exit-button']} onClick={onExit}>Exit</button>
                     <button type="button" className={styles['guidance-button']} onClick={onViewGuidance}>
                         View guidance
                     </button>

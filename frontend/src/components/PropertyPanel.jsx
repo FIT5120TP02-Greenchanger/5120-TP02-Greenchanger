@@ -16,11 +16,29 @@ export default function PropertyPanel({ stats, hint, onPlantTree, onClose }) {
         onMouseOver={(e) => e.stopPropagation()}
         onMouseMove={(e) => e.stopPropagation()}
         >
-            {onClose && (
-                <button type="button" className={styles["lot-close"]} onClick={onClose} aria-label="Close">×</button>
-            )}
-            <p>{stats.address.split(',')[0]}</p>
-            <dl className={styles["lot-rows"]}>
+            <div className={styles["property-panel-header"]}>
+                <p>{stats.address.split(',')[0]}</p>
+                {onClose && (
+                    <button type="button" className={styles["lot-close"]} onClick={onClose} aria-label="Close">×</button>
+                )}
+            </div>
+            <div className={styles["property-stat-grid"]}>
+                <div className={styles["property-stat-tile"]}>
+                    <span className={styles["property-stat-label"]}>Lot area</span>
+                    <strong className={styles["property-stat-value"]}>{stats.areaLabel.toFixed(0)}</strong>
+                </div>
+                <div className={styles["property-stat-tile"]}>
+                    <span className={styles["property-stat-label"]}>Trees on lot</span>
+                    <strong className={styles["property-stat-value"]}>{stats.treeCount}</strong>
+                </div>
+                {stats.propertyCanopyPct != null && (
+                    <div className={`${styles["property-stat-tile"]} ${styles["property-stat-tile--full"]}`}>
+                        <span className={styles["property-stat-label"]}>Property canopy</span>
+                        <strong className={styles["property-stat-value"]}>{stats.propertyCanopyPct.toFixed(1)}%</strong>
+                    </div>
+                )}
+            </div>
+            {/* <dl className={styles["lot-rows"]}>
                 <dt>Lot area</dt>
                 <dd>{stats.areaLabel.toFixed(0)}</dd>
                 <dt>Trees on lot</dt>
@@ -38,7 +56,7 @@ export default function PropertyPanel({ stats, hint, onPlantTree, onClose }) {
                         <dd>{stats.canopyClassification}</dd>
                     </>
                 )}
-            </dl>
+            </dl> */}
             
             <button className={styles["plant-button"]} onClick={onPlantTree}>Plant a tree here</button>
         </div>

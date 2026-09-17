@@ -16,7 +16,7 @@ const STEPS = {
 }
 const BACK_TARGET = {
     [STEPS.LIST]: STEPS.INTRO, [STEPS.DETAIL]: STEPS.LIST,
-    [STEPS.IMPACT]: STEPS.DETAIL, [STEPS.GUIDANCE]: STEPS.IMPACT,
+    [STEPS.IMPACT]: STEPS.LIST, [STEPS.GUIDANCE]: STEPS.IMPACT,
     [STEPS.CHOOSE]: STEPS.IMPACT, [STEPS.COMPARE]: STEPS.CHOOSE,
     [STEPS.PREFERRED]: STEPS.COMPARE,
 }
@@ -133,7 +133,7 @@ export default function TreePlantingFlow({ lot, position, onApply, onExit, nTree
             case STEPS.DETAIL:
                 return <SpeciesDetail species={selectedSpecies} size={selectedSize} setCompareArray={setCompareArray} onSizeChange={setSelectedSize} onApply={handleApply} applying={applying} onBack={goBack} onExit={onExit} />
             case STEPS.IMPACT:
-                return <Impact scenario={appliedScenario} onViewGuidance={() => setStep(STEPS.GUIDANCE)} onCompare={() => setStep(STEPS.CHOOSE)} onBack={goBack} />
+                return <Impact scenario={appliedScenario} onViewGuidance={() => setStep(STEPS.GUIDANCE)} onCompare={() => setStep(STEPS.CHOOSE)} onBack={goBack} onExit={onExit}/>
             case STEPS.GUIDANCE:
                 return <Guidance onBack={goBack} onStartAgain={() => resetFlow()} />
             case STEPS.CHOOSE:
