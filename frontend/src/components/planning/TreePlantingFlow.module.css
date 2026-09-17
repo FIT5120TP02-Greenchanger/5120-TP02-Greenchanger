@@ -105,7 +105,7 @@
   font-size: 12px;
 }
 
-.placement-hint {
+.placement-hint, .select-hint {
   margin: 0;
   color: var(--caution);
   font-size: 12px;
