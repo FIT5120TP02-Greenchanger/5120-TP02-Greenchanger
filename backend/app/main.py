@@ -249,7 +249,9 @@ def get_tree_costs(
 def _popular_species() -> list[dict]:
     """Top 10 species by raw tree count across the councils currently covered
     by named_tree_inventory (9 of Victoria's 87 LGAs -- whichever have
-    published open tree-inventory data). Computed on first request, then
+    published open tree-inventory data), counting only species the growth
+    model covers (the planting flow can't use the others, so filtering after
+    the LIMIT left only 6 of the 10). Computed on first request, then
     cached for the life of the process; not scoped by address yet.
 
     Each species is left-joined to application_ready_tree_species_image (the
@@ -276,6 +278,7 @@ def _popular_species() -> list[dict]:
     scientific name (e.g. "Chinese Elm" is a common name), so not every entry
     will match.
     """
+    model_species = set(load_growth_model()["models"].keys())
     with pool.connection() as conn, conn.cursor() as cur:
         cur.execute(
             """
@@ -285,7 +288,7 @@ def _popular_species() -> list[dict]:
                        MIN(common_name) AS common_name,
                        COUNT(*) AS tree_count
                 FROM named_tree_inventory
-                WHERE scientific_name IS NOT NULL
+                WHERE lower(scientific_name) = ANY(%(model_species)s)
                 GROUP BY lower(scientific_name)
                 ORDER BY tree_count DESC
                 LIMIT 10
@@ -304,13 +307,13 @@ def _popular_species() -> list[dict]:
             LEFT JOIN application_ready_tree_species_image AS img
                    ON lower(img.scientific_name) = top_species.species_key
                   AND (img.image_status = 'curated_reference_image'
-                       OR img.image_url LIKE 'https://inaturalist-open-data.s3.amazonaws.com/%')
+                       OR img.image_url LIKE 'https://inaturalist-open-data.s3.amazonaws.com/%%')
             ORDER BY top_species.tree_count DESC
-            """
+            """,
+            {"model_species": list(model_species)},
         )
         rows = [jsonable_row(row) for row in cur.fetchall()]
 
-    model_species = set(load_growth_model()["models"].keys())
     for row in rows:
         row["has_growth_model"] = row["species_key"] in model_species
     return rows
