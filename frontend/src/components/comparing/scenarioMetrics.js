@@ -12,10 +12,10 @@ export function canopyAddedRange(row) {
 }
 
 export function addedCanopyCentral(row) {
-    if (!row?.growth) return
+    if (!row?.growth) return null
     const { canopy_m2_min, canopy_m2_median, canopy_m2_max } = row.growth
     if (canopy_m2_median != null) return canopy_m2_median
-    if (canopy_m2_median != null && canopy_m2_max != null) return (canopy_m2_min + canopy_m2_max) / 2
+    if (canopy_m2_min != null && canopy_m2_max != null) return (canopy_m2_min + canopy_m2_max) / 2
     return null
 }
 
@@ -50,6 +50,7 @@ export function shadeLevel(row) { return row?.growth?.shade_potential ?? null }
 export function coolingLevel(row) { return row?.growth?.cooling_potential ?? null }
 
 export function priceRange(row) {
+    console.log(row);
     if (!row?.costs) return null
     const { minimum_cost, maximum_cost } = row.costs
     if (minimum_cost == null) return null
@@ -62,12 +63,12 @@ export function formatRange(range, unit = '') {
     if (!range) return '—'
     return range.min === range.max
         ? `${range.min}${unit}`
-        : `${range.min}–${range.max}${unit}`
+        : `${range.min}—${range.max}${unit}`
 }
 
 export function formatPrice(range) {
     if (!range) return '—'
-    return range.min === range.max ? `$${range.min}` : `$${range.min}-$${range.max}`
+    return range.min === range.max ? `$${range.min}` : `$${range.min}—$${range.max}`
 }
 
 // "One level higher" / "One level lower" / "Same" style diff for shade/cooling.
