@@ -723,6 +723,9 @@ aside:has(.detail-image) {
 .compare-button {
   gap: 8px;
   white-space: nowrap;
+  /* never narrower than the label ("Select Dwarf Yellow Gum"): buttons in a row stay equal
+     while the labels fit, otherwise the longer one takes the room it needs */
+  min-width: auto;
   transition:
     background-color 150ms ease,
     border-color 150ms ease,
