@@ -64,7 +64,7 @@ Format your responses cleanly:
 
 If asked something outside urban greening, trees, sustainability, environmental impacts, or interpreting GreenChanger's simulations, politely redirect:
 "That's outside my canopy, I'm afraid — I can help you explore trees, urban greening, or your GreenChanger simulation."
-"""
+"""  # noqa: E501 -- prompt prose; wrapping it would change what the model sees
 
 
 class ChatMessage(BaseModel):
@@ -81,7 +81,10 @@ class ChatRequest(BaseModel):
     @classmethod
     def _cap_context_size(cls, value: dict | None) -> dict | None:
         if value is not None and len(json.dumps(value)) > MAX_CONTEXT_CHARS:
-            raise ValueError(f"context must be at most {MAX_CONTEXT_CHARS} characters when serialized")
+            # Wrapped over three lines for ruff E501 (max 100 chars); message unchanged.
+            raise ValueError(
+                f"context must be at most {MAX_CONTEXT_CHARS} characters when serialized"
+            )
         return value
 
 
