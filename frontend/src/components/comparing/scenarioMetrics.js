@@ -67,8 +67,20 @@ export function spaceNeededM2(row) {
 }
 
 // ASSUMPTION: qualitative level fields on growth — rename if the API differs.
-export function shadeLevel(row) { return `${row?.impact?.impact_area_range_m2.minimum} - ${row?.impact?.impact_area_range_m2.maximum} m²` ?? null }
-export function coolingLevel(row) { return `${row?.impact?.temperature_change_range_c.minimum} - ${row?.impact?.temperature_change_range_c.maximum} °C` ?? null }
+export function shadeLevel(row) { 
+    const range = row?.impact?.impact_area_range_m2;
+
+    if (!range) return null;
+
+    return `${range.minimum} - ${range.maximum} m²`;    
+}
+export function coolingLevel(row) { 
+    const range = row?.impact?.temperature_change_range_c;
+
+    if (!range) return null;
+
+    return `${range.minimum} - ${range.maximum} °C`;
+}
 
 export function priceRange(row) {
     if (!row?.costs) return null
