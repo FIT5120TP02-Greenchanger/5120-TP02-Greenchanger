@@ -1,0 +1,143 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  # Run data component tests
+  data-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          # Fetch all history so the migration check can compare with main.
+          fetch-depth: 0
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: GreenChanger_data/requirements.txt
+
+      - name: Block edits to applied migrations
+        if: github.event_name == 'pull_request'
+        run: python .github/scripts/check_migrations.py origin/main HEAD
+
+      - name: Install data-component dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r GreenChanger_data/requirements.txt
+
+      - name: Run data component tests
+        run: python -m unittest discover -v
+        working-directory: GreenChanger_data
+
+  # Run backend tests with linting and pytest
+  backend-tests:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+          cache: pip
+          cache-dependency-path: backend/requirements-dev.txt
+
+      - name: Install dependencies
+        run: pip install -r requirements-dev.txt
+
+      - name: Lint
+        run: ruff check .
+
+      - name: Run tests
+        run: pytest -q
+
+  # Build and test the backend Docker image
+  docker-build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build image
+        uses: docker/build-push-action@v6
+        with:
+          context: ./backend
+          push: false
+          load: true
+          tags: greenshift-api:ci
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Probe the running container
+        run: |
+          docker run -d --name gs-ci -p 8000:8000 greenshift-api:ci
+          for i in $(seq 1 15); do
+            if curl -fsS http://localhost:8000/api/health | grep -q '"ok"'; then
+              echo "health check passed"
+              docker rm -f gs-ci
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "::error::container did not serve /api/health within 15s"
+          docker logs gs-ci
+          docker rm -f gs-ci
+          exit 1
+
+  # Exercise the frontend publication sequence without deploying.
+  deploy-script:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Test the frontend publish script
+        run: bash .github/scripts/test-publish-frontend.sh
+
+  # Run frontend linting and build
+  frontend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Build
+        run: npm run build
