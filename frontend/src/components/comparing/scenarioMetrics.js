@@ -4,6 +4,27 @@
 
 const LEVEL_RANK = { Low: 0, Medium: 1, High: 2 }
 
+export function canopyDiffLabel(preferred, other) {
+    const p = addedCanopyCentral(preferred), o = addedCanopyCentral(other)
+    if (p == null || o == null) return '—'
+    const diff = p - o
+    return diff === 0 ? 'Same' : `${diff > 0 ? '+' : ''}${diff.toFixed(0)} m² ${diff > 0 ? 'more' : 'less'}`
+}
+
+export function spaceDiffLabel(preferred, other) {
+    const p = spaceNeededM2(preferred), o = spaceNeededM2(other)
+    if (p == null || o == null) return '—'
+    const diff = p - o
+    return diff === 0 ? 'Same' : `${diff > 0 ? '+' : ''}${diff.toFixed(0)} m² ${diff > 0 ? 'more' : 'less'}`
+}
+
+export function priceDiffLabel(preferred, other) {
+    const p = priceRange(preferred), o = priceRange(other)
+    if (!p || !o) return '—'
+    const diff = p.min - o.min // using min end of range as the headline price, matching the card display
+    return diff === 0 ? 'Same' : `${diff > 0 ? '+' : '-'}$${Math.abs(diff)}`
+}
+
 export function canopyAddedRange(row) {
     if (!row?.growth) return null
     const { canopy_m2_min, canopy_m2_max } = row.growth

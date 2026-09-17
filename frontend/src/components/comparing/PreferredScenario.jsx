@@ -1,8 +1,9 @@
 import styles from './TreeChoosing.module.css'
 import list_styles from '../planning/TreePlantingFlow.module.css'
 import {
-    canopyAddedRange, addedCanopyCentral, canopyCoverAfter, spaceNeededM2,
+    canopyAddedRange, canopyCoverAfter, spaceNeededM2,
     shadeLevel, coolingLevel, priceRange, formatRange, formatPrice, levelDiffLabel,
+    addedCanopyCentral, canopyDiffLabel, spaceDiffLabel, priceDiffLabel,
 } from './scenarioMetrics'
 
 export default function PreferredScenario({
@@ -92,23 +93,4 @@ function SingleRow({ label, value }) {
             <dd>{value}</dd>
         </div>
     )
-}
-
-export function canopyDiffLabel(preferred, other) {
-    const p = addedCanopyCentral(preferred), o = addedCanopyCentral(other)
-    if (p == null || o == null) return '—'
-    const diff = p - o
-    return diff === 0 ? 'Same' : `${diff > 0 ? '+' : ''}${diff.toFixed(0)} m² ${diff > 0 ? 'more' : 'less'}`
-}
-export function spaceDiffLabel(preferred, other) {
-    const p = spaceNeededM2(preferred), o = spaceNeededM2(other)
-    if (p == null || o == null) return '—'
-    const diff = p - o
-    return diff === 0 ? 'Same' : `${diff > 0 ? '+' : ''}${diff.toFixed(0)} m² ${diff > 0 ? 'more' : 'less'}`
-}
-export function priceDiffLabel(preferred, other) {
-    const p = priceRange(preferred), o = priceRange(other)
-    if (!p || !o) return '—'
-    const diff = p.min - o.min // using min end of range as the headline price, matching the card display
-    return diff === 0 ? 'Same' : `${diff > 0 ? '+' : '-'}$${Math.abs(diff)}`
 }

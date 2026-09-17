@@ -1,7 +1,6 @@
 // scenarioMetrics.test.js
 import { describe, it, expect } from 'vitest'
-import { addedCanopyCentral, canopyCoverAfter } from './scenarioMetrics'
-import { canopyDiffLabel } from './PreferredScenario' // only if you export it; see note below
+import { addedCanopyCentral, canopyCoverAfter, canopyDiffLabel } from './scenarioMetrics'
 
 describe('addedCanopyCentral', () => {
     it('uses canopy_m2_median (the model p50) when present', () => {
