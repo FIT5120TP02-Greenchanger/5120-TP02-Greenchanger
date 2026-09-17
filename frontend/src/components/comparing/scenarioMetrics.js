@@ -23,7 +23,7 @@ export function addedCanopyCentral(row) {
 // Mirrors the calc MapView already does for `projected` (see MapView.jsx).
 export function canopyCoverAfter(row, canopyM2, viewM2) {
     const addedCentral = addedCanopyCentral(row)
-    if(addedCentral == null || !view2) return null
+    if(addedCentral == null || !viewM2) return null
     const basePct = (canopyM2 / viewM2) * 100
     const afterPct = ((canopyM2 + addedCentral) / viewM2) * 100
     return { pct: afterPct, deltaPts: afterPct - basePct }
