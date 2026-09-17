@@ -81,10 +81,6 @@ export default function TreeCompare({ compareArray = [], appliedScenario, rows, 
                         const row = rows[s.species_key]
                         const label = String.fromCharCode(65 + index)
 
-                        const price = row
-                            ? formatPrice(priceRange(row))
-                            : null
-
                         return (
                             <div
                                 key={s.species_key}
@@ -108,7 +104,7 @@ export default function TreeCompare({ compareArray = [], appliedScenario, rows, 
                                             {row?.loading
                                                 ? 'Loading data...'
                                                 : row?.size
-                                                ? `${row.size} · ${price} supply-only`
+                                                ? `${row.size}`
                                                 : 'Data unavailable'}
                                         </p>
                                     </div>

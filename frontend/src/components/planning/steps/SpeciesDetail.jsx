@@ -79,7 +79,6 @@ export default function SpeciesDetail({ species, size, onSizeChange, setCompareA
     if (!species) return null
 
     const growth = growthBySize[size]
-
     const priceRange = costs
         ? (
             costs.minimum_cost === costs.maximum_cost
@@ -115,7 +114,10 @@ export default function SpeciesDetail({ species, size, onSizeChange, setCompareA
             {loading && <p className={styles['detail-loading']}>Loading…</p>}
             {error && <p className={styles['detail-error']}>{error}</p>}
             {costs?.display_disclaimer && (
-                <p className={styles['cost-disclaimer']}>{costs.display_disclaimer}</p>
+                <>
+                    <p className={styles['detail-latin']}>Indicative source-backed range only.</p>
+                    <p className={styles['detail-latin']}>Confirm current details with the supplier.</p>
+                </>
             )}
 
             <div className={styles['section']}>

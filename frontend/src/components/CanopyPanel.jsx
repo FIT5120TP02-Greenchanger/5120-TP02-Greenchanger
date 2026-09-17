@@ -28,7 +28,6 @@ export default function CanopyPanel({ pct, nTrees, canopyM2, viewM2, simulatedCo
                 )}
             </div>
             <div className={styles["canopy-view"]}>
-                <span>WHAT IS HERE NOW</span>
                 <dl className={styles["canopy-stats"]}>
                     <dt>Trees</dt>
                     <dd>{nTrees.toLocaleString()}</dd>
