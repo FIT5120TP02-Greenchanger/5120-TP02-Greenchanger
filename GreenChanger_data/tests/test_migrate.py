@@ -9,7 +9,7 @@ class MigrationFileTests(unittest.TestCase):
     def test_migrations_are_numbered_and_ordered(self):
         self.assertEqual(
             [version for version, _ in migration_files()],
-            list(range(1, 66)),
+            list(range(1, 68)),
         )
 
     def test_current_costs_use_melbourne_date_and_retire_anonymous_trees(self):
@@ -70,6 +70,20 @@ class MigrationFileTests(unittest.TestCase):
         self.assertIn("scientific_name ~* '(^| )cv\\.?$'", sql)
         self.assertIn("not a resolved botanical identity", sql)
         self.assertIn("auditable taxon aliases", sql)
+
+    def test_price_gap_requires_a_resolved_species_rank(self):
+        migration = next(path for version, path in migration_files() if version == 66)
+        sql = expanded_sql(migration)
+        self.assertIn("UPPER(COALESCE(identity_enrichment.taxon_rank, '')) = 'SPECIES'", sql)
+        self.assertIn("identity_enrichment.matched_scientific_name ~", sql)
+        self.assertIn("unavailable_unresolved_tree_identity", sql)
+
+    def test_price_gap_excludes_non_exact_taxon_matches(self):
+        migration = next(path for version, path in migration_files() if version == 67)
+        sql = expanded_sql(migration)
+        self.assertIn("OR NOT (", sql)
+        self.assertIn("identity_enrichment.match_type = 'EXACT'", sql)
+        self.assertIn("identity_enrichment.match_confidence >= 95", sql)
 
     def test_address_catalog_combines_exact_stock_and_local_popularity(self):
         migration = next(path for version, path in migration_files() if version == 53)
