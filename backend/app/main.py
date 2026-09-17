@@ -269,11 +269,13 @@ def _popular_species() -> list[dict]:
 
     Each species is left-joined to application_ready_tree_species_image (the
     tree image catalogue) on scientific_name, case-insensitive. The join is
-    restricted to `curated_reference_image` rows and iNaturalist-hosted GBIF
-    photos -- other GBIF sources and Wikimedia Commons were spot-checked and
-    include non-representative images (herbarium specimen scans, genus-level
-    stand-ins) that this endpoint should not hand out as "the" photo for a
-    species. iNaturalist URLs are rewritten from /original. (up to ~12MB) to
+    restricted to `curated_reference_image` rows, Wikimedia Commons images and
+    iNaturalist-hosted GBIF photos -- other GBIF sources were spot-checked and
+    include herbarium specimen scans and IIIF manifests (not images) that this
+    endpoint should not hand out as "the" photo for a species. Wikimedia was
+    excluded too until the data team's re-run (2026-09-17) switched it to the
+    species' Wikipedia/Wikidata lead image; the top-10 picks were checked by eye
+    and all show the named species. iNaturalist URLs are rewritten from /original. (up to ~12MB) to
     /medium. (~150-200KB) so the frontend isn't asked to load full-res photos.
 
     IMPORTANT -- image_licence/image_attribution are NOT currently trustworthy:
@@ -319,7 +321,9 @@ def _popular_species() -> list[dict]:
             FROM top_species
             LEFT JOIN application_ready_tree_species_image AS img
                    ON lower(img.scientific_name) = top_species.species_key
-                  AND (img.image_status = 'curated_reference_image'
+                  AND (img.image_status IN (
+                           'curated_reference_image', 'verified_wikimedia_commons_image'
+                       )
                        OR img.image_url LIKE 'https://inaturalist-open-data.s3.amazonaws.com/%%')
             ORDER BY top_species.tree_count DESC
             """,
