@@ -108,7 +108,7 @@ export default function TreeCompare({ compareArray = [], appliedScenario, rows, 
                                             {row?.loading
                                                 ? 'Loading data...'
                                                 : row?.size
-                                                ? `${row.size} · ${price} supply-only`
+                                                ? `${row.size}`
                                                 : 'Data unavailable'}
                                         </p>
                                     </div>

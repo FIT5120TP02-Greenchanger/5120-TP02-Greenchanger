@@ -67,11 +67,10 @@ export function spaceNeededM2(row) {
 }
 
 // ASSUMPTION: qualitative level fields on growth — rename if the API differs.
-export function shadeLevel(row) { return row?.growth?.shade_potential ?? null }
-export function coolingLevel(row) { return row?.growth?.cooling_potential ?? null }
+export function shadeLevel(row) { return `${row?.impact?.impact_area_range_m2.minimum} - ${row?.impact?.impact_area_range_m2.maximum} m²` ?? null }
+export function coolingLevel(row) { return `${row?.impact?.temperature_change_range_c.minimum} - ${row?.impact?.temperature_change_range_c.maximum} °C` ?? null }
 
 export function priceRange(row) {
-    console.log(row);
     if (!row?.costs) return null
     const { minimum_cost, maximum_cost } = row.costs
     if (minimum_cost == null) return null

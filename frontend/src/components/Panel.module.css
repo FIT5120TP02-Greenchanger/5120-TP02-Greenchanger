@@ -97,8 +97,16 @@
 }
 /* Property panel */
 .property-panel {
-    padding: 15px 16px 15px 16px;
-    box-shadow: 0px 18px 40px 0px #0F171C2E;
+    box-sizing: border-box;
+    width: 100%;
+    padding: 15px 16px;
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 12px;
+    border-radius: 14px;
+    background: #fff;
+    font-family: "Instrument Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
 }
 .lot-hint {
     padding: 15px 16px;
@@ -109,29 +117,19 @@
     border-radius: 8px;
     box-shadow: 0px 18px 40px 0px #0F171C2E;
 }
-.property-panel {
-    display: flex;
-    flex-direction: column;
-    gap: 12px;
-    width: 280px;
-    padding: 16px;
-    border-radius: 14px;
-    background: #fff;
-    box-shadow: 0 8px 24px rgba(20, 24, 27, 0.12);
-    font-family: "Instrument Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-}
 
 .property-panel-header {
+    width: 100%;
     display: flex;
-    align-items: flex-start;
+    align-items: center;
     justify-content: space-between;
     gap: 8px;
 }
 .property-panel-header p {
+    margin: 0;
     color: #0F171C;
     font-family: "Instrument Sans";
     font-size: 16px;
-    font-style: normal;
     font-weight: 700;
     line-height: 130%;
     letter-spacing: 0.16px;
@@ -618,7 +616,7 @@
 
 /* Close (x) on the lot card. `.property-panel button` styles every button as the green
    CTA, so this needs the higher specificity to opt out. */
-.property-panel .lot-close {
+/* .property-panel .lot-close {
     position: absolute;
     top: 6px;
     right: 6px;
@@ -632,13 +630,13 @@
     color: #5E666C;
     font-size: 20px;
     line-height: 1;
-}
+} */
 .property-panel .lot-close:hover {
     background: #F2F4F5;
 }
-.property-panel > p:first-of-type {
+/* .property-panel > p:first-of-type {
     padding-right: 28px;
-}
+} */
 
 /* Plant button waits for a map click (2026-09-03) */
 .place-button:disabled {

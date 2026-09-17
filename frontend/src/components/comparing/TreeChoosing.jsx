@@ -1,7 +1,6 @@
 import styles from './TreeChoosing.module.css'
 import list_styles from '../planning/TreePlantingFlow.module.css'
 export default function TreeChoosing({species, selectedSpecies, compareArray, setCompareArray, onBack, onCompareTree}) {
-    console.log(selectedSpecies);
     function handleCheckbox(s) {
         setCompareArray(prev => {
             const alreadySelected = prev.some(

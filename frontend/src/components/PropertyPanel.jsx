@@ -38,26 +38,6 @@ export default function PropertyPanel({ stats, hint, onPlantTree, onClose }) {
                     </div>
                 )}
             </div>
-            {/* <dl className={styles["lot-rows"]}>
-                <dt>Lot area</dt>
-                <dd>{stats.areaLabel.toFixed(0)}</dd>
-                <dt>Trees on lot</dt>
-                <dd>{stats.treeCount}</dd>
-
-                {stats.propertyCanopyPct != null && (
-                    <>
-                        <dt>Property canopy</dt>
-                        <dd>{stats.propertyCanopyPct.toFixed(1)}%</dd>
-                    </>
-                )}
-                {stats.canopyClassification && (
-                    <>
-                        <dt>Neighbourhood Classification</dt>
-                        <dd>{stats.canopyClassification}</dd>
-                    </>
-                )}
-            </dl> */}
-            
             <button className={styles["plant-button"]} onClick={onPlantTree}>Plant a tree here</button>
         </div>
     );
