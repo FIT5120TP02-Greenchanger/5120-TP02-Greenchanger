@@ -5,17 +5,114 @@ from pathlib import Path
 from unittest.mock import patch
 
 from greenchanger_script.enrich_tree_catalog import (
+    COMMONS_LICENCES,
+    commons_image_preference,
     deterministic_taxon_candidates,
+    enrich_full_tree_batch,
     enrich_species,
     enrich_species_with_commons,
+    file_title_is_detail_only,
     image_is_blocked,
+    mediawiki_pages_by_requested_title,
     normalized_gbif_media_licence,
     read_checkpoint,
+    wikipedia_lead_file_title,
     wikipedia_title_candidate,
 )
 
 
 class TreeCatalogEnrichmentTests(unittest.TestCase):
+    def test_detail_filename_gate_keeps_explicit_mature_specimen(self):
+        self.assertTrue(file_title_is_detail_only("File:Example flowers and leaves.jpg"))
+        self.assertTrue(file_title_is_detail_only("File:Example distribution map.png"))
+        self.assertFalse(file_title_is_detail_only("File:Example mature specimen.jpg"))
+        self.assertFalse(file_title_is_detail_only("File:Example whole tree.jpg"))
+
+    def test_mediawiki_page_mapping_follows_normalization_and_redirects(self):
+        result = {"query": {
+            "normalized": [{"from": "Example_tree", "to": "Example tree"}],
+            "redirects": [{"from": "Example tree", "to": "Accepted tree"}],
+            "pages": {"1": {"title": "Accepted tree", "pageid": 1}},
+        }}
+        mapped = mediawiki_pages_by_requested_title(result, ["Example_tree"])
+        self.assertEqual(mapped["Example_tree"]["pageid"], 1)
+
+    def test_full_tree_batch_verifies_taxon_and_commons_licence(self):
+        wikipedia = {"query": {"pages": {"1": {
+            "title": "Example tree", "pageimage": "Example_tree.jpg",
+            "pageprops": {"wikibase_item": "Q123"},
+        }}}}
+        wikidata = {"entities": {"Q123": {"claims": {
+            "P225": [{"mainsnak": {"datavalue": {"value": "Example tree"}}}],
+        }}}}
+        commons = {"query": {"pages": {"2": {
+            "title": "File:Example tree.jpg",
+            "imageinfo": [{
+                "url": "https://upload.wikimedia.org/example-tree.jpg",
+                "descriptionurl": "https://commons.wikimedia.org/wiki/File:Example_tree.jpg",
+                "mime": "image/jpeg",
+                "extmetadata": {
+                    "LicenseShortName": {"value": "CC BY 4.0"},
+                    "Artist": {"value": "Example Creator"},
+                },
+            }],
+        }}}}
+        base = {"Example tree": {
+            "scientific_name": "Example tree", "enrichment_status": "verified_open_image",
+        }}
+        with patch(
+            "greenchanger_script.enrich_tree_catalog.get_wikimedia_json",
+            side_effect=[wikipedia, wikidata, commons],
+        ):
+            row = enrich_full_tree_batch(["Example tree"], base)[0]
+        self.assertEqual(row["commons_file_title"], "File:Example tree.jpg")
+        self.assertEqual(row["taxon_verification_id"], "Q123")
+        self.assertEqual(row["image_licence"], "CC BY 4.0")
+
+    def test_gfdl_is_accepted_as_commercially_reusable_commons_licence(self):
+        self.assertEqual(
+            COMMONS_LICENCES["gfdl 1.2"],
+            (
+                "GFDL 1.2",
+                "https://www.gnu.org/licenses/old-licenses/fdl-1.2.html",
+            ),
+        )
+
+    def test_commons_image_preference_favours_mature_whole_tree(self):
+        mature_tree = {
+            "title": "File:Example mature tree habit.jpg",
+            "imageinfo": [{"extmetadata": {
+                "ImageDescription": {"value": "A mature whole tree in a park"},
+            }}],
+        }
+        flower = {
+            "title": "File:Example flowers and leaves close-up.jpg",
+            "imageinfo": [{"extmetadata": {}}],
+        }
+        self.assertGreater(
+            commons_image_preference(mature_tree),
+            commons_image_preference(flower),
+        )
+
+    def test_commons_image_preference_uses_wikidata_lead_when_no_view_metadata(self):
+        lead = {"title": "File:Example.jpg", "imageinfo": [{"extmetadata": {}}]}
+        other = {"title": "File:Example 2.jpg", "imageinfo": [{"extmetadata": {}}]}
+        self.assertGreater(
+            commons_image_preference(lead, "File:Example.jpg"),
+            commons_image_preference(other, "File:Example.jpg"),
+        )
+
+    def test_wikipedia_lead_file_title_normalizes_pageimage_name(self):
+        response = {"query": {"pages": {"1": {
+            "pageimage": "700_yr_red_river_gum02.jpg",
+        }}}}
+        with patch(
+            "greenchanger_script.enrich_tree_catalog.get_wikimedia_json",
+            return_value=response,
+        ):
+            title = wikipedia_lead_file_title("Eucalyptus camaldulensis")
+        self.assertEqual(title, "File:700 yr red river gum02.jpg")
+
     def test_deterministic_candidates_extract_embedded_binomial(self):
         self.assertIn(
             ("Prunus armeniaca", "embedded_scientific_name"),

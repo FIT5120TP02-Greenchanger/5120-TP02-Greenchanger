@@ -9,7 +9,7 @@ class MigrationFileTests(unittest.TestCase):
     def test_migrations_are_numbered_and_ordered(self):
         self.assertEqual(
             [version for version, _ in migration_files()],
-            list(range(1, 60)),
+            list(range(1, 61)),
         )
 
     def test_current_costs_use_melbourne_date_and_retire_anonymous_trees(self):
@@ -113,6 +113,16 @@ class MigrationFileTests(unittest.TestCase):
         self.assertIn("02513824.jpg", sql)
         self.assertIn("removed after source copyright review", sql)
         self.assertIn("tree_species_image_enrichment_blocked_url_check", sql)
+
+    def test_gfdl_commons_images_are_allowed_with_exact_licence_url(self):
+        migration = next(path for version, path in migration_files() if version == 60)
+        sql = expanded_sql(migration)
+        self.assertIn("tree_species_image_enrichment_approved_licence_check", sql)
+        self.assertIn("'GFDL 1.2'", sql)
+        self.assertIn(
+            "'https://www.gnu.org/licenses/old-licenses/fdl-1.2.html'",
+            sql,
+        )
 
     def test_include_is_expanded(self):
         with tempfile.TemporaryDirectory() as directory:

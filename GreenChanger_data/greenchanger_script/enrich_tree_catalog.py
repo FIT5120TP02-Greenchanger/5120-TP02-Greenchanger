@@ -54,6 +54,7 @@ USER_AGENT = (
 )
 COMMONS_LICENCES = {
     "public domain": ("Public domain", "https://creativecommons.org/publicdomain/mark/1.0/"),
+    "gfdl 1.2": ("GFDL 1.2", "https://www.gnu.org/licenses/old-licenses/fdl-1.2.html"),
     "cc0 1.0": ("CC0 1.0", "https://creativecommons.org/publicdomain/zero/1.0/"),
     "cc by 2.0": ("CC BY 2.0", "https://creativecommons.org/licenses/by/2.0/"),
     "cc by 2.5": ("CC BY 2.5", "https://creativecommons.org/licenses/by/2.5/"),
@@ -71,6 +72,23 @@ CATALOG_TAXON_CORRECTIONS = {
 WIKIMEDIA_REQUEST_INTERVAL_SECONDS = 0.5
 _wikimedia_request_lock = threading.Lock()
 _last_wikimedia_request = 0.0
+
+FULL_TREE_TERMS = {
+    "adult", "habit", "habitus", "mature", "street tree", "tree", "whole tree",
+}
+DETAIL_IMAGE_TERMS = {
+    "bark", "branch", "bud", "close-up", "closeup", "flower", "foliage", "fruit",
+    "herbarium", "leaf", "leaves", "seed", "seedling", "specimen", "twig",
+}
+DETAIL_FILE_PATTERN = re.compile(
+    r"\b(bark|branch|bud|close[ -]?up|distribution|flower|flowers|foliage|fruit|"
+    r"herbarium|leaf|leaves|map|range|seed|seedling|sapling|specimen|twig)\b",
+    re.IGNORECASE,
+)
+WHOLE_TREE_FILE_PATTERN = re.compile(
+    r"\b(adult tree|habit|habitus|mature specimen|mature tree|street tree|whole tree)\b",
+    re.IGNORECASE,
+)
 
 
 def get_api_json(api_url: str, parameters: dict, retries: int = 3) -> dict:
@@ -283,11 +301,35 @@ def commons_search_file_titles(name: str) -> list[str]:
     return titles
 
 
-def commons_file_titles(entity: dict, taxon_name: str) -> list[str]:
+def wikipedia_lead_file_title(taxon_name: str) -> str | None:
+    result = get_wikimedia_json(
+        WIKIPEDIA_API,
+        {
+            "action": "query", "format": "json", "titles": taxon_name,
+            "prop": "pageimages", "piprop": "name", "redirects": 1,
+        },
+    )
+    page = next(iter(result.get("query", {}).get("pages", {}).values()), {})
+    filename = page.get("pageimage")
+    return f"File:{filename.replace('_', ' ')}" if filename else None
+
+
+def commons_file_titles(
+    entity: dict, taxon_name: str, prefer_full_tree: bool = False,
+) -> list[str]:
     titles = []
+    if prefer_full_tree:
+        wikipedia_lead = wikipedia_lead_file_title(taxon_name)
+        if wikipedia_lead:
+            titles.append(wikipedia_lead)
     featured_image = claim_value(entity, "P18")
     if featured_image:
         titles.append(f"File:{featured_image}")
+    # Wikipedia's lead image is editorially selected to represent the taxon.
+    # In full-tree mode, avoid an expensive and less deterministic category
+    # crawl when a lead image is available; P18 remains the licence fallback.
+    if prefer_full_tree and titles:
+        return list(dict.fromkeys(titles))
     category = claim_value(entity, "P373")
     if category:
         result = get_wikimedia_json(
@@ -304,6 +346,102 @@ def commons_file_titles(entity: dict, taxon_name: str) -> list[str]:
     return list(dict.fromkeys(titles))
 
 
+def commons_image_preference(page: dict, preferred_title: str | None = None) -> int:
+    """Rank a Commons image for catalogue use, favouring a mature whole-tree view."""
+    info = next(iter(page.get("imageinfo", [])), {})
+    metadata = info.get("extmetadata", {})
+    searchable = " ".join(filter(None, (
+        page.get("title"),
+        clean_metadata_text(metadata.get("ObjectName", {}).get("value")),
+        clean_metadata_text(metadata.get("ImageDescription", {}).get("value")),
+        clean_metadata_text(metadata.get("Categories", {}).get("value")),
+    ))).casefold()
+    score = 300 if preferred_title and page.get("title") == preferred_title else 0
+    score += 80 * sum(term in searchable for term in FULL_TREE_TERMS)
+    score -= 120 * sum(term in searchable for term in DETAIL_IMAGE_TERMS)
+    return score
+
+
+def file_title_is_detail_only(title: str | None) -> bool:
+    text = (title or "").replace("_", " ")
+    return bool(DETAIL_FILE_PATTERN.search(text)) and not bool(
+        WHOLE_TREE_FILE_PATTERN.search(text)
+    )
+
+
+def commons_page_row(
+    name: str, image_taxon_name: str, base_row: dict, entity_id: str,
+    page: dict, match_basis: str,
+) -> dict | None:
+    info = next(iter(page.get("imageinfo", [])), {})
+    if not str(info.get("mime", "")).startswith("image/"):
+        return None
+    if file_title_is_detail_only(page.get("title")):
+        return None
+    metadata = info.get("extmetadata", {})
+    licence_key = clean_metadata_text(metadata.get("LicenseShortName", {}).get("value"))
+    licence = COMMONS_LICENCES.get((licence_key or "").casefold())
+    if not licence:
+        return None
+    licence_label, licence_url = licence
+    creator = clean_metadata_text(metadata.get("Artist", {}).get("value"))
+    rights_holder = clean_metadata_text(metadata.get("Credit", {}).get("value")) or creator
+    if licence_label not in {"Public domain", "CC0 1.0"} and not creator:
+        return None
+    creator = creator or rights_holder or "Wikimedia Commons contributor"
+    image_url = clean_https(info.get("thumburl") or info.get("url"))
+    page_url = clean_https(info.get("descriptionurl"))
+    if not image_url or image_is_blocked(image_url) or not page_url:
+        return None
+    file_title = page.get("title")
+    return {
+        **base_row,
+        "matched_scientific_name": image_taxon_name,
+        "taxonomic_status": "WIKIDATA_EXACT_P225",
+        "match_type": "EXACT",
+        "match_confidence": 100,
+        "image_url": image_url,
+        "image_page_url": page_url,
+        "image_alt_text": (
+            f"Representative photograph of the genus {image_taxon_name} for unresolved record {name}."
+            if match_basis == "genus_representative"
+            else f"Reference photograph of {image_taxon_name} for {name}."
+        ),
+        "image_creator": creator,
+        "image_rights_holder": rights_holder or creator,
+        "image_licence": licence_label,
+        "image_licence_url": licence_url,
+        "image_attribution": (
+            f"{image_taxon_name} reference image by {creator}, {licence_label}, "
+            f"via Wikimedia Commons ({file_title})."
+        ),
+        "gbif_occurrence_key": None,
+        "image_source_name": "Wikimedia Commons",
+        "taxon_verification_id": entity_id,
+        "commons_file_title": file_title,
+        "enrichment_status": "verified_open_image",
+        "limitation": (
+            f"Wikimedia Commons reference image for {image_taxon_name}, selected with preference for "
+            "the Wikipedia lead image and metadata indicating a mature, whole-tree view. The Wikidata item "
+            "whose P225 taxon name exactly matches the displayed image taxon. "
+            + {
+                "exact_name": "The Wikidata taxon exactly matches the catalogue name.",
+                "gbif_exact_canonical": "GBIF supplied this exact canonical taxon for the catalogue name.",
+                "parent_species": "This is the verified parent species; it is not necessarily the named cultivar/form.",
+                "corrected_spelling": "GBIF supplied this high-confidence spelling correction within the same genus.",
+                "genus_representative": "This is a genus-level representative only because the catalogue record is explicitly unidentified to species.",
+                "wikidata_exact_label_alias": "The catalogue name exactly matches an English Wikidata label or alias on this taxon item.",
+                "embedded_scientific_name": "The image taxon is an explicit botanical binomial embedded in the catalogue value.",
+                "normalized_hybrid_name": "The image taxon exactly matches the catalogue hybrid after normalising the multiplication symbol.",
+                "user_confirmed_wikipedia_correction": "The catalogue spelling was corrected to the taxon on the user-confirmed Wikipedia page and exact Wikidata P225 item.",
+                "wikipedia_title_correction": "A uniquely close Wikipedia binomial title supplied this spelling correction and the Wikidata P225 item exactly verifies it.",
+            }[match_basis]
+            + " It is illustrative, not exact nursery stock; appearance varies with age, season, cultivar and conditions."
+        ),
+        "checked_at": datetime.now(timezone.utc).isoformat(),
+    }
+
+
 def commons_images(
     name: str, image_taxon_name: str, base_row: dict,
     entity_id: str, file_titles: list[str], match_basis: str,
@@ -318,72 +456,133 @@ def commons_images(
         },
     )
     pages = result.get("query", {}).get("pages", {})
-    for page in pages.values():
-        info = next(iter(page.get("imageinfo", [])), {})
-        if not str(info.get("mime", "")).startswith("image/"):
-            continue
-        metadata = info.get("extmetadata", {})
-        licence_key = clean_metadata_text(metadata.get("LicenseShortName", {}).get("value"))
-        licence = COMMONS_LICENCES.get((licence_key or "").casefold())
-        if not licence:
-            continue
-        licence_label, licence_url = licence
-        creator = clean_metadata_text(metadata.get("Artist", {}).get("value"))
-        rights_holder = clean_metadata_text(metadata.get("Credit", {}).get("value")) or creator
-        if licence_label not in {"Public domain", "CC0 1.0"} and not creator:
-            continue
-        creator = creator or rights_holder or "Wikimedia Commons contributor"
-        image_url = clean_https(info.get("thumburl") or info.get("url"))
-        page_url = clean_https(info.get("descriptionurl"))
-        if not image_url or image_is_blocked(image_url) or not page_url:
-            continue
-        file_title = page.get("title")
-        return {
-            **base_row,
-            "matched_scientific_name": image_taxon_name,
-            "taxonomic_status": "WIKIDATA_EXACT_P225",
-            "match_type": "EXACT",
-            "match_confidence": 100,
-            "image_url": image_url,
-            "image_page_url": page_url,
-            "image_alt_text": (
-                f"Representative photograph of the genus {image_taxon_name} for unresolved record {name}."
-                if match_basis == "genus_representative"
-                else f"Reference photograph of {image_taxon_name} for {name}."
-            ),
-            "image_creator": creator,
-            "image_rights_holder": rights_holder or creator,
-            "image_licence": licence_label,
-            "image_licence_url": licence_url,
-            "image_attribution": (
-                f"{image_taxon_name} reference image by {creator}, {licence_label}, "
-                f"via Wikimedia Commons ({file_title})."
-            ),
-            "gbif_occurrence_key": None,
-            "image_source_name": "Wikimedia Commons",
-            "taxon_verification_id": entity_id,
-            "commons_file_title": file_title,
-            "enrichment_status": "verified_open_image",
-            "limitation": (
-                f"Wikimedia Commons reference image for {image_taxon_name}, selected from the Wikidata item "
-                "whose P225 taxon name exactly matches the displayed image taxon. "
-                + {
-                    "exact_name": "The Wikidata taxon exactly matches the catalogue name.",
-                    "gbif_exact_canonical": "GBIF supplied this exact canonical taxon for the catalogue name.",
-                    "parent_species": "This is the verified parent species; it is not necessarily the named cultivar/form.",
-                    "corrected_spelling": "GBIF supplied this high-confidence spelling correction within the same genus.",
-                    "genus_representative": "This is a genus-level representative only because the catalogue record is explicitly unidentified to species.",
-                    "wikidata_exact_label_alias": "The catalogue name exactly matches an English Wikidata label or alias on this taxon item.",
-                    "embedded_scientific_name": "The image taxon is an explicit botanical binomial embedded in the catalogue value.",
-                    "normalized_hybrid_name": "The image taxon exactly matches the catalogue hybrid after normalising the multiplication symbol.",
-                    "user_confirmed_wikipedia_correction": "The catalogue spelling was corrected to the taxon on the user-confirmed Wikipedia page and exact Wikidata P225 item.",
-                    "wikipedia_title_correction": "A uniquely close Wikipedia binomial title supplied this spelling correction and the Wikidata P225 item exactly verifies it.",
-                }[match_basis]
-                + " It is illustrative, not exact nursery stock; appearance varies with age, season, cultivar and conditions."
-            ),
-            "checked_at": datetime.now(timezone.utc).isoformat(),
-        }
+    preferred_title = file_titles[0] if file_titles else None
+    ranked_pages = sorted(
+        pages.values(),
+        key=lambda page: commons_image_preference(page, preferred_title),
+        reverse=True,
+    )
+    for page in ranked_pages:
+        row = commons_page_row(
+            name, image_taxon_name, base_row, entity_id, page, match_basis,
+        )
+        if row:
+            return row
     return None
+
+
+def mediawiki_title_key(value: str | None) -> str:
+    return " ".join((value or "").replace("_", " ").split()).casefold()
+
+
+def mediawiki_pages_by_requested_title(result: dict, requested: list[str]) -> dict[str, dict]:
+    query = result.get("query", {})
+    aliases = {}
+    for group in ("normalized", "redirects"):
+        for item in query.get(group, []):
+            aliases[mediawiki_title_key(item.get("from"))] = mediawiki_title_key(item.get("to"))
+    pages = {
+        mediawiki_title_key(page.get("title")): page
+        for page in query.get("pages", {}).values()
+    }
+    resolved = {}
+    for title in requested:
+        key = mediawiki_title_key(title)
+        seen = set()
+        while key in aliases and key not in seen:
+            seen.add(key)
+            key = aliases[key]
+        if key in pages:
+            resolved[title] = pages[key]
+    return resolved
+
+
+def enrich_full_tree_batch(names: list[str], completed: dict[str, dict]) -> list[dict]:
+    """Replace a batch with exact Wikidata-verified Wikipedia lead images."""
+    wikipedia = get_wikimedia_json(
+        WIKIPEDIA_API,
+        {
+            "action": "query", "format": "json", "titles": "|".join(names),
+            "prop": "pageimages|pageprops", "piprop": "name",
+            "ppprop": "wikibase_item", "redirects": 1,
+        },
+    )
+    wikipedia_pages = mediawiki_pages_by_requested_title(wikipedia, names)
+    candidates = {}
+    for name, page in wikipedia_pages.items():
+        entity_id = page.get("pageprops", {}).get("wikibase_item")
+        filename = page.get("pageimage")
+        if entity_id and filename and "missing" not in page:
+            candidates[name] = {
+                "entity_id": entity_id,
+                "file_title": f"File:{filename.replace('_', ' ')}",
+            }
+
+    entity_ids = list(dict.fromkeys(
+        candidate["entity_id"] for candidate in candidates.values()
+    ))
+    entities = {}
+    if entity_ids:
+        entities = get_wikimedia_json(
+            WIKIDATA_API,
+            {
+                "action": "wbgetentities", "ids": "|".join(entity_ids),
+                "props": "claims", "format": "json",
+            },
+        ).get("entities", {})
+
+    verified = {}
+    for name, candidate in candidates.items():
+        taxon_name = claim_value(entities.get(candidate["entity_id"], {}), "P225")
+        original_words = normalized_taxon_words(name)
+        taxon_words = normalized_taxon_words(taxon_name or "")
+        if not taxon_name or len(taxon_words) < 2 or original_words[:2] != taxon_words[:2]:
+            continue
+        candidate["taxon_name"] = taxon_name
+        candidate["match_basis"] = (
+            "exact_name"
+            if " ".join(name.split()).casefold() == " ".join(taxon_name.split()).casefold()
+            else "parent_species"
+        )
+        verified[name] = candidate
+
+    file_titles = list(dict.fromkeys(
+        candidate["file_title"] for candidate in verified.values()
+    ))
+    commons_pages = {}
+    if file_titles:
+        commons = get_wikimedia_json(
+            COMMONS_API,
+            {
+                "action": "query", "format": "json", "titles": "|".join(file_titles),
+                "prop": "imageinfo", "iiprop": "url|extmetadata|mime", "iiurlwidth": 1200,
+            },
+        )
+        commons_pages = mediawiki_pages_by_requested_title(commons, file_titles)
+
+    rows = []
+    for name in names:
+        base_row = completed[name]
+        candidate = verified.get(name)
+        page = commons_pages.get(candidate["file_title"]) if candidate else None
+        row = None
+        if candidate and page:
+            row = commons_page_row(
+                name, candidate["taxon_name"], base_row, candidate["entity_id"],
+                page, candidate["match_basis"],
+            )
+        if not row:
+            row = {
+                **base_row,
+                "limitation": (
+                    (base_row.get("limitation") or "").rstrip()
+                    + " Mature full-tree preference checked; no approved exact-taxon "
+                    "Wikipedia lead image was available, so the existing licensed image was retained."
+                ).strip(),
+                "checked_at": datetime.now(timezone.utc).isoformat(),
+            }
+        rows.append(row)
+    return rows
 
 
 def commons_taxon_candidates(name: str, base_row: dict, broader: bool = False) -> list[tuple[str, str]]:
@@ -446,7 +645,9 @@ def commons_taxon_candidates(name: str, base_row: dict, broader: bool = False) -
     ))
 
 
-def enrich_species_with_commons(name: str, base_row: dict, broader: bool = False) -> dict:
+def enrich_species_with_commons(
+    name: str, base_row: dict, broader: bool = False, prefer_full_tree: bool = False,
+) -> dict:
     for image_taxon_name, match_basis in commons_taxon_candidates(name, base_row, broader):
         if broader and match_basis == "exact_name":
             alias_taxon = exact_wikidata_label_or_alias_taxon(image_taxon_name)
@@ -454,7 +655,8 @@ def enrich_species_with_commons(name: str, base_row: dict, broader: bool = False
                 entity_id, image_taxon_name, entity = alias_taxon
                 row = commons_images(
                     name, image_taxon_name, base_row, entity_id,
-                    commons_file_titles(entity, image_taxon_name), "wikidata_exact_label_alias",
+                    commons_file_titles(entity, image_taxon_name, prefer_full_tree),
+                    "wikidata_exact_label_alias",
                 )
                 if row:
                     return row
@@ -465,7 +667,7 @@ def enrich_species_with_commons(name: str, base_row: dict, broader: bool = False
         entity_id, entity = taxon
         row = commons_images(
             name, image_taxon_name, base_row, entity_id,
-            commons_file_titles(entity, image_taxon_name), match_basis,
+            commons_file_titles(entity, image_taxon_name, prefer_full_tree), match_basis,
         )
         if row:
             return row
@@ -679,6 +881,10 @@ def main() -> None:
     )
     parser.add_argument("--workers", type=int, default=12)
     parser.add_argument("--max-species", type=int)
+    parser.add_argument(
+        "--species", action="append", default=[],
+        help="process only this scientific name; may be supplied more than once",
+    )
     parser.add_argument("--refresh", action="store_true")
     parser.add_argument(
         "--commons-fallback", action="store_true",
@@ -702,6 +908,13 @@ def main() -> None:
             "that lack an approved media-level licence"
         ),
     )
+    parser.add_argument(
+        "--prefer-full-tree", action="store_true",
+        help=(
+            "replace existing images, where possible, with an exact-taxon Wikimedia Commons image "
+            "ranked to prefer a mature whole-tree view; keep the current image as fallback"
+        ),
+    )
     parser.add_argument("--load-only", action="store_true")
     parser.add_argument("--fetch-only", action="store_true")
     parser.add_argument("--confirm-shared", action="store_true")
@@ -711,9 +924,18 @@ def main() -> None:
 
     completed = read_checkpoint(args.checkpoint)
     if not args.load_only:
-        commons_mode = args.commons_fallback or args.commons_broader_fallback
+        commons_mode = (
+            args.commons_fallback or args.commons_broader_fallback or args.prefer_full_tree
+        )
         checkpoint_only_mode = commons_mode or args.revalidate_gbif_licences
         names = list(completed) if checkpoint_only_mode else species_names(args.max_species)
+        if args.species:
+            missing_names = [name for name in args.species if name not in completed]
+            if checkpoint_only_mode and missing_names:
+                parser.error(
+                    "--species is not present in the checkpoint: " + ", ".join(missing_names)
+                )
+            names = args.species
         if commons_mode and args.max_species:
             names = names[:args.max_species]
         if args.revalidate_gbif_licences:
@@ -724,6 +946,19 @@ def main() -> None:
                 name for name in names
                 if completed.get(name, {}).get("enrichment_status") == "verified_open_image"
                 and completed.get(name, {}).get("image_source_name") == "GBIF occurrence media API"
+            ]
+        elif args.prefer_full_tree:
+            pending = [
+                name for name in names
+                if completed.get(name, {}).get("enrichment_status") == "verified_open_image"
+                and completed.get(name, {}).get("match_type") == "EXACT"
+                and completed.get(name, {}).get("gbif_taxon_key")
+                and "selected with preference for" not in (
+                    completed.get(name, {}).get("limitation") or ""
+                )
+                and "Mature full-tree preference checked" not in (
+                    completed.get(name, {}).get("limitation") or ""
+                )
             ]
         elif args.commons_broader_fallback:
             pending = [
@@ -748,10 +983,20 @@ def main() -> None:
             pending = [name for name in names if name not in completed]
         args.checkpoint.parent.mkdir(parents=True, exist_ok=True)
         with args.checkpoint.open("a", encoding="utf-8") as stream:
+            if args.prefer_full_tree:
+                for start in range(0, len(pending), 40):
+                    batch_names = pending[start:start + 40]
+                    for row in enrich_full_tree_batch(batch_names, completed):
+                        completed[row["scientific_name"]] = row
+                        stream.write(json.dumps(row, ensure_ascii=False) + "\n")
+                    stream.flush()
+                    print(f"enriched {min(start + len(batch_names), len(pending))}/{len(pending)}")
+                pending = []
             with ThreadPoolExecutor(max_workers=args.workers) as pool:
                 worker = (
                     lambda name: enrich_species_with_commons(
-                        name, completed[name], args.commons_broader_fallback
+                        name, completed[name], args.commons_broader_fallback,
+                        args.prefer_full_tree,
                     )
                     if commons_mode else enrich_species(name)
                 )
@@ -765,6 +1010,9 @@ def main() -> None:
                         print(f"enriched {index}/{len(pending)}")
 
     rows = list(completed.values())
+    if args.species:
+        selected = set(args.species)
+        rows = [row for row in rows if row["scientific_name"] in selected]
     if args.max_species:
         rows = rows[: args.max_species]
     if not args.fetch_only:

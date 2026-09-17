@@ -538,7 +538,7 @@ missing images, the optional Wikimedia
 Commons fallback is limited to rows with an exact GBIF taxon ID and requires an
 exact Wikidata P225 match for that name or its GBIF canonical taxon. This permits
 an explicitly labelled base-taxon reference for a cultivar while rejecting fuzzy
-or higher-rank substitutions. Only public-domain, CC0, CC BY or CC BY-SA files
+or higher-rank substitutions. Only public-domain, GFDL 1.2, CC0, CC BY or CC BY-SA files
 with their record-level licence, creator, source page and attribution are accepted.
 The separately invoked broader pass can also accept exact Wikidata catalogue-name
 or English label/alias matches on taxon items, verified parent species for cultivars,
@@ -565,6 +565,16 @@ python greenchanger_script/enrich_tree_catalog.py \
   --workers 4 \
   --confirm-shared
 
+# Replace selected existing images with the exact taxon's Wikipedia lead image
+# when its Commons file has an approved licence. Other Commons candidates are
+# ranked to prefer mature whole-tree views; the existing image remains fallback.
+python greenchanger_script/enrich_tree_catalog.py \
+  --prefer-full-tree \
+  --species 'Eucalyptus camaldulensis' \
+  --species 'Eucalyptus leucoxylon' \
+  --workers 1 \
+  --confirm-shared
+
 # Revalidate every existing GBIF image against its current media-level licence,
 # then load the replaced or quarantined results into the database.
 python greenchanger_script/enrich_tree_catalog.py \
@@ -583,6 +593,14 @@ only rows without a verified image that have an exact GBIF taxon ID. The broader
 pass revisits every remaining unavailable row using the disclosed rules above.
 Both Commons modes throttle Wikimedia requests; the primary pass skips names
 already present unless `--refresh` is supplied.
+The `--prefer-full-tree` pass revisits verified exact-taxon rows and prioritises
+the exact Wikidata-P225-verified Wikipedia lead file before ranking Commons
+metadata for mature whole-tree views. Requests are batched for catalogue-wide
+refreshes. Filenames explicitly describing flowers, leaves, fruit, bark, branches,
+seedlings, specimens, maps, ranges or close-ups are rejected unless they also
+explicitly describe a mature or whole-tree view. The existing approved image is
+retained and marked reviewed when no approved representative replacement is
+available. Repeat `--species` to limit either fetching or loading to named rows.
 
 The lookup uses the latest application-ready version per source, an indexed
 metre-based radius and a bounded result limit. It returns source and licence
