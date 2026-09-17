@@ -3,7 +3,7 @@ import list_styles from '../planning/TreePlantingFlow.module.css'
 import {
     canopyAddedRange, canopyCoverAfter, spaceNeededM2,
     shadeLevel, coolingLevel, priceRange, formatRange, formatPrice, levelDiffLabel,
-    addedCanopyCentral, canopyDiffLabel, spaceDiffLabel, priceDiffLabel,
+    canopyDiffLabel, spaceDiffLabel, priceDiffLabel,
 } from './scenarioMetrics'
 
 export default function PreferredScenario({
