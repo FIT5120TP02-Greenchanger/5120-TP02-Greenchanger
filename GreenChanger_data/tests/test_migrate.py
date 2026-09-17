@@ -9,7 +9,7 @@ class MigrationFileTests(unittest.TestCase):
     def test_migrations_are_numbered_and_ordered(self):
         self.assertEqual(
             [version for version, _ in migration_files()],
-            list(range(1, 59)),
+            list(range(1, 60)),
         )
 
     def test_current_costs_use_melbourne_date_and_retire_anonymous_trees(self):
@@ -106,6 +106,13 @@ class MigrationFileTests(unittest.TestCase):
         self.assertIn("CC BY 4.0", sql)
         self.assertIn("CC0 1.0", sql)
         self.assertIn("CREATE OR REPLACE VIEW application_ready_tree_species_image", sql)
+
+    def test_london_plane_specimen_image_is_quarantined(self):
+        migration = next(path for version, path in migration_files() if version == 59)
+        sql = expanded_sql(migration)
+        self.assertIn("02513824.jpg", sql)
+        self.assertIn("removed after source copyright review", sql)
+        self.assertIn("tree_species_image_enrichment_blocked_url_check", sql)
 
     def test_include_is_expanded(self):
         with tempfile.TemporaryDirectory() as directory:

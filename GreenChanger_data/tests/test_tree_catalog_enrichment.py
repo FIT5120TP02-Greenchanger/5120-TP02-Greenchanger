@@ -8,6 +8,7 @@ from greenchanger_script.enrich_tree_catalog import (
     deterministic_taxon_candidates,
     enrich_species,
     enrich_species_with_commons,
+    image_is_blocked,
     normalized_gbif_media_licence,
     read_checkpoint,
     wikipedia_title_candidate,
@@ -128,6 +129,31 @@ class TreeCatalogEnrichmentTests(unittest.TestCase):
             "https://creativecommons.org/licenses/by-nd/4.0/",
         ):
             self.assertIsNone(normalized_gbif_media_licence(rejected))
+
+    def test_source_review_blocks_london_plane_specimen_image(self):
+        blocked_url = "https://sweetgum.nybg.org/images3/1967/024/02513824.jpg"
+        self.assertTrue(image_is_blocked(blocked_url))
+        match = {
+            "usageKey": 3152815, "speciesKey": 3152815,
+            "scientificName": "Platanus × acerifolia (Aiton) Willd.",
+            "rank": "SPECIES", "status": "SYNONYM", "confidence": 98,
+            "matchType": "EXACT", "kingdom": "Plantae",
+        }
+        blocked = {"results": [{
+            "key": 1930652320, "speciesKey": 3152815,
+            "media": [{
+                "identifier": blocked_url,
+                "creator": "The New York Botanical Garden",
+                "license": "https://creativecommons.org/licenses/by/4.0/",
+            }],
+        }]}
+        with patch(
+            "greenchanger_script.enrich_tree_catalog.get_json",
+            side_effect=[match, blocked, {"results": []}],
+        ):
+            row = enrich_species("Platanus x acerifolia")
+        self.assertEqual(row["enrichment_status"], "no_open_image")
+        self.assertIsNone(row["image_url"])
 
     def test_occurrence_filter_does_not_override_restricted_media_licence(self):
         match = {

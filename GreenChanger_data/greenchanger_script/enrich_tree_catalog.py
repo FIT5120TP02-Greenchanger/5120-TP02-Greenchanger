@@ -42,6 +42,12 @@ GBIF_MEDIA_LICENCES = {
         "CC0 1.0", "https://creativecommons.org/publicdomain/zero/1.0/",
     ),
 }
+# Source review overrides provider metadata when the displayed asset itself
+# carries incompatible copyright wording. Keep exact URLs here so future
+# refreshes cannot reintroduce a manually rejected image.
+BLOCKED_IMAGE_URLS = {
+    "https://sweetgum.nybg.org/images3/1967/024/02513824.jpg",
+}
 USER_AGENT = (
     "GreenChanger/1.0 tree catalogue enrichment "
     "(https://github.com/FIT5120TP02-Greenchanger/5120-TP02-Greenchanger)"
@@ -131,6 +137,11 @@ def normalized_gbif_media_licence(value) -> tuple[str, str] | None:
         return None
     key = normalized.strip().casefold().replace("http://", "https://", 1).rstrip("/")
     return GBIF_MEDIA_LICENCES.get(key)
+
+
+def image_is_blocked(value) -> bool:
+    """Return whether source review has explicitly rejected this image URL."""
+    return clean_https(value) in BLOCKED_IMAGE_URLS
 
 
 def claim_value(entity: dict, property_id: str):
@@ -324,7 +335,7 @@ def commons_images(
         creator = creator or rights_holder or "Wikimedia Commons contributor"
         image_url = clean_https(info.get("thumburl") or info.get("url"))
         page_url = clean_https(info.get("descriptionurl"))
-        if not image_url or not page_url:
+        if not image_url or image_is_blocked(image_url) or not page_url:
             continue
         file_title = page.get("title")
         return {
@@ -521,6 +532,8 @@ def enrich_species(name: str) -> dict:
                     continue
                 for media in occurrence.get("media", []):
                     image_url = clean_https(media.get("identifier"))
+                    if image_is_blocked(image_url):
+                        continue
                     approved_licence = normalized_gbif_media_licence(media.get("license"))
                     if not approved_licence:
                         # The occurrence search filter does not establish the media
