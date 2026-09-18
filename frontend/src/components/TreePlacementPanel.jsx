@@ -16,8 +16,8 @@ export default function TreePlacementPanel({ size, onSizeChange, onConfirm, onCa
             <div className={styles['placement-step']}>
                 {/* <strong>1. Select a map point</strong> */}
                 {/* <p>Only one active simulated tree.</p> */}
-                <strong>Choose a size, then click on the map where you want.</strong>
-                <p>The circle resizes to match the tree. Click again to move it.</p>
+                {/* <strong>Choose a size, then click on the map where you want.</strong> */}
+                <strong>The circle resizes to match the tree. Click again to move it.</strong>
                 <p>No suitability assessment is provided.</p>
             </div>
 
@@ -34,7 +34,7 @@ export default function TreePlacementPanel({ size, onSizeChange, onConfirm, onCa
                 </div>
                 ))}
             </div>
-
+            {!canPlant && <p className={styles['placement-warn']}>Click on the map in order to place a tree</p>}
             <button className={styles['place-button']} onClick={onConfirm} disabled={canPlant === false}>
                 {/* {hasPosition ? 'Place here?' : 'Place simulated tree'} */}
                 {hasPosition ? (hasUpdatePos ? 'Update position' : 'Plant another here') : 'Plant here'}
