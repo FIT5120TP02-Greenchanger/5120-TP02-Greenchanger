@@ -20,7 +20,7 @@ export default function HeatPanel({ stats }) {
     const band = stats.heatClassification || "Unavailable";
     const scope = SCOPE_LABEL[stats.classificationScope] || "";
     const heatNote = stats.limitations?.heat;
-    const airNote = stats.limitations?.air_temperature;
+    const airNote = stats.limitations?.air_temperature.split(' ').slice(0, 7).join(' ');
     const airUnavailable = stats.weatherContext === WEATHER_UNAVAILABLE || stats.airTemperatureC == null;
     const toggle = (key) => setOpenKeys((current) => {
         const next = new Set(current);
@@ -66,12 +66,12 @@ export default function HeatPanel({ stats }) {
                         {stats.landSurfaceTempDate && (
                             <>Measured {stats.landSurfaceTempDate} · Landsat land surface<br /></>
                         )}
-                        {stats.classificationScope && (
+                        {/* {stats.classificationScope && (
                             <>
                                 Band relative to the Greater Melbourne application-ready baseline
                                 {stats.classificationSchemeVersion && ` · ${stats.classificationSchemeVersion}`}
                             </>
-                        )}
+                        )} */}
                     </p>
                 )}
 
