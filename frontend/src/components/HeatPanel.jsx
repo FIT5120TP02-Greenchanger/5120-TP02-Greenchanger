@@ -80,7 +80,7 @@ export default function HeatPanel({ stats }) {
                     <dd>{stats.landSurfaceTempC != null ? `${stats.landSurfaceTempC.toFixed(1)}°C` : "—"}</dd>
                     <dt>
                         Air temperature
-                        {airUnavailable && airNote && why("air", "Why air temperature is unavailable")}
+                        {airNote && why("air", "Why air temperature is unavailable")}
                     </dt>
                     <dd>
                         {airUnavailable
@@ -101,7 +101,7 @@ export default function HeatPanel({ stats }) {
                         is regional context only.
                     </p>
                 )}
-                {!airUnavailable && stats.weatherContext !== WEATHER_REGIONAL && stats.weatherStationName && (
+                {isOpen("air") &&!airUnavailable && stats.weatherContext !== WEATHER_REGIONAL && stats.weatherStationName && (
                     <p className={styles["heat-caveat"]}>
                         {stats.weatherStationName}
                         {stats.weatherObservedAt && `, observed ${new Date(stats.weatherObservedAt).toISOString().split('T')[0]}`}
