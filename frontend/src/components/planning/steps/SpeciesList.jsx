@@ -1,6 +1,12 @@
 import styles from '../TreePlantingFlow.module.css'
 
 export default function SpeciesList({ species = [], selectedSpecies, onSelect, onViewDetail, onBack, onExit }) {
+    species.forEach(s => {
+    s.common_name = s.common_name
+        .split(' ')
+        .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+        .join(' ');
+});
     return (
         <>
             <div className={styles['panel-body']}>
