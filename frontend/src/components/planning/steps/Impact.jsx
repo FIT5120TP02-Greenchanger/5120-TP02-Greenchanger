@@ -4,6 +4,9 @@ import card_styles from '../../Panel.module.css'
 export default function Impact({ scenario, onViewGuidance, onBack, onCompare, onExit }) {
     if (!scenario) return null
     const { species, size, impact, growth } = scenario
+    console.log(size);
+    console.log(impact);
+    console.log(growth);
     const temp_change = `${impact.temperature_change_range_c.minimum}-${impact.temperature_change_range_c.maximum}`
     const canopy_change = `${growth.canopy_m2_min}-${growth.canopy_m2_max}`
     const shade_change = `${growth.crown_width_m_min}-${growth.crown_width_m_max}`
@@ -42,8 +45,20 @@ export default function Impact({ scenario, onViewGuidance, onBack, onCompare, on
                 <div className={styles['section']}>
                     <div className={styles['metric-list']}>
                         <span className={styles['user-note']}>INDICATIVE CHARACTERISTICS</span>
-                        <p className={styles['map-key-item']}>Dashed ring = indicative mature canopy</p>
-                        <p className={styles['map-key-item']}>Soft grey shape = example 3 pm shade</p>
+                        <div className={styles['metric-row']}>
+                            <span className={styles['metric-label']}>Selected size</span>
+                            <span className={styles['metric-value']}>{size}</span>
+                        </div>
+
+                        <div className={styles['metric-row']}>
+                            <span className={styles['metric-label']}>Mature height</span>
+                            <span className={styles['metric-value']}>{`${growth.height_m_min}-${growth.height_m_max} m`}</span>
+                        </div>
+
+                        <div className={styles['metric-row']}>
+                            <span className={styles['metric-label']}>Mature canopy width</span>
+                            <span className={styles['metric-value']}>{`${growth.canopy_m2_min}-${growth.canopy_m2_max} m²`}</span>
+                        </div>
                     </div>
                 </div>
 
