@@ -692,17 +692,17 @@ class PostgisEnvironmentContextIntegrationTests(unittest.TestCase):
                        )
                        WHERE scientific_name = 'Eucalyptus camaldulensis'"""
                 )
-                generic = cursor.fetchone()
-                self.assertIsNotNone(generic)
+                unresolved = cursor.fetchone()
+                self.assertIsNotNone(unresolved)
                 self.assertEqual(
-                    generic[:3],
+                    unresolved[:3],
                     (
-                        "unavailable_no_species_quote",
+                        "unavailable_unresolved_tree_identity",
                         "image_enrichment_not_run",
                         None,
                     ),
                 )
-                self.assertEqual(generic[3:], (None, None))
+                self.assertEqual(unresolved[3:], (None, None))
             finally:
                 cursor.execute(
                     """DELETE FROM cost_estimate
