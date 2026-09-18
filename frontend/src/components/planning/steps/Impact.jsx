@@ -4,9 +4,6 @@ import card_styles from '../../Panel.module.css'
 export default function Impact({ scenario, onViewGuidance, onBack, onCompare, onExit }) {
     if (!scenario) return null
     const { species, size, impact, growth } = scenario
-    console.log(size);
-    console.log(impact);
-    console.log(growth);
     const temp_change = `${impact.temperature_change_range_c.minimum}-${impact.temperature_change_range_c.maximum}`
     const canopy_change = `${growth.canopy_m2_min}-${growth.canopy_m2_max}`
     const shade_change = `${growth.crown_width_m_min}-${growth.crown_width_m_max}`
