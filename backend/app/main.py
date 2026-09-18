@@ -228,11 +228,17 @@ def get_tree_costs(
     tree_type is the specific species or common name within that category -- they are
     different columns and neither is a substitute for the other.
 
+    A tree_type that is a common name from /api/trees/species (what the planting flow
+    sends) returns one row with the species' supply-only min-max from
+    complete_tree_species_catalog, matched by scientific name -- the supplier price rows
+    use retailer product names that rarely equal the inventory common name.
+
     A tree_type with no price row of its own (most species for now) gets the generic
     'container_tree' (small container tree) rows instead, with is_generic_estimate true
     so the UI can say it is not that species' price. Every row carries the flag.
     Not applied when option_code is also given: that caller asked for one option only.
     """
+    scientific_name = _listed_scientific_name(tree_type) if tree_type and not option_code else None
     clauses = []
     params: dict[str, str] = {}
     if option_code:
@@ -244,6 +250,21 @@ def get_tree_costs(
     where = f"WHERE {' AND '.join(clauses)}" if clauses else ""
 
     with db.cursor() as cur:
+        if scientific_name:
+            cur.execute(
+                """
+                SELECT scientific_name, tree_type, supply_min_cost_aud, supply_max_cost_aud,
+                       currency, cost_valid_to, cost_source_names, cost_status,
+                       size_price_status, cost_limitation
+                FROM complete_tree_species_catalog
+                WHERE lower(scientific_name) = lower(%(scientific_name)s)
+                  AND supply_min_cost_aud IS NOT NULL
+                """,
+                {"scientific_name": scientific_name},
+            )
+            catalog = cur.fetchone()
+            if catalog:
+                return [_supply_price_row(jsonable_row(catalog))]
         cur.execute(
             f"SELECT * FROM application_ready_cost_estimate {where} ORDER BY option_code", params
         )
@@ -256,6 +277,35 @@ def get_tree_costs(
             )
             rows = [jsonable_row(row) for row in cur.fetchall()]
     return [{**row, "is_generic_estimate": generic} for row in rows]
+
+
+def _listed_scientific_name(common_name: str) -> str | None:
+    """Scientific name of the /api/trees/species row with this common name, or None.
+
+    The planting flow only knows the common name it got from that list, and the list's
+    common names are unique, so this maps them back without guessing.
+    """
+    for row in _popular_species():
+        if row.get("common_name") == common_name:
+            return row["scientific_name"]
+    return None
+
+
+def _supply_price_row(catalog: dict) -> dict:
+    """A complete_tree_species_catalog price, in the fields the planting flow reads."""
+    return {
+        "tree_type": catalog["tree_type"],
+        "botanical_name": catalog["scientific_name"],
+        "minimum_cost": catalog["supply_min_cost_aud"],
+        "maximum_cost": catalog["supply_max_cost_aud"],
+        "currency": catalog["currency"],
+        "valid_to": catalog["cost_valid_to"],
+        "source_name": ", ".join(catalog["cost_source_names"] or []),
+        "cost_status": catalog["cost_status"],
+        "size_price_status": catalog["size_price_status"],
+        "display_disclaimer": catalog["cost_limitation"],
+        "is_generic_estimate": False,
+    }
 
 
 @lru_cache(maxsize=1)
