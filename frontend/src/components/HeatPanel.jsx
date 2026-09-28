@@ -20,7 +20,7 @@ export default function HeatPanel({ stats }) {
     const band = stats.heatClassification || "Unavailable";
     const scope = SCOPE_LABEL[stats.classificationScope] || "";
     const heatNote = stats.limitations?.heat;
-    const airNote = stats.limitations?.air_temperature;
+    const airNote = stats.limitations?.air_temperature.split(' ').slice(0, 7).join(' ');
     const airUnavailable = stats.weatherContext === WEATHER_UNAVAILABLE || stats.airTemperatureC == null;
     const toggle = (key) => setOpenKeys((current) => {
         const next = new Set(current);
@@ -66,12 +66,12 @@ export default function HeatPanel({ stats }) {
                         {stats.landSurfaceTempDate && (
                             <>Measured {stats.landSurfaceTempDate} · Landsat land surface<br /></>
                         )}
-                        {stats.classificationScope && (
+                        {/* {stats.classificationScope && (
                             <>
                                 Band relative to the Greater Melbourne application-ready baseline
                                 {stats.classificationSchemeVersion && ` · ${stats.classificationSchemeVersion}`}
                             </>
-                        )}
+                        )} */}
                     </p>
                 )}
 
@@ -80,7 +80,7 @@ export default function HeatPanel({ stats }) {
                     <dd>{stats.landSurfaceTempC != null ? `${stats.landSurfaceTempC.toFixed(1)}°C` : "—"}</dd>
                     <dt>
                         Air temperature
-                        {airUnavailable && airNote && why("air", "Why air temperature is unavailable")}
+                        {airNote && why("air", "Why air temperature is unavailable")}
                     </dt>
                     <dd>
                         {airUnavailable
@@ -101,7 +101,7 @@ export default function HeatPanel({ stats }) {
                         is regional context only.
                     </p>
                 )}
-                {!airUnavailable && stats.weatherContext !== WEATHER_REGIONAL && stats.weatherStationName && (
+                {isOpen("air") &&!airUnavailable && stats.weatherContext !== WEATHER_REGIONAL && stats.weatherStationName && (
                     <p className={styles["heat-caveat"]}>
                         {stats.weatherStationName}
                         {stats.weatherObservedAt && `, observed ${new Date(stats.weatherObservedAt).toISOString().split('T')[0]}`}

@@ -285,6 +285,12 @@
     margin: 4px 0 0;
     color: #5E666C;
 }
+.placement-panel .placement-warn {
+    color: #a86f1a;
+    font-size: 12px;
+    text-align: center;
+    margin: 0;
+}
 .place-button {
     background: #2F7D5A;
     color: white;
@@ -306,6 +312,8 @@
 .placement-hint {
     font-size: 0.75rem;
     color: #8C949A;
+    text-align: center;
+    margin: 0;
 }
 .plant-button {
     margin-top: 10px;

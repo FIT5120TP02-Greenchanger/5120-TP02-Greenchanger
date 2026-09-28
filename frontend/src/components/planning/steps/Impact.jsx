@@ -42,8 +42,20 @@ export default function Impact({ scenario, onViewGuidance, onBack, onCompare, on
                 <div className={styles['section']}>
                     <div className={styles['metric-list']}>
                         <span className={styles['user-note']}>INDICATIVE CHARACTERISTICS</span>
-                        <p className={styles['map-key-item']}>Dashed ring = indicative mature canopy</p>
-                        <p className={styles['map-key-item']}>Soft grey shape = example 3 pm shade</p>
+                        <div className={styles['metric-row']}>
+                            <span className={styles['metric-label']}>Selected size</span>
+                            <span className={styles['metric-value']}>{size}</span>
+                        </div>
+
+                        <div className={styles['metric-row']}>
+                            <span className={styles['metric-label']}>Mature height</span>
+                            <span className={styles['metric-value']}>{`${growth.height_m_min}-${growth.height_m_max} m`}</span>
+                        </div>
+
+                        <div className={styles['metric-row']}>
+                            <span className={styles['metric-label']}>Mature canopy width</span>
+                            <span className={styles['metric-value']}>{`${growth.canopy_m2_min}-${growth.canopy_m2_max} m²`}</span>
+                        </div>
                     </div>
                 </div>
 
