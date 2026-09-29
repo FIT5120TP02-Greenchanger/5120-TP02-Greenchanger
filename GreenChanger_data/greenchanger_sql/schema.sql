@@ -443,6 +443,20 @@ CREATE TABLE IF NOT EXISTS cost_estimate (
     stock_size TEXT,
     tree_type TEXT,
     botanical_name TEXT,
+    species_price_match_basis TEXT CHECK (
+        species_price_match_basis IS NULL OR species_price_match_basis IN (
+            'exact_catalogue_name', 'species_or_cultivar_listing'
+        )
+    ),
+    size_price_status TEXT CHECK (
+        size_price_status IS NULL OR size_price_status IN (
+            'exact_variant_size_price', 'exact_listed_size_price',
+            'single_product_price_with_size_label',
+            'exact_variant_price_size_not_supplied',
+            'single_product_price_size_not_supplied',
+            'product_price_range_not_mapped_to_size'
+        )
+    ),
     minimum_cost NUMERIC(12, 2) NOT NULL CHECK (minimum_cost >= 0),
     maximum_cost NUMERIC(12, 2) NOT NULL CHECK (maximum_cost >= minimum_cost),
     material_min_cost NUMERIC(12, 2) CHECK (material_min_cost IS NULL OR material_min_cost >= 0),
@@ -700,6 +714,7 @@ CREATE UNIQUE INDEX IF NOT EXISTS uq_cost_estimate_source_version
         cost_context,
         cost_basis,
         tree_type,
+        stock_size,
         source_name,
         valid_from,
         source_reference
@@ -1399,7 +1414,9 @@ SELECT
     'Indicative source-backed range only; confirm current price, availability, site conditions, delivery, installation and maintenance with the supplier.'::TEXT
         AS display_disclaimer,
     ce.tree_type,
-    ce.botanical_name
+    ce.botanical_name,
+    ce.species_price_match_basis,
+    ce.size_price_status
 FROM cost_estimate AS ce
 JOIN greening_option AS go USING (greening_option_id)
 WHERE go.active
@@ -1411,6 +1428,24 @@ WHERE go.active
 
 COMMENT ON VIEW application_ready_cost_estimate IS
     'Current source-backed greening cost contexts with option labels, confidence and mandatory indicative-estimate disclaimer.';
+
+CREATE OR REPLACE VIEW application_ready_tree_cost_by_size AS
+SELECT
+    cost_estimate_id, option_code, tree_type, botanical_name, stock_size,
+    minimum_cost, maximum_cost, currency, source_name, source_reference,
+    source_url, valid_from, valid_to, last_verified_at,
+    species_price_match_basis, size_price_status, confidence_level,
+    estimate_status, display_disclaimer
+FROM application_ready_cost_estimate
+WHERE option_code = 'backyard_tree_diy'
+  AND botanical_name IS NOT NULL
+  AND size_price_status IN (
+      'exact_variant_size_price', 'exact_listed_size_price',
+      'single_product_price_with_size_label'
+  );
+
+COMMENT ON VIEW application_ready_tree_cost_by_size IS
+    'Current supplier tree prices where an advertised AUD price is explicitly paired with a supplier stock size; generic tree prices and unmapped product ranges are excluded.';
 
 CREATE OR REPLACE FUNCTION get_environment_context(
     p_longitude DOUBLE PRECISION,

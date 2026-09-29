@@ -9,7 +9,7 @@ class MigrationFileTests(unittest.TestCase):
     def test_migrations_are_numbered_and_ordered(self):
         self.assertEqual(
             [version for version, _ in migration_files()],
-            list(range(1, 59)),
+            list(range(1, 68)),
         )
 
     def test_current_costs_use_melbourne_date_and_retire_anonymous_trees(self):
@@ -51,6 +51,39 @@ class MigrationFileTests(unittest.TestCase):
         self.assertIn("generic_current_catalogue_range_not_species_quote", sql)
         self.assertIn("must not be represented as this species price", sql)
         self.assertIn("Do not substitute an unverified image", sql)
+
+    def test_unresolved_tree_identities_are_not_treated_as_species_quotes(self):
+        migration = next(path for version, path in migration_files() if version == 64)
+        sql = expanded_sql(migration)
+        self.assertIn("classified_species", sql)
+        self.assertIn("unavailable_unresolved_tree_identity", sql)
+        self.assertIn("unavailable_no_species_quote", sql)
+        self.assertIn("scientific_name ~* '^(dead|stump)( |$)'", sql)
+        self.assertIn("scientific_name LIKE '%,%'", sql)
+        self.assertIn("no generic catalogue-wide price is substituted", sql)
+
+    def test_unresolved_common_and_cv_labels_are_separated(self):
+        migration = next(path for version, path in migration_files() if version == 65)
+        sql = expanded_sql(migration)
+        self.assertIn("identity_enrichment.match_type = 'EXACT'", sql)
+        self.assertIn("identity_enrichment.match_confidence >= 95", sql)
+        self.assertIn("scientific_name ~* '(^| )cv\\.?$'", sql)
+        self.assertIn("not a resolved botanical identity", sql)
+        self.assertIn("auditable taxon aliases", sql)
+
+    def test_price_gap_requires_a_resolved_species_rank(self):
+        migration = next(path for version, path in migration_files() if version == 66)
+        sql = expanded_sql(migration)
+        self.assertIn("UPPER(COALESCE(identity_enrichment.taxon_rank, '')) = 'SPECIES'", sql)
+        self.assertIn("identity_enrichment.matched_scientific_name ~", sql)
+        self.assertIn("unavailable_unresolved_tree_identity", sql)
+
+    def test_price_gap_excludes_non_exact_taxon_matches(self):
+        migration = next(path for version, path in migration_files() if version == 67)
+        sql = expanded_sql(migration)
+        self.assertIn("OR NOT (", sql)
+        self.assertIn("identity_enrichment.match_type = 'EXACT'", sql)
+        self.assertIn("identity_enrichment.match_confidence >= 95", sql)
 
     def test_address_catalog_combines_exact_stock_and_local_popularity(self):
         migration = next(path for version, path in migration_files() if version == 53)
@@ -106,6 +139,45 @@ class MigrationFileTests(unittest.TestCase):
         self.assertIn("CC BY 4.0", sql)
         self.assertIn("CC0 1.0", sql)
         self.assertIn("CREATE OR REPLACE VIEW application_ready_tree_species_image", sql)
+
+    def test_london_plane_specimen_image_is_quarantined(self):
+        migration = next(path for version, path in migration_files() if version == 59)
+        sql = expanded_sql(migration)
+        self.assertIn("02513824.jpg", sql)
+        self.assertIn("removed after source copyright review", sql)
+        self.assertIn("tree_species_image_enrichment_blocked_url_check", sql)
+
+    def test_gfdl_commons_images_are_allowed_with_exact_licence_url(self):
+        migration = next(path for version, path in migration_files() if version == 60)
+        sql = expanded_sql(migration)
+        self.assertIn("tree_species_image_enrichment_approved_licence_check", sql)
+        self.assertIn("'GFDL 1.2'", sql)
+        self.assertIn(
+            "'https://www.gnu.org/licenses/old-licenses/fdl-1.2.html'",
+            sql,
+        )
+
+    def test_london_plane_has_an_exact_curated_commons_image(self):
+        migration = next(path for version, path in migration_files() if version == 62)
+        sql = expanded_sql(migration)
+        self.assertIn("'London Plane'", sql)
+        self.assertIn("'Platanus x acerifolia'", sql)
+        self.assertIn("Berkeley_Square_-_geograph.org.uk_-_911963.jpg", sql)
+        self.assertIn("'Richard Croft'", sql)
+        self.assertIn("'CC BY-SA 2.0'", sql)
+        self.assertIn("ON CONFLICT (tree_type, scientific_name) DO UPDATE", sql)
+
+    def test_non_image_tree_media_is_quarantined_and_replaced(self):
+        migration = next(path for version, path in migration_files() if version == 63)
+        sql = expanded_sql(migration)
+        self.assertIn("tree_species_image_enrichment_renderable_asset_check", sql)
+        self.assertIn("/manifest", sql)
+        self.assertIn("\\.dzi", sql)
+        self.assertIn("dist(map|[a-z]?[0-9]+)", sql)
+        self.assertIn("'Acacia ficifolia'", sql)
+        self.assertIn("'Flinders Range Wattle, Acacia iteaphylla'", sql)
+        self.assertIn("'Leptospermum obavatum'", sql)
+        self.assertIn("'Weeping tea tree, Leptospermum madidum'", sql)
 
     def test_include_is_expanded(self):
         with tempfile.TemporaryDirectory() as directory:

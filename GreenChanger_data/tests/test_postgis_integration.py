@@ -606,7 +606,7 @@ class PostgisEnvironmentContextIntegrationTests(unittest.TestCase):
                               CURRENT_TIMESTAMP, 'high')
                     ON CONFLICT (
                         greening_option_id, cost_context, cost_basis, tree_type,
-                        source_name, valid_from, source_reference
+                        stock_size, source_name, valid_from, source_reference
                     ) DO UPDATE SET maximum_cost = EXCLUDED.maximum_cost
                     """,
                     (
@@ -692,17 +692,17 @@ class PostgisEnvironmentContextIntegrationTests(unittest.TestCase):
                        )
                        WHERE scientific_name = 'Eucalyptus camaldulensis'"""
                 )
-                generic = cursor.fetchone()
-                self.assertIsNotNone(generic)
+                unresolved = cursor.fetchone()
+                self.assertIsNotNone(unresolved)
                 self.assertEqual(
-                    generic[:3],
+                    unresolved[:3],
                     (
-                        "generic_current_catalogue_range_not_species_quote",
+                        "unavailable_unresolved_tree_identity",
                         "image_enrichment_not_run",
                         None,
                     ),
                 )
-                self.assertEqual(generic[3:], (Decimal("25"), Decimal("184")))
+                self.assertEqual(unresolved[3:], (None, None))
             finally:
                 cursor.execute(
                     """DELETE FROM cost_estimate

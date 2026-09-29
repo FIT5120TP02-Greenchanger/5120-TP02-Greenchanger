@@ -256,6 +256,10 @@ python greenchanger_script/validate_csv.py cost_estimate \
   data/reference/cost_estimates.csv
 python greenchanger_script/ingestion.py costs \
   --cost-file data/reference/cost_estimates.csv --confirm-shared
+python greenchanger_script/validate_csv.py cost_estimate \
+  data/reference/tree_supplier_size_prices.csv
+python greenchanger_script/ingestion.py costs \
+  --cost-file data/reference/tree_supplier_size_prices.csv --confirm-shared
 
 # 8. Verify code and schema
 python greenchanger_script/migrate.py --status
@@ -521,15 +525,21 @@ The function always includes exact-priced catalogue stock, then adds the most
 frequently recorded species for the address council (or the documented
 metropolitan fallback). `available_now` means the loaded council source
 explicitly uses `approved` or `recommended`; every other row is labelled
-`council_approval_required`. Missing species prices use the explicitly labelled
-generic catalogue range, and missing verified images remain unavailable.
+`council_approval_required`. Missing species prices remain unavailable with
+null price fields, and missing verified images remain unavailable.
 Images are illustrative reference photographs, not the exact nursery stock;
 the returned attribution and limitation must be retained with every image.
 
 The complete named-species catalogue is exposed through
 `complete_tree_species_catalog`. Every distinct scientific name is retained.
-Species-specific prices use `species_specific_current_source_range`; all other
-rows use `generic_current_catalogue_range_not_species_quote`. GBIF enrichment
+Species-specific prices use `species_specific_current_source_range`; trees
+without a current supplier quote use `unavailable_no_species_quote`. No generic
+catalogue-wide price is substituted. `size_price_status` distinguishes
+`species_size_price_available` from `species_price_size_unmapped`, and exact
+size-level rows are exposed through `application_ready_tree_cost_by_size`.
+Malformed, placeholder, unnamed-`cv` and common-name-only labels without an exact
+high-confidence taxon resolution use `unavailable_unresolved_tree_identity` and
+retain null prices until their identity is resolved. GBIF enrichment
 publishes only exact Plantae matches with confidence at least 95 and individual
 media-level CC0 or CC BY 4.0 terms. The licence must be present on the selected media object;
 an occurrence-search licence filter is not sufficient. Missing licences, All Rights
@@ -538,7 +548,7 @@ missing images, the optional Wikimedia
 Commons fallback is limited to rows with an exact GBIF taxon ID and requires an
 exact Wikidata P225 match for that name or its GBIF canonical taxon. This permits
 an explicitly labelled base-taxon reference for a cultivar while rejecting fuzzy
-or higher-rank substitutions. Only public-domain, CC0, CC BY or CC BY-SA files
+or higher-rank substitutions. Only public-domain, GFDL 1.2, CC0, CC BY or CC BY-SA files
 with their record-level licence, creator, source page and attribution are accepted.
 The separately invoked broader pass can also accept exact Wikidata catalogue-name
 or English label/alias matches on taxon items, verified parent species for cultivars,
@@ -565,6 +575,16 @@ python greenchanger_script/enrich_tree_catalog.py \
   --workers 4 \
   --confirm-shared
 
+# Replace selected existing images with the exact taxon's Wikipedia lead image
+# when its Commons file has an approved licence. Other Commons candidates are
+# ranked to prefer mature whole-tree views; the existing image remains fallback.
+python greenchanger_script/enrich_tree_catalog.py \
+  --prefer-full-tree \
+  --species 'Eucalyptus camaldulensis' \
+  --species 'Eucalyptus leucoxylon' \
+  --workers 1 \
+  --confirm-shared
+
 # Revalidate every existing GBIF image against its current media-level licence,
 # then load the replaced or quarantined results into the database.
 python greenchanger_script/enrich_tree_catalog.py \
@@ -583,6 +603,14 @@ only rows without a verified image that have an exact GBIF taxon ID. The broader
 pass revisits every remaining unavailable row using the disclosed rules above.
 Both Commons modes throttle Wikimedia requests; the primary pass skips names
 already present unless `--refresh` is supplied.
+The `--prefer-full-tree` pass revisits verified exact-taxon rows and prioritises
+the exact Wikidata-P225-verified Wikipedia lead file before ranking Commons
+metadata for mature whole-tree views. Requests are batched for catalogue-wide
+refreshes. Filenames explicitly describing flowers, leaves, fruit, bark, branches,
+seedlings, specimens, maps, ranges or close-ups are rejected unless they also
+explicitly describe a mature or whole-tree view. The existing approved image is
+retained and marked reviewed when no approved representative replacement is
+available. Repeat `--species` to limit either fetching or loading to named rows.
 
 The lookup uses the latest application-ready version per source, an indexed
 metre-based radius and a bounded result limit. It returns source and licence
@@ -935,6 +963,14 @@ mean local causal validation or permission to display a precise after-temperatur
 
 - No suitable government dataset provides current Melbourne residential greening prices.
 - The version-controlled file `data/reference/cost_estimates.csv` uses current advertised supplier prices and clearly labelled composite scenarios.
+- `data/reference/tree_supplier_size_prices.csv` stores current product-level
+  supplier prices by botanical name and stock size. Supplier ranges without an
+  exact size-price pairing remain explicitly unmapped and are excluded from
+  `application_ready_tree_cost_by_size`.
+- `data/reference/tree_price_taxon_aliases.csv` records every reviewed catalogue
+  label mapped to an already-priced species identity, including the match method,
+  verification URL where available, review date and limitation. A species-level
+  quote attached through this table is not presented as a distinct cultivar quote.
 - Exact advertised retail prices are high confidence; transparent multi-source calculations are medium confidence; broad installed-market guidance is low confidence.
 - The current coverage includes DIY and installed backyard trees by named type, potted plants, an installed garden bed, DIY and installed green walls, and an installed advanced/community tree context. The earlier container-tree estimate is retained only as expired history.
 - Named residential tree costs now match the Iteration 2 planting flow: Water Gum, Lemon-scented Gum and Crepe Myrtle. Earlier Ficus, citrus, elm and pistache estimates remain in the CSV as expired history and are excluded from current application results. `tree_type` and `botanical_name` are retained in the CSV, database and application-ready view.

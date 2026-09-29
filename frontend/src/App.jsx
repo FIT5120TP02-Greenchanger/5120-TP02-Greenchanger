@@ -18,7 +18,7 @@ function App() {
   return (
     <>
       {page === 'landing' && <LandingPage onNavigate={setPage} selectedLocation={selectedLocation} setSelectedLocation={setSelectedLocation} />}
-      {page !== 'landing' && 
+      {page !== 'landing' &&
       <MapView
         selectedLocation={selectedLocation}
         setSelectedLocation={setSelectedLocation}

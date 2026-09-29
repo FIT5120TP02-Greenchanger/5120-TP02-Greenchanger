@@ -993,6 +993,8 @@ def ingest_costs(connection, args: argparse.Namespace) -> dict[str, Any]:
             row["cost_context"], row["cost_basis"], row["tree_size_category"] or None,
             row["planting_method"] or None, row["stock_size"] or None,
             row["tree_type"] or None, row["botanical_name"] or None,
+            row.get("species_price_match_basis") or None,
+            row.get("size_price_status") or None,
             float(row["minimum_cost"]), float(row["maximum_cost"]),
             optional_float(row["material_min_cost"]), optional_float(row["material_max_cost"]),
             optional_float(row["installation_min_cost"]), optional_float(row["installation_max_cost"]),
@@ -1012,6 +1014,7 @@ def ingest_costs(connection, args: argparse.Namespace) -> dict[str, Any]:
         INSERT INTO cost_estimate (
             greening_option_id, cost_context, cost_basis, tree_size_category,
             planting_method, stock_size, tree_type, botanical_name,
+            species_price_match_basis, size_price_status,
             minimum_cost, maximum_cost,
             material_min_cost, material_max_cost, installation_min_cost,
             installation_max_cost, delivery_min_cost, delivery_max_cost,
@@ -1023,11 +1026,11 @@ def ingest_costs(connection, args: argparse.Namespace) -> dict[str, Any]:
         SELECT
             go.greening_option_id, %s, %s, %s, %s, %s, %s, %s, %s, %s,
             %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s,
-            %s, %s, %s, %s, %s
+            %s, %s, %s, %s, %s, %s, %s
         FROM greening_option AS go
         WHERE go.option_code = %s
         ON CONFLICT (
-            greening_option_id, cost_context, cost_basis, tree_type,
+            greening_option_id, cost_context, cost_basis, tree_type, stock_size,
             source_name, valid_from, source_reference
         ) DO UPDATE SET
             minimum_cost = EXCLUDED.minimum_cost,
@@ -1041,6 +1044,9 @@ def ingest_costs(connection, args: argparse.Namespace) -> dict[str, Any]:
             setup_min_cost = EXCLUDED.setup_min_cost,
             setup_max_cost = EXCLUDED.setup_max_cost,
             botanical_name = EXCLUDED.botanical_name,
+            species_price_match_basis = EXCLUDED.species_price_match_basis,
+            size_price_status = EXCLUDED.size_price_status,
+            source_url = EXCLUDED.source_url,
             valid_to = EXCLUDED.valid_to,
             last_verified_at = EXCLUDED.last_verified_at,
             confidence_level = EXCLUDED.confidence_level
