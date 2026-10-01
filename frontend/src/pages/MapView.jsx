@@ -307,8 +307,14 @@ export default function MapView({ selectedLocation, setSelectedLocation, simulat
     const confirmPlacing = useCallback(() => {
         if (!pendingPos) return;
         if (selectedTreeId) {
-            setSimulatedTrees((prev) => 
-                prev.map((t) => t.id === selectedTreeId ? {...t, lng: pendingPos.lng, lat: pendingPos.lat, size: treeSize, radiusM: TREE_SIZES[treeSize].radiusM} : t)
+            setSimulatedTrees((prev) =>
+                prev.map((t) => {
+                    if (t.id !== selectedTreeId) return t;
+                    const moved = { ...t, lng: pendingPos.lng, lat: pendingPos.lat };
+                    return t.scenario
+                        ? moved // species tree: position only
+                        : { ...moved, size: treeSize, radiusM: TREE_SIZES[treeSize].radiusM };
+                })
             );
             setSelectedTreeId(null);
             setUpdatePos(false);
@@ -347,7 +353,7 @@ export default function MapView({ selectedLocation, setSelectedLocation, simulat
             // tree already placed instead of stacking a duplicate on top of it.
             setSimulatedTrees((prev) =>
                 prev.map((t) => t.id === plantedTreeId
-                    ? { ...t, radiusM, size: scenario.size, species: scenario.species?.scientific_name }
+                    ? { ...t, radiusM, size: scenario.size, species: scenario.species?.scientific_name, scenario }
                     : t
                 )
             );
@@ -382,6 +388,11 @@ export default function MapView({ selectedLocation, setSelectedLocation, simulat
     }, [setSimulatedTrees, startPlacing]);
     const clearTrees = useCallback(() => setSimulatedTrees(null), [setSimulatedTrees]);
 
+    const selectedTree = useMemo(
+        () => simulatedTrees?.find((t) => t.id === selectedTreeId) ?? null,
+        [simulatedTrees, selectedTreeId]
+    );
+    const lockSize = updatePos && !!selectedTree?.scenario;
     // The canopy panel counts the placed trees as if they were mapped, so the numbers move
     // with the scenario after Done. Heat cannot change with trees, so HeatPanel stays as is.
     const treesForPanel = useMemo(() => {
@@ -399,13 +410,14 @@ export default function MapView({ selectedLocation, setSelectedLocation, simulat
     // Dashed preview circle = canopy at maturity for the chosen size, at the cursor or the click
     const previewGeoJson = useMemo(() => {
         const pos = pendingPos || hoverPos;
+        const radiusM = updatePos && selectedTree ? selectedTree.radiusM : TREE_SIZES[treeSize].radiusM;
         return {
             type: "FeatureCollection",
             features: awaitingPlantPosition && pos
-                ? [{ type: "Feature", properties: {}, geometry: circleMetres(pos.lng, pos.lat, TREE_SIZES[treeSize].radiusM) }]
+                ? [{ type: "Feature", properties: {}, geometry: circleMetres(pos.lng, pos.lat, radiusM) }]
                 : [],
         };
-    }, [awaitingPlantPosition, pendingPos, hoverPos, treeSize]);
+    }, [awaitingPlantPosition, pendingPos, hoverPos, treeSize, updatePos, selectedTree]);
 
     // Same indicative numbers PlantTreePage used (viewport-based, see review #18)
     const projected = useMemo(() => {
@@ -661,6 +673,7 @@ export default function MapView({ selectedLocation, setSelectedLocation, simulat
                     hasPosition: !!simulatedTrees?.length,
                     hasUpdatePos: updatePos,
                     canPlant: !!pendingPos,
+                    lockSize,
                 }}
                 scenario={simulatedTrees?.length ? {
                     baseline: { pct: trees.pct },
@@ -674,6 +687,7 @@ export default function MapView({ selectedLocation, setSelectedLocation, simulat
                     onFocusTree: focusTree,
                     onFinish: closeScenario, // Done: back to the normal page, trees kept
                 } : null}
+                
             />
 
             {/* Scenario mode (2026-09-03): the disclaimer the old planting page showed */}

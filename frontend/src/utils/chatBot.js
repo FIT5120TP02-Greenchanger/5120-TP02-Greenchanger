@@ -2,9 +2,26 @@ export function buildChatbotTrees(simulatedTrees) {
     return (simulatedTrees ?? [])
         .filter((tree) => tree?.scenario)       // drop entries with no scenario
         .map((tree, index) => {
-            const { species, size, growth, impact, costs, position } = tree.scenario
+            const base = {
+                tree_number: index + 1,
+                position: { lng: tree.lng, lat: tree.lat },
+            }
+
+            if (!tree.scenario) {
+                return {
+                    ...base,
+                    planting_mode: 'quick',
+                    species: null,
+                    size: tree.size,
+                    canopy_radius_m: tree.radiusM,
+                    canopy_m2: Math.PI * tree.radiusM ** 2,
+                    note: 'Quick simulation: no species chosen, so no growth, impact or cost estimates.',
+                }
+            }
+            const { species, size, growth, impact, costs } = tree.scenario
             return {
-                tree_number: index + 1,          // numbered after filtering, so no gaps
+                base,
+                planting_mode: 'species',
                 species: species?.common_name,
                 scientific_name: species?.scientific_name,
                 size,
@@ -33,7 +50,6 @@ export function buildChatbotTrees(simulatedTrees) {
                     max_aud: costs.maximum_cost,
                     currency: costs.currency,
                 } : null,
-                position,
             }
         })
 }

@@ -55,6 +55,7 @@ When discussing simulation results:
 - Treat propertyStats.canopyPct as the selected property's current/baseline canopy percentage.
 - Do not describe canopy percentage as the percentage of the property that is shaded unless the provided data explicitly represents shade.
 - Treat canopyStats.pct as the current map/viewport canopy percentage, not the selected property's canopy percentage.
+- Be aware that planting_mode: 'quick' trees deliberately have null species, have no impact or cost data at all and should only be recognized as a generic tree, without further data.
 - If both propertyStats.canopyPct and propertyStats.propertyCanopyPct are available, explain the distinction rather than presenting them as the same metric.
 - Do not invent explanations for how a metric was calculated unless that information is provided in the simulation data.
 - Quote numbers only for species whose data is in the context. For any other species say you don't have the model's figures for it and suggest adding it to the simulation for comparison, and do not fill in general knowledge numbers.
