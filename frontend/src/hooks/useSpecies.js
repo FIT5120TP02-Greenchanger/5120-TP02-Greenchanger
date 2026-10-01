@@ -6,16 +6,15 @@ export const LOAD_ERROR="Could not load tree species.";
 export function useSpecies(activeAddress, setSpeciesCatalogue) {
     const [error, setError] = useState(null)
     useEffect(() => {
-        if (!activeAddress) { setSpeciesCatalogue([]); setError(null); return; }
+        if (!activeAddress) { setSpeciesCatalogue([]); return; }
         let cancelled = false;
-        setError(null);
 
         fetchSpecies(activeAddress)
             .then((data) => {
-                if (!cancelled) setSpeciesCatalogue((data?.species || []).filter((s) => s.has_growth_model));
+                if (!cancelled) {setSpeciesCatalogue((data?.species || []).filter((s) => s.has_growth_model)); setError(null);}
             })
-            .catch(() => { if (!cancelled) { setSpeciesCatalogue([]); setError("Could not load tree species."); } });
+            .catch(() => { if (!cancelled) { setSpeciesCatalogue([]); setError(activeAddress); } });
         return () => { cancelled = true; };
     }, [activeAddress, setSpeciesCatalogue]);
-    return error;
+    return activeAddress && failedAddress === activeAddress ? LOAD_ERROR : null;
 }
