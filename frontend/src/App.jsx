@@ -2,7 +2,7 @@ import { useState } from 'react'
 import LandingPage from './pages/LandingPage.jsx'
 import MapView from './pages/MapView.jsx'
 import ChatbotWidget from './components/ChatbotWidget.jsx'
-import { buildChatbotTrees, buildChatbotSpeciesCatalogue } from './utils/chatbotContext'
+import { buildChatbotTrees, buildChatbotSpeciesCatalogue } from './utils/chatBot'
 
 function App() {
   const [page, setPage] = useState('landing');
