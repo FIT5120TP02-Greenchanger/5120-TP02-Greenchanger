@@ -14,7 +14,7 @@ export function useSpecies(activeAddress, setSpeciesCatalogue) {
             .then((data) => {
                 if (!cancelled) setSpeciesCatalogue((data?.species || []).filter((s) => s.has_growth_model));
             })
-            .catch((err) => { if (!cancelled) { setSpeciesCatalogue([]); setError("Could not load tree species."); } });
+            .catch(() => { if (!cancelled) { setSpeciesCatalogue([]); setError("Could not load tree species."); } });
         return () => { cancelled = true; };
     }, [activeAddress, setSpeciesCatalogue]);
     return error;
