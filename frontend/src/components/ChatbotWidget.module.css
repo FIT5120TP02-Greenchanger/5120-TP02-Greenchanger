@@ -8,10 +8,12 @@
   --ink: #14181b;
   --muted: #5e666c;
   --line: #e4e7e4;
+
   position: fixed;
-  right: calc(26px + 396px + 28px);
-  bottom: 26px;
+  right: 27px;
+  bottom: 17px;
   z-index: 10000;
+
   color: var(--ink);
   font-family: "Instrument Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   font-size: 14px;
@@ -227,11 +229,20 @@
   width: 100%;
   min-width: 0;
   height: 44px;
-  padding: 0 16px;
+  padding: 10px 16px;
+
   border: 1px solid #d7ddd9;
   border-radius: 22px;
   background: #fff;
   color: var(--ink);
+
+  overflow-wrap: anywhere;
+  overflow-y: auto;
+  white-space: pre-wrap;
+  resize: none;
+
+  box-sizing: border-box;
+  line-height: 22px;
 }
 
 .input::placeholder {

@@ -5,9 +5,12 @@ import os
 from functools import lru_cache
 from typing import Literal
 
+from dotenv import load_dotenv
 from fastapi import APIRouter, HTTPException
 from huggingface_hub import InferenceClient
 from pydantic import BaseModel, Field, field_validator
+
+load_dotenv(".env")
 
 router = APIRouter()
 
@@ -49,6 +52,12 @@ When discussing simulation results:
 - Never invent simulation data, tree characteristics, or environmental benefits that are not provided
 - If important information is unavailable, say so rather than guessing
 - When relevant, explain that results are estimates from the simulation rather than guaranteed real-world outcomes
+- Treat propertyStats.canopyPct as the selected property's current/baseline canopy percentage.
+- Do not describe canopy percentage as the percentage of the property that is shaded unless the provided data explicitly represents shade.
+- Treat canopyStats.pct as the current map/viewport canopy percentage, not the selected property's canopy percentage.
+- If both propertyStats.canopyPct and propertyStats.propertyCanopyPct are available, explain the distinction rather than presenting them as the same metric.
+- Do not invent explanations for how a metric was calculated unless that information is provided in the simulation data.
+- Quote numbers only for species whose data is in the context. For any other species say you don't have the model's figures for it and suggest adding it to the simulation for comparison, and do not fill in general knowledge numbers.
 
 When recommending trees:
 - Consider available planting space, tree size, canopy characteristics, and the user's goal
@@ -127,12 +136,10 @@ def chat(req: ChatRequest) -> dict:
 
     try:
         response = _get_client().chat_completion(
-            model="Qwen/Qwen3-8B:nscale",
+            model="Qwen/Qwen3-8B",
             messages=messages,
             max_tokens=1024,
         )
-    except HTTPException:
-        raise
     except Exception as error:
         raise HTTPException(
             status_code=502, detail="Chat service is unavailable right now."

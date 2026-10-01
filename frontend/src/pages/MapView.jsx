@@ -7,7 +7,7 @@ import { useParcels } from '../hooks/parcels';
 import { useTreeCanopy } from '../hooks/canopy';
 import { useSelectedProperty } from "../hooks/property";
 import { circleMetres, centroidOfGeometry, pointInPolygon } from '../utils/geo'; // pointInPolygon: outside-lot hint (2026-09-03)
-
+import { fetchSpecies } from '../services/trees';
 import SidePanel from '../components/SidePanel';
 import PropertyPanel from "../components/PropertyPanel";
 import AddressAutocomplete from "../components/AddressAutocomplete";
@@ -70,7 +70,7 @@ function sameAddress(a, b) {
 // onNavigate added (2026-09-03) so the home button below can go back to the landing page
 // export default function MapView({ selectedLocation, setSelectedLocation, simulatedTrees, onPlantTree, onNavigate }) {
 // setSimulatedTrees replaces onPlantTree (2026-09-03): planting happens here, App only stores the trees
-export default function MapView({ selectedLocation, setSelectedLocation, simulatedTrees, setSimulatedTrees, onNavigate, onPropertyStatsChange, onCanopyStatsChange, onScenarioChange }) {
+export default function MapView({ selectedLocation, setSelectedLocation, simulatedTrees, setSimulatedTrees, onNavigate, onPropertyStatsChange, setSpeciesCatalogue, speciesCatalogue }) {
     const mapRef = useRef(null);
     const hoverId = useRef(null);
     const debounceRef = useRef(null);
@@ -105,6 +105,7 @@ export default function MapView({ selectedLocation, setSelectedLocation, simulat
     const [plantedTreeId, setPlantedTreeId] = useState(null); // Track id of tree planted during current placement session
     const [updatePos, setUpdatePos] = useState(false); // for updating the position of an existing tree
     const [choosingSpecies, setChoosingSpecies] = useState(false);
+    const [speciesError, setSpeciesError] = useState(null)
 
     // Scenario mode (2026-09-03): from "Plant a tree here" until Done. While open, the side panel
     // shows only the planting / comparison panels, like the old PlantTreePage sidebar did.
@@ -113,7 +114,6 @@ export default function MapView({ selectedLocation, setSelectedLocation, simulat
     const [showChooser, setShowChooser] = useState(false);
     
     useEffect(() => { onPropertyStatsChange?.(propertySelected.stats); }, [propertySelected.stats, onPropertyStatsChange]);
-    useEffect(() => { onCanopyStatsChange?.(trees); }, [trees, onCanopyStatsChange]);
 
     const transitCoordinates = useCallback((longitude, latitude) => {
         mapRef.current?.flyTo({
@@ -155,6 +155,17 @@ export default function MapView({ selectedLocation, setSelectedLocation, simulat
         return () => { cancelled = true; };
     }, [isMapLoaded, selectedLocation, resolveFromBaseline, flyToFeature]);
 
+    const activeAddress = propertySelected.stats?.address || selectedLocation?.address;
+    useEffect(() => {
+        if (!activeAddress) { setSpeciesCatalogue([]); return; }
+        let cancelled = false;
+        fetchSpecies(activeAddress)
+            .then((data) => {
+                if (!cancelled) setSpeciesCatalogue((data?.species || []).filter((s) => s.has_growth_model));
+            })
+            .catch(() => { if (!cancelled) { setSpeciesCatalogue([]); setSpeciesError("Could not load tree species."); } });
+        return () => { cancelled = true; };
+    }, [activeAddress, setSpeciesCatalogue]);
 
     const handleAddressChange = (location) => {
         setAddressInput(location);
@@ -182,7 +193,6 @@ export default function MapView({ selectedLocation, setSelectedLocation, simulat
     const handleClick = useCallback(async (e) => {
         const map = mapRef.current?.getMap();
         if (!map) return;
-
         // Clicks on the lot card or the home pin bubble to mapbox before React handles them,
         // so they must not select whatever lot sits under the card.
         const target = e.originalEvent?.target;
@@ -201,6 +211,7 @@ export default function MapView({ selectedLocation, setSelectedLocation, simulat
         if (features.length) {
             setPropertyAnchor({ lng: e.lngLat.lng, lat: e.lngLat.lat });
         }
+
         await propertySelected.selectAtPoint(features, parcels.parcelFeatures, zoom < MIN_PARCEL_ZOOM, e.lngLat);
     }, [awaitingPlantPosition, propertySelected, parcels.parcelFeatures, zoom]);
 
@@ -209,7 +220,7 @@ export default function MapView({ selectedLocation, setSelectedLocation, simulat
         if (!home) return;
         propertySelected.selectFeature(home.feature, home.address);
         setPropertyAnchor({ lng: home.lng, lat: home.lat });
-        mapRef.current?.flyTo({ center: [home.lng, home.lat], zoom: 18, duration: 1200 }); // and bring the map back to the pin
+        mapRef.current?.flyTo({ center: [home.lng, home.lat], zoom: START_ZOOM, duration: 1200 }); // and bring the map back to the pin
     }, [propertySelected, home]);
 
     // "Simulate a change" in the side panel: open the card on the current selection (home by default)
@@ -335,7 +346,6 @@ export default function MapView({ selectedLocation, setSelectedLocation, simulat
         resetCursor();
     }, [pendingPos, treeSize, setSimulatedTrees, selectedTreeId]);
     const handleApplyScenario = useCallback((scenario) => {
-        onScenarioChange?.(scenario);
         if (!scenario || !scenario.position) return;
         const crownWidthM = scenario.growth?.crown_width_m_median;
         const radiusM = crownWidthM
@@ -361,10 +371,11 @@ export default function MapView({ selectedLocation, setSelectedLocation, simulat
             size: scenario.size,
             species: scenario.species?.scientific_name,
             speciesName: scenario.species?.common_name,
+            scenario: scenario
         };
         setSimulatedTrees((prev) => [...(prev || []), tree]);
         setPlantedTreeId(tree.id)
-    }, [setSimulatedTrees, onScenarioChange, plantedTreeId, setPlantedTreeId]);
+    }, [setSimulatedTrees, plantedTreeId, setPlantedTreeId]);
 
 
     // Remove / Reset inside the comparison panel behave like the old page: with no trees left,
@@ -633,6 +644,8 @@ export default function MapView({ selectedLocation, setSelectedLocation, simulat
             <SidePanel
                 stats={propertySelected.stats}
                 trees={treesForPanel}
+                speciesCatalogue={speciesCatalogue}
+                speciesError={speciesError}
                 simulatedCount={simulatedTrees?.length || 0}
                 onResetScenario={clearTrees}
                 scenarioOpen={scenarioOpen}
@@ -683,10 +696,10 @@ export default function MapView({ selectedLocation, setSelectedLocation, simulat
             )}
 
             {/* Brand pill (2026-09-03): static label bottom-left, styled after the Figma "Brand" element */}
-            <div className={styles["brand-pill"]}>
+            {/* <div className={styles["brand-pill"]}>
                 <span className={styles["brand-pill-mark"]} aria-hidden="true" />
                 GreenChanger
-            </div>
+            </div> */}
 
             {/* Home button (2026-09-03, review #73): house icon at the top of the map, just left of
                 the side panel, like the Figma legend/help controls. Goes back to the landing page. */}

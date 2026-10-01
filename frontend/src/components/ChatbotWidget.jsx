@@ -50,7 +50,6 @@ export default function ChatbotWidget({ context }) {
     const [inputText, setInputText] = useState('')
     const [isSending, setIsSending] = useState(false)
     const scrollRef = useRef(null)
-
     const contextAvailable = hasUsableContext(context)
 
     // persist on every change, and keep the view scrolled to the latest message
@@ -84,8 +83,20 @@ export default function ChatbotWidget({ context }) {
                 body: JSON.stringify({ message: textToSend, history: messages.slice(-18), context: context || null })
             })
             if (!response.ok) {
+                // const errBody = await response.json().catch(() => ({}));
+                // throw new Error(errBody.detail || `Request failed ${response.status}`)
                 const errBody = await response.json().catch(() => ({}));
-                throw new Error(errBody.detail || `Request failed ${response.status}`)
+
+                console.error("Chat API error:", {
+                    status: response.status,
+                    body: errBody,
+                });
+
+                throw new Error(
+                    typeof errBody.detail === "string"
+                        ? errBody.detail
+                        : JSON.stringify(errBody.detail || errBody)
+                );
             }
             const data = await response.json()
 
@@ -181,15 +192,15 @@ export default function ChatbotWidget({ context }) {
                     </div>
 
                     <div className={styles.controls}>
-                        <input
+                        <textarea
                             className={styles.input}
-                            type="text"
                             placeholder={`Ask ${BOT_NAME}...`}
                             aria-label="Message"
                             value={inputText}
                             onChange={handleInputChange}
                             onKeyDown={handleKeyDown}
                             disabled={isSending}
+                            rows={1}
                         />
                         <button
                             className={styles.sendButton}
@@ -216,7 +227,7 @@ export default function ChatbotWidget({ context }) {
                 {isOpen ? (
                     <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
                         <path d="M6 6l12 12M18 6L6 18" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-                    </svg>
+                    </svg>  
                 ) : (
                     <span className={styles.bubbleLeaf}>🌿</span>
                 )}

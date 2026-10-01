@@ -8,11 +8,11 @@ const EMPTY_GROWTH = {
     Medium: null,
     Large: null,
 }
-export default function SpeciesDetail({ species, size, onSizeChange, setCompareArray, onApply, applying, onBack, onExit }) {
+export default function SpeciesDetail({ species, size, onSizeChange, setCompareArray, onApply, applying, onBack, error, onExit }) {
     const [growthBySize, setGrowthBySize] = useState(EMPTY_GROWTH)
     const [costs, setCosts] = useState(null)
     const [loading, setLoading] = useState(false)
-    const [error, setError] = useState(null)
+    const [errorGrowth, setErrorGrowth] = useState(null)
 
     useEffect(() => {
         if (!species) return
@@ -28,7 +28,7 @@ export default function SpeciesDetail({ species, size, onSizeChange, setCompareA
             Large: null,
         })
         setCosts(null)
-        setError(null)
+        setErrorGrowth(null)
         async function loadData() {
             try {
                 const [smallGrowth, mediumGrowth, largeGrowth, costsRaw] =
@@ -64,7 +64,7 @@ export default function SpeciesDetail({ species, size, onSizeChange, setCompareA
                 setCosts(Array.isArray(costsRaw) ? costsRaw[0] : costsRaw)
             } catch {
                 if (!cancelled) {
-                    setError("Couldn't load growth/cost data.")
+                    setErrorGrowth("Couldn't load growth/cost data.")
                 }
             } finally {
                 if (!cancelled) {
@@ -112,7 +112,7 @@ export default function SpeciesDetail({ species, size, onSizeChange, setCompareA
             </div>
 
             {loading && <p className={styles['detail-loading']}>Loading…</p>}
-            {error && <p className={styles['detail-error']}>{error}</p>}
+            {(error || errorGrowth) && <p className={styles['detail-error']}>{error || errorGrowth}</p>}
             {costs?.display_disclaimer && (
                 <>
                     <p className={styles['detail-latin']}>Indicative source-backed range only.</p>

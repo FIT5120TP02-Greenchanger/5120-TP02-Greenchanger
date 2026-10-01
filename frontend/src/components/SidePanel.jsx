@@ -28,7 +28,7 @@ import styles from './Panel.module.css'
 export default function SidePanel({
     stats, trees, simulating, isHomeSelected, onSimulate, onBackHome,
     placing, choosingSpecies, pendingPos, onApplyScenario, onExitPlanting, showChooser,
-    placement, scenario, scenarioOpen, simulatedCount, onResetScenario, plantMode, onQuickSimulation, onExploreSpecies
+    placement, scenario, scenarioOpen, simulatedCount, onResetScenario, plantMode, onQuickSimulation, onExploreSpecies, speciesError, speciesCatalogue
 }) {
     if (scenarioOpen) {
         return (
@@ -50,6 +50,8 @@ export default function SidePanel({
                         nTrees={trees.nTrees}
                         canopyM2={trees.canopyM2}
                         viewM2={trees.viewM2}
+                        speciesCatalogue={speciesCatalogue}
+                        speciesError={speciesError}
                     />
                 ) : scenario ? (
                     <ComparisonPanel {...scenario} />
