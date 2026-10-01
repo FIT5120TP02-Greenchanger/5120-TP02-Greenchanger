@@ -7,7 +7,8 @@ import { useParcels } from '../hooks/parcels';
 import { useTreeCanopy } from '../hooks/canopy';
 import { useSelectedProperty } from "../hooks/property";
 import { circleMetres, centroidOfGeometry, pointInPolygon } from '../utils/geo'; // pointInPolygon: outside-lot hint (2026-09-03)
-import { fetchSpecies } from '../services/trees';
+// import { fetchSpecies } from '../services/trees';
+import { useSpecies } from '../hooks/useSpecies';
 import SidePanel from '../components/SidePanel';
 import PropertyPanel from "../components/PropertyPanel";
 import AddressAutocomplete from "../components/AddressAutocomplete";
@@ -105,7 +106,6 @@ export default function MapView({ selectedLocation, setSelectedLocation, simulat
     const [plantedTreeId, setPlantedTreeId] = useState(null); // Track id of tree planted during current placement session
     const [updatePos, setUpdatePos] = useState(false); // for updating the position of an existing tree
     const [choosingSpecies, setChoosingSpecies] = useState(false);
-    const [speciesError, setSpeciesError] = useState(null)
 
     // Scenario mode (2026-09-03): from "Plant a tree here" until Done. While open, the side panel
     // shows only the planting / comparison panels, like the old PlantTreePage sidebar did.
@@ -156,16 +156,7 @@ export default function MapView({ selectedLocation, setSelectedLocation, simulat
     }, [isMapLoaded, selectedLocation, resolveFromBaseline, flyToFeature]);
 
     const activeAddress = propertySelected.stats?.address || selectedLocation?.address;
-    useEffect(() => {
-        if (!activeAddress) { setSpeciesCatalogue([]); return; }
-        let cancelled = false;
-        fetchSpecies(activeAddress)
-            .then((data) => {
-                if (!cancelled) setSpeciesCatalogue((data?.species || []).filter((s) => s.has_growth_model));
-            })
-            .catch(() => { if (!cancelled) { setSpeciesCatalogue([]); setSpeciesError("Could not load tree species."); } });
-        return () => { cancelled = true; };
-    }, [activeAddress, setSpeciesCatalogue]);
+    const speciesError = useSpecies(activeAddress, setSpeciesCatalogue)
 
     const handleAddressChange = (location) => {
         setAddressInput(location);
