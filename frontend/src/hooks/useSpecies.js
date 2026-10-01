@@ -16,5 +16,5 @@ export function useSpecies(activeAddress, setSpeciesCatalogue) {
             .catch(() => { if (!cancelled) { setSpeciesCatalogue([]); setError(activeAddress); } });
         return () => { cancelled = true; };
     }, [activeAddress, setSpeciesCatalogue]);
-    return activeAddress && failedAddress === activeAddress ? LOAD_ERROR : null;
+    return activeAddress && error === activeAddress ? LOAD_ERROR : null;
 }
