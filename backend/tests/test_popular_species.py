@@ -8,7 +8,7 @@ from contextlib import contextmanager
 import pytest
 from fastapi.testclient import TestClient
 
-from app.main import _popular_species, app, pool
+from app.main import POPULAR_SPECIES_QUERY, _popular_species, app, pool
 from tests.conftest import FakeConnection
 
 
@@ -103,6 +103,67 @@ def test_species_without_a_matching_image_gets_null_image_fields(monkeypatch):
         "/api/trees/species", params={"address": "15 Seascape Street Clayton"}
     )
     assert response.json()["species"][0]["image_url"] is None
+
+
+def test_problem_tree_names_and_verified_images_are_normalized(monkeypatch):
+    monkeypatch.setattr(
+        pool,
+        "connection",
+        _fake_pool_connection(
+            [
+                [
+                    {
+                        "species_key": "lophostemon confertus",
+                        "scientific_name": "Lophostemon confertus",
+                        "common_name": "Box Brush",
+                        "tree_count": 22579,
+                        "image_status": "verified_wikimedia_commons_image",
+                        "image_url": "https://example.org/brush-box.jpg",
+                    },
+                    {
+                        "species_key": "platanus x acerifolia",
+                        "scientific_name": "Platanus x acerifolia",
+                        "common_name": "London Plane",
+                        "tree_count": 14684,
+                        "image_status": "verified_wikimedia_commons_image",
+                        "image_url": "https://example.org/london-plane.jpg",
+                    },
+                    {
+                        "species_key": "eucalyptus leucoxylon",
+                        "scientific_name": "Eucalyptus leucoxylon",
+                        "common_name": "Dwarf Yellow Gum",
+                        "tree_count": 14560,
+                        "image_status": "verified_wikimedia_commons_image",
+                        "image_url": "https://example.org/yellow-gum.jpg",
+                    },
+                ]
+            ]
+        ),
+    )
+
+    response = TestClient(app).get(
+        "/api/trees/species", params={"address": "15 Seascape Street Clayton"}
+    )
+
+    assert response.status_code == 200
+    species = response.json()["species"]
+    assert [row["common_name"] for row in species] == [
+        "Brush Box",
+        "London Plane",
+        "Yellow Gum",
+    ]
+    assert all(row["image_url"] for row in species)
+    assert all(row["image_status"] == "verified_wikimedia_commons_image" for row in species)
+
+
+def test_popular_species_query_uses_ranked_names_and_licensed_image_view():
+    normalized_query = " ".join(POPULAR_SPECIES_QUERY.lower().split())
+
+    assert "row_number() over" in normalized_query
+    assert "order by count(*) desc, common_name" in normalized_query
+    assert "application_ready_tree_species_image" in normalized_query
+    assert "lower(img.scientific_name) = species_counts.species_key" in normalized_query
+    assert "inaturalist-open-data" not in normalized_query
 
 
 def test_flags_species_without_a_growth_model(monkeypatch):

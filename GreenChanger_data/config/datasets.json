@@ -43,6 +43,20 @@
       "target_entities": ["address", "site"]
     },
     {
+      "key": "vicmap_lga_polygon",
+      "name": "Vicmap Admin - Local Government Area Polygon Aligned to Property",
+      "publisher": "Department of Transport and Planning",
+      "url": "https://discover.data.vic.gov.au/dataset/vicmap-admin-local-government-area-lga-polygon-aligned-to-property",
+      "category": "administrative_boundary",
+      "coverage": "Victoria",
+      "observation_period": "continuously maintained",
+      "access_method": "Official Vicmap Admin ArcGIS REST API or spatial download",
+      "licence": "Creative Commons Attribution 4.0 International",
+      "licence_status": "open_confirmed",
+      "update_frequency": "weekly REST service",
+      "target_entities": ["local_government_area"]
+    },
+    {
       "key": "vicmap_tree_urban",
       "name": "Vicmap Vegetation - Tree Urban Point",
       "publisher": "Victorian Government",
@@ -70,17 +84,60 @@
       "target_entities": ["canopy_patch", "vegetation_observation"]
     },
     {
+      "key": "melbourne_canopy_2008",
+      "name": "Tree Canopies 2008 (Urban Forest)",
+      "publisher": "City of Melbourne",
+      "url": "https://data.melbourne.vic.gov.au/explore/dataset/tree-canopies-2008-urban-forest/",
+      "category": "historical_canopy",
+      "coverage": "City of Melbourne municipality",
+      "observation_period": "2008",
+      "access_method": "Open Data Portal JSON-lines API and download",
+      "licence": "Creative Commons Attribution 4.0 International",
+      "licence_status": "open_confirmed",
+      "update_frequency": "static historical snapshot",
+      "target_entities": ["canopy_snapshot_feature"]
+    },
+    {
+      "key": "melbourne_canopy_2015",
+      "name": "Tree Canopies 2015 (Urban Forest)",
+      "publisher": "City of Melbourne",
+      "url": "https://data.melbourne.vic.gov.au/explore/dataset/tree-canopies-2015-urban-forest/",
+      "category": "historical_canopy",
+      "coverage": "City of Melbourne municipality",
+      "observation_period": "2015",
+      "access_method": "Open Data Portal JSON-lines API and download",
+      "licence": "Creative Commons Attribution 4.0 International",
+      "licence_status": "open_confirmed",
+      "update_frequency": "static historical snapshot",
+      "target_entities": ["canopy_snapshot_feature"]
+    },
+    {
+      "key": "melbourne_canopy_2016",
+      "name": "Tree Canopies 2016 (Urban Forest)",
+      "publisher": "City of Melbourne",
+      "url": "https://data.melbourne.vic.gov.au/explore/dataset/tree-canopies-2016-urban-forest/",
+      "category": "historical_canopy",
+      "coverage": "City of Melbourne municipality",
+      "observation_period": "2016",
+      "access_method": "Open Data Portal JSON-lines API and download",
+      "licence": "Creative Commons Attribution 4.0 International",
+      "licence_status": "open_confirmed",
+      "update_frequency": "static historical snapshot",
+      "target_entities": ["canopy_snapshot_feature"]
+    },
+    {
       "key": "melbourne_canopy_2021",
       "name": "Tree Canopies 2021 (Urban Forest)",
       "publisher": "City of Melbourne",
-      "url": "https://discover.data.vic.gov.au/en_AU/dataset/tree-canopies-2021-urban-forest",
-      "category": "canopy",
+      "url": "https://data.melbourne.vic.gov.au/explore/dataset/tree-canopies-2021-urban-forest/",
+      "category": "historical_canopy",
       "coverage": "City of Melbourne municipality",
       "observation_period": "2021",
-      "access_method": "API and download",
-      "licence": "Creative Commons Attribution",
+      "access_method": "Open Data Portal JSON-lines API and download",
+      "licence": "Creative Commons Attribution 4.0 International",
       "licence_status": "open_confirmed",
-      "target_entities": ["canopy_patch", "vegetation_observation"]
+      "update_frequency": "static historical snapshot",
+      "target_entities": ["canopy_snapshot_feature"]
     },
     {
       "key": "dea_sentinel2",
@@ -93,7 +150,7 @@
       "access_method": "STAC, AWS, WMS and download",
       "licence": "Creative Commons Attribution 4.0 International",
       "licence_status": "open_confirmed",
-      "target_entities": ["vegetation_observation"]
+      "target_entities": ["dea_land_cover_observation"]
     },
     {
       "key": "landsat_surface_temperature",
@@ -134,7 +191,7 @@
       "licence": "Feed-specific terms not confirmed as an open licence",
       "licence_status": "review_required",
       "update_frequency": "approximately half-hourly where available",
-      "target_entities": ["weather_observation"]
+      "target_entities": ["era5_land_daily_observation"]
     },
     {
       "key": "city_melbourne_tree_inventory",
@@ -148,7 +205,119 @@
       "licence": "Creative Commons Attribution",
       "licence_status": "open_confirmed",
       "update_frequency": "portal update",
-      "target_entities": ["urban_tree", "species_profile"]
+      "target_entities": ["named_tree_inventory", "species_profile"]
+    },
+    {
+      "key": "brimbank_tree_inventory",
+      "name": "Brimbank Street Trees",
+      "publisher": "Brimbank City Council",
+      "url": "https://www.data.gov.au/data/dataset/brimbank-street-trees",
+      "category": "tree_inventory",
+      "coverage": "City of Brimbank",
+      "observation_period": "source file published 2019; portal metadata refreshed 2026",
+      "access_method": "CC BY 2.5 Shapefile download; WFS and GeoJSON are also advertised",
+      "licence": "Creative Commons Attribution 2.5 Australia",
+      "licence_status": "open_confirmed",
+      "update_frequency": "source controlled",
+      "target_entities": ["named_tree_inventory", "species_profile"]
+    },
+    {
+      "key": "yarra_tree_inventory",
+      "name": "City of Yarra street and park trees",
+      "publisher": "City of Yarra",
+      "url": "https://data.gov.au/data/dataset/f3c88ce7-504b-4ef7-907f-686037f7420c",
+      "category": "tree_inventory",
+      "coverage": "City of Yarra",
+      "observation_period": "record update dates; dataset published 2023",
+      "access_method": "GeoJSON and CSV download",
+      "licence": "Creative Commons Attribution 4.0 International",
+      "licence_status": "open_confirmed",
+      "update_frequency": "source controlled",
+      "target_entities": ["named_tree_inventory", "species_profile"]
+    },
+    {
+      "key": "casey_tree_inventory",
+      "name": "City of Casey owned Trees",
+      "publisher": "City of Casey",
+      "url": "https://data.casey.vic.gov.au/explore/dataset/council_trees_pt_t1eam/",
+      "category": "tree_inventory",
+      "coverage": "City of Casey",
+      "observation_period": "continuously maintained council inventory",
+      "access_method": "Open Data Exchange Explore API and GeoJSON export",
+      "licence": "Creative Commons Attribution 3.0",
+      "licence_status": "open_confirmed",
+      "update_frequency": "weekly",
+      "target_entities": ["named_tree_inventory", "species_profile"]
+    },
+    {
+      "key": "hobsons_bay_tree_inventory",
+      "name": "Street and Park Trees in Hobsons Bay City Council",
+      "publisher": "Hobsons Bay City Council",
+      "url": "https://data.gov.au/data/dataset/80051ffe-04d5-4602-b15b-60e0d0e3d153",
+      "category": "tree_inventory",
+      "coverage": "City of Hobsons Bay",
+      "observation_period": "source data last updated 2019; metadata refreshed 2026",
+      "access_method": "GeoJSON and CSV download; WFS advertised",
+      "licence": "Creative Commons Attribution 2.5 Australia",
+      "licence_status": "open_confirmed",
+      "update_frequency": "source controlled",
+      "target_entities": ["named_tree_inventory", "species_profile"]
+    },
+    {
+      "key": "wyndham_tree_inventory",
+      "name": "Wyndham Tree and latest inspection data",
+      "publisher": "Wyndham City Council",
+      "url": "https://data.gov.au/data/dataset/wyndham-tree-and-latest-inpection-data",
+      "category": "tree_inventory",
+      "coverage": "City of Wyndham",
+      "observation_period": "latest inspection supplied with each record; source includes historical inspections",
+      "access_method": "GeoJSON, CSV and WFS",
+      "licence": "Creative Commons Attribution 2.5 Australia",
+      "licence_status": "open_confirmed",
+      "update_frequency": "source controlled",
+      "target_entities": ["named_tree_inventory", "species_profile"]
+    },
+    {
+      "key": "port_phillip_tree_inventory",
+      "name": "City of Port Phillip Trees",
+      "publisher": "City of Port Phillip",
+      "url": "https://data.gov.au/data/dataset/city-of-port-phillip-trees",
+      "category": "tree_inventory",
+      "coverage": "City of Port Phillip",
+      "observation_period": "planting and update dates supplied per record; catalogue updated 2023",
+      "access_method": "GeoJSON and CSV download using the OpenCouncilData trees schema",
+      "licence": "Creative Commons Attribution 2.5 Australia",
+      "licence_status": "open_confirmed",
+      "update_frequency": "source controlled",
+      "target_entities": ["named_tree_inventory", "species_profile"]
+    },
+    {
+      "key": "manningham_tree_inventory",
+      "name": "Manningham Street Trees",
+      "publisher": "Manningham City Council",
+      "url": "https://data.gov.au/data/dataset/1aef5123-24ff-4084-a0f1-a52ca71e9e99",
+      "category": "tree_inventory",
+      "coverage": "Manningham City Council",
+      "observation_period": "source survey dates supplied per record; source file created 2019",
+      "access_method": "Zipped Shapefile plus CSV, WFS and GeoJSON",
+      "licence": "Creative Commons Attribution 3.0 Australia",
+      "licence_status": "open_confirmed",
+      "update_frequency": "source controlled",
+      "target_entities": ["named_tree_inventory", "species_profile"]
+    },
+    {
+      "key": "glen_eira_tree_inventory",
+      "name": "Park and Street Trees",
+      "publisher": "Glen Eira City Council",
+      "url": "https://data.gov.au/data/dataset/ed15e3ea-48dc-47d2-afa6-518e6f5276e1",
+      "category": "tree_inventory",
+      "coverage": "City of Glen Eira",
+      "observation_period": "undated council asset snapshot; catalogue updated 2023",
+      "access_method": "GeoJSON download",
+      "licence": "Creative Commons Attribution 2.5 Australia",
+      "licence_status": "open_confirmed",
+      "update_frequency": "source controlled",
+      "target_entities": ["named_tree_inventory", "species_profile"]
     },
     {
       "key": "melbourne_vegetation_change_2014_2018",
@@ -162,7 +331,7 @@
       "licence": "Creative Commons Attribution 4.0 International",
       "licence_status": "open_confirmed",
       "update_frequency": "source metadata states annual; observed product is 2014-2018",
-      "target_entities": ["vegetation_observation"]
+      "target_entities": ["metropolitan_vegetation_change_feature"]
     },
     {
       "key": "dea_land_cover",
@@ -191,6 +360,34 @@
       "licence_status": "open_confirmed",
       "update_frequency": "daily",
       "target_entities": ["weather_observation"]
+    },
+    {
+      "key": "austraits_v7",
+      "name": "AusTraits 7.0.0",
+      "publisher": "AusTraits collaboration",
+      "url": "https://github.com/traitecoevo/austraits.build/releases/tag/v7.0.0",
+      "category": "plant_traits",
+      "coverage": "Australia",
+      "observation_period": "compiled observations; release 7.0.0",
+      "access_method": "Versioned GitHub release ZIP",
+      "licence": "Creative Commons Attribution 4.0 International",
+      "licence_status": "open_confirmed",
+      "update_frequency": "versioned research release",
+      "target_entities": ["plant_trait_observation"]
+    },
+    {
+      "key": "australian_urban_tree_growth",
+      "name": "Tree growth of 10 tree species planted in seven Australian cities",
+      "publisher": "Esperon-Rodriguez et al.",
+      "url": "https://figshare.com/articles/dataset/Tree_growth_of_10_urban_tree_species_in_seven_Australian_cities/28970981",
+      "category": "urban_tree_growth",
+      "coverage": "Seven Australian cities, including Melbourne and Mildura",
+      "observation_period": "published 2025; source tree-ring and climate records",
+      "access_method": "Figshare version 2 XLSX downloads",
+      "licence": "Creative Commons Attribution 4.0 International",
+      "licence_status": "open_confirmed",
+      "update_frequency": "static research deposit",
+      "target_entities": ["urban_tree_growth_observation", "urban_tree_growth_climate"]
     },
     {
       "key": "burnley_irrigation_experiment",

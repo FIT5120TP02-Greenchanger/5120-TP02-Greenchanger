@@ -86,18 +86,35 @@ class CostEstimateTests(unittest.TestCase):
             self.assertTrue(row["tree_type"].strip())
             self.assertTrue(row["botanical_name"].strip())
 
-    def test_mandarin_has_supply_and_standard_planting_costs(self):
-        mandarin = [
+    def test_current_prototype_species_have_supply_and_planting_costs(self):
+        current_rows = [
             row for row in self.rows
-            if row["tree_type"] == "Mandarin Emperor Dwarf"
+            if row["valid_from"] <= "2026-09-15" <= row["valid_to"]
+            and row["option_code"] in {
+                "backyard_tree_diy", "backyard_tree_installed"
+            }
         ]
-        self.assertEqual(len(mandarin), 2)
-        by_method = {row["planting_method"]: row for row in mandarin}
-        self.assertEqual(float(by_method["diy"]["minimum_cost"]), 59.0)
-        installed = by_method["professional_standard_access"]
-        self.assertEqual(float(installed["minimum_cost"]), 143.0)
-        self.assertEqual(float(installed["material_min_cost"]), 59.0)
-        self.assertEqual(float(installed["installation_min_cost"]), 84.0)
+        self.assertEqual(
+            {row["tree_type"] for row in current_rows},
+            {"Water Gum", "Lemon-scented Gum", "Crepe Myrtle"},
+        )
+        for tree_type in {"Water Gum", "Lemon-scented Gum", "Crepe Myrtle"}:
+            species_rows = [
+                row for row in current_rows if row["tree_type"] == tree_type
+            ]
+            self.assertEqual(len(species_rows), 2)
+            by_method = {row["planting_method"]: row for row in species_rows}
+            supplied = by_method["diy"]
+            installed = by_method["professional_standard_access"]
+            self.assertEqual(float(installed["installation_min_cost"]), 84.0)
+            self.assertEqual(
+                float(installed["minimum_cost"]),
+                float(supplied["minimum_cost"]) + 84.0,
+            )
+            self.assertEqual(
+                float(installed["maximum_cost"]),
+                float(supplied["maximum_cost"]) + 84.0,
+            )
 
 
 if __name__ == "__main__":

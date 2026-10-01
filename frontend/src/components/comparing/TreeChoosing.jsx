@@ -23,10 +23,12 @@ export default function TreeChoosing({species, selectedSpecies, compareArray, se
                 <h2 className={styles['panel-title']}>{selectedSpecies?.common_name} on your lot</h2>
                 <p>Select one or more species to compare</p>
                 {species.map((s) => {
-                    const isSelected = selectedSpecies?.id === s.id
+                    // const isSelected = selectedSpecies?.id === s.id
                     const isCompared = compareArray.some(
                         item => item.species_key === s.species_key
                     )
+                    // the green frame follows the checkbox (species rows have no id, so the old test was always true)
+                    const isSelected = isCompared
                     return (
                         <li key={s.species_key} onClick={() => {handleCheckbox(s);}} for={s.species_key}>
                             <button
