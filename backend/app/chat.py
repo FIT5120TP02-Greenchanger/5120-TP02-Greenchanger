@@ -134,8 +134,10 @@ def chat(req: ChatRequest) -> dict:
     messages.extend(m.model_dump() for m in req.history)
     messages.append({"role": "user", "content": req.message})
 
+    client = _get_client()
+
     try:
-        response = _get_client().chat_completion(
+        response = client.chat_completion(
             model="Qwen/Qwen3-8B",
             messages=messages,
             max_tokens=1024,
