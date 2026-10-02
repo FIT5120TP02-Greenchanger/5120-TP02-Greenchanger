@@ -157,9 +157,9 @@ export default function TreeCompare({ compareArray = [], appliedScenario, rows, 
                         return c ? `${c.pct.toFixed(1)}%` : '—'
                     }} />
 
-                    <div className={styles['compare-section-label']}>SHADE & COOLING</div>
+                    {/* <div className={styles['compare-section-label']}>SHADE & COOLING</div>
                     <CompareRow label="Shade potential" rows={orderedRows} render={(r) => shadeLevel(r) ?? '—'} />
-                    <CompareRow label="Cooling potential" rows={orderedRows} render={(r) => coolingLevel(r) ?? '—'} />
+                    <CompareRow label="Cooling potential" rows={orderedRows} render={(r) => coolingLevel(r) ?? '—'} /> */}
 
                     <div className={styles['compare-section-label']}>SPACE</div>
                     <CompareRow label="Mature canopy width" rows={orderedRows} render={(r) => formatRange(matureCanopyWidthRange(r), ' m')} />
