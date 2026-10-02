@@ -6,6 +6,21 @@ import styles from './ChatbotWidget.module.css'
 const STORAGE_KEY = 'greenshift_chat_messages'
 const BOT_NAME = 'GreenBot'
 
+const FAQ = [
+    {
+        id: 1,
+        question: "What is this property's address?"
+    },
+    {
+        id: 2,
+        question: "What does canopy mean?"
+    },
+    {
+        id: 3,
+        question: "How can planting trees improve temperature and canopy?"
+    },
+]
+
 function loadStoredMessages() {
     try {
         const raw = localStorage.getItem(STORAGE_KEY)
@@ -65,7 +80,7 @@ export default function ChatbotWidget({ context }) {
         setHasUnread(false)
     }
 
-    async function handleSend() {
+    async function handleSend(inputText="") {
         const textToSend = inputText.trim()
         if (!textToSend || isSending) return
 
@@ -190,7 +205,20 @@ export default function ChatbotWidget({ context }) {
                             </div>
                         ))}
                     </div>
-
+                    <div className={styles.faq}>
+                        {FAQ.map((s) => {
+                            return (
+                                <button
+                                    key={s.id}
+                                    type="button"
+                                    onClick={() => handleSend(s.question)}
+                                    disabled={isSending}
+                                >
+                                    {s.question}
+                                </button>
+                            )
+                        })}
+                    </div>
                     <div className={styles.controls}>
                         <textarea
                             className={styles.input}
