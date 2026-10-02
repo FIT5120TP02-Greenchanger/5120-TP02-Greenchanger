@@ -1,6 +1,6 @@
 import styles from '../TreePlantingFlow.module.css'
 
-export default function SpeciesList({ species = [], selectedSpecies, onSelect, onViewDetail, onBack, onExit }) {
+export default function SpeciesList({ species = [], selectedSpecies, onSelect, onViewDetail, onBack, onExit, error }) {
     species.forEach(s => {
     s.common_name = s.common_name
         .split(' ')
@@ -13,7 +13,7 @@ export default function SpeciesList({ species = [], selectedSpecies, onSelect, o
                 <span className={styles['user-note']}>Explore tree species</span>
                 <h2 className={styles['panel-title']}>Pick a species to compare</h2>
                 <p className={styles['subtitle']}>Appearance and size are illustrative at maturity.</p>
-
+                {error && <p className={styles['detail-error']}>{error}</p>}
                 <ul className={styles['species-list']}>
                     {species.map((s) => {
                         // const isSelected = selectedSpecies?.id === s.id

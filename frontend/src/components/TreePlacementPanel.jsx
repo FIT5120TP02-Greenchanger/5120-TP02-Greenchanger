@@ -3,7 +3,7 @@ import { TREE_SIZES } from '../hooks/simulation';
 
 // export default function TreePlacementPanel({ size, onSizeChange, onConfirm, onCancel, hasPosition }) {
 // canPlant added (2026-09-03): the button waits until the user has clicked a spot on the map
-export default function TreePlacementPanel({ size, onSizeChange, onConfirm, onCancel, hasPosition, hasUpdatePos, canPlant }) {
+export default function TreePlacementPanel({ size, onSizeChange, onConfirm, onCancel, hasPosition, hasUpdatePos, canPlant, lockSize }) {
     return (
         <div className={styles['placement-panel']}>
             <span>SIMULATE ONE TREE</span>
@@ -17,23 +17,33 @@ export default function TreePlacementPanel({ size, onSizeChange, onConfirm, onCa
                 {/* <strong>1. Select a map point</strong> */}
                 {/* <p>Only one active simulated tree.</p> */}
                 {/* <strong>Choose a size, then click on the map where you want.</strong> */}
-                <strong>The circle resizes to match the tree. Click again to move it.</strong>
+                <strong>
+                    {lockSize
+                        ? 'Click on the map to move the tree.'
+                        : 'The circle resizes to match the tree. Click again to move it.'}
+                </strong>
                 <p>No suitability assessment is provided.</p>
             </div>
 
-            <div className={styles['tree-options-container']}>
-                {Object.entries(TREE_SIZES).map(([label, { heightLabel, price }]) => (
-                <div
-                    key={label}
-                    className={size === label ? styles.selected : ''}
-                    onClick={() => onSizeChange(label)}
-                >
-                    <h4>{label}</h4>
-                    <p>{heightLabel}</p>
-                    <p>{price}</p>
+            {lockSize ? (
+                <p className={styles['placement-hint']}>
+                    Size is set by the species you chose. You can only move this tree.
+                </p>
+            ) : (
+                <div className={styles['tree-options-container']}>
+                    {Object.entries(TREE_SIZES).map(([label, { heightLabel, price }]) => (
+                        <div
+                            key={label}
+                            className={size === label ? styles.selected : ''}
+                            onClick={() => onSizeChange(label)}
+                        >
+                            <h4>{label}</h4>
+                            <p>{heightLabel}</p>
+                            <p>{price}</p>
+                        </div>
+                    ))}
                 </div>
-                ))}
-            </div>
+            )}
             {!canPlant && <p className={styles['placement-warn']}>Click on the map in order to place a tree</p>}
             <button className={styles['place-button']} onClick={onConfirm} disabled={canPlant === false}>
                 {/* {hasPosition ? 'Place here?' : 'Place simulated tree'} */}

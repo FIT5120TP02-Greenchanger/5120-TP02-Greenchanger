@@ -7,7 +7,7 @@ import Guidance from './steps/Guidance'
 import TreeChoosing from '../comparing/TreeChoosing'
 import TreeCompare from '../comparing/TreeCompare'
 import PreferredScenario from '../comparing/PreferredScenario'
-import { fetchSpecies, fetchGrowth, fetchCosts, simulateScenario, PREVIEW_AGE_YEARS } from '../../services/trees'
+import { fetchGrowth, fetchCosts, simulateScenario, PREVIEW_AGE_YEARS } from '../../services/trees'
 
 import styles from './TreePlantingFlow.module.css'
 const STEPS = {
@@ -23,7 +23,7 @@ const BACK_TARGET = {
 
 const DEFAULT_SIZE = 'Small'
 
-export default function TreePlantingFlow({ lot, position, onApply, onExit, nTrees, canopyM2, viewM2 }) {
+export default function TreePlantingFlow({ lot, position, onApply, onExit, nTrees, canopyM2, viewM2, speciesCatalogue=[], speciesError }) {
     const [step, setStep] = useState(STEPS.INTRO)
     const [selectedSpecies, setSelectedSpecies] = useState(null)
     const [selectedSize, setSelectedSize] = useState(DEFAULT_SIZE)
@@ -36,29 +36,19 @@ export default function TreePlantingFlow({ lot, position, onApply, onExit, nTree
     const [comparisonRows, setComparisonRows] = useState({})
     const [preferredKey, setPreferredKey] = useState(null)
 
-    const [species, setSpecies] = useState([])
-    const [speciesError, setSpeciesError] = useState(null)
+    const [applyError, setApplyError] = useState(null)
     const [applying, setApplying] = useState(false)
 
     useEffect(() => {
-        let cancelled = false
+        // let cancelled = false
         resetFlow()
-        // setSpeciesError(null)
-        fetchSpecies(lot?.address)
-            .then((data) => {
-                if (cancelled) return
-                setSpecies((data.species || []).filter((s) => s.has_growth_model))
-                setSpeciesError(null)
-            })
-            .catch(() => { if (!cancelled) setSpeciesError("Could not load tree species.") })
-        return () => { cancelled = true }
     }, [lot?.address])
 
     function resetFlow(nextStep = STEPS.INTRO) {
         setSelectedSpecies(null); setSelectedSize(DEFAULT_SIZE); setAppliedScenario(null)
         setCompareArray([]); setComparisonRows({}); setPreferredKey(null)
         setStep(nextStep);
-        setSpeciesError(null)
+        setApplyError(null);
     }
     function goBack() { setStep(BACK_TARGET[step] ?? STEPS.INTRO) }
     function handleSelectSpecies(species) {
@@ -97,7 +87,7 @@ export default function TreePlantingFlow({ lot, position, onApply, onExit, nTree
             onApply?.(scenario)
             setStep(STEPS.IMPACT)
         } catch {
-            setSpeciesError("Could not simulate that scenario. Try again.")
+            setApplyError("Could not simulate that scenario. Try again.")
         } finally {
             setApplying(false)
         }
@@ -129,15 +119,15 @@ export default function TreePlantingFlow({ lot, position, onApply, onExit, nTree
             case STEPS.INTRO:
                 return <SpeciesIntro onExplore={() => setStep(STEPS.LIST)} onExit={onExit} nTrees={nTrees} canopyM2={canopyM2} viewM2={viewM2} canExplore={!!position} />
             case STEPS.LIST:
-                return <SpeciesList species={species} error={speciesError} selectedSpecies={selectedSpecies} onSelect={handleSelectSpecies} onViewDetail={handleViewDetail} onBack={goBack} onExit={onExit} />
+                return <SpeciesList species={speciesCatalogue} error={speciesError} selectedSpecies={selectedSpecies} onSelect={handleSelectSpecies} onViewDetail={handleViewDetail} onBack={goBack} onExit={onExit} />
             case STEPS.DETAIL:
-                return <SpeciesDetail species={selectedSpecies} size={selectedSize} setCompareArray={setCompareArray} onSizeChange={setSelectedSize} onApply={handleApply} applying={applying} onBack={goBack} onExit={onExit} />
+                return <SpeciesDetail species={selectedSpecies} size={selectedSize} setCompareArray={setCompareArray} onSizeChange={setSelectedSize} onApply={handleApply} applying={applying} error={applyError} onBack={goBack} onExit={onExit} />
             case STEPS.IMPACT:
                 return <Impact scenario={appliedScenario} onViewGuidance={() => setStep(STEPS.GUIDANCE)} onCompare={() => setStep(STEPS.CHOOSE)} onBack={goBack} onExit={onExit}/>
             case STEPS.GUIDANCE:
                 return <Guidance onBack={goBack} onStartAgain={() => resetFlow()} />
             case STEPS.CHOOSE:
-                return <TreeChoosing species={species.filter((s) => s !== selectedSpecies)} selectedSpecies={selectedSpecies} onCompareTree={() => setStep(STEPS.COMPARE)} compareArray={compareArray} setCompareArray={setCompareArray} onBack={goBack} />
+                return <TreeChoosing species={speciesCatalogue.filter((s) => s !== selectedSpecies)} selectedSpecies={selectedSpecies} onCompareTree={() => setStep(STEPS.COMPARE)} compareArray={compareArray} setCompareArray={setCompareArray} onBack={goBack} />
             case STEPS.COMPARE:
                 return (
                     <TreeCompare

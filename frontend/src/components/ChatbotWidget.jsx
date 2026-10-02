@@ -6,6 +6,21 @@ import styles from './ChatbotWidget.module.css'
 const STORAGE_KEY = 'greenshift_chat_messages'
 const BOT_NAME = 'GreenBot'
 
+const FAQ = [
+    {
+        id: 1,
+        question: "What is this property's address?"
+    },
+    {
+        id: 2,
+        question: "What does canopy mean?"
+    },
+    {
+        id: 3,
+        question: "How can planting trees improve temperature and canopy?"
+    },
+]
+
 function loadStoredMessages() {
     try {
         const raw = localStorage.getItem(STORAGE_KEY)
@@ -50,7 +65,6 @@ export default function ChatbotWidget({ context }) {
     const [inputText, setInputText] = useState('')
     const [isSending, setIsSending] = useState(false)
     const scrollRef = useRef(null)
-
     const contextAvailable = hasUsableContext(context)
 
     // persist on every change, and keep the view scrolled to the latest message
@@ -66,7 +80,7 @@ export default function ChatbotWidget({ context }) {
         setHasUnread(false)
     }
 
-    async function handleSend() {
+    async function handleSend(inputText="") {
         const textToSend = inputText.trim()
         if (!textToSend || isSending) return
 
@@ -84,8 +98,20 @@ export default function ChatbotWidget({ context }) {
                 body: JSON.stringify({ message: textToSend, history: messages.slice(-18), context: context || null })
             })
             if (!response.ok) {
+                // const errBody = await response.json().catch(() => ({}));
+                // throw new Error(errBody.detail || `Request failed ${response.status}`)
                 const errBody = await response.json().catch(() => ({}));
-                throw new Error(errBody.detail || `Request failed ${response.status}`)
+
+                console.error("Chat API error:", {
+                    status: response.status,
+                    body: errBody,
+                });
+
+                throw new Error(
+                    typeof errBody.detail === "string"
+                        ? errBody.detail
+                        : JSON.stringify(errBody.detail || errBody)
+                );
             }
             const data = await response.json()
 
@@ -179,21 +205,34 @@ export default function ChatbotWidget({ context }) {
                             </div>
                         ))}
                     </div>
-
+                    <div className={styles.faq}>
+                        {FAQ.map((s) => {
+                            return (
+                                <button
+                                    key={s.id}
+                                    type="button"
+                                    onClick={() => handleSend(s.question.trim())}
+                                    disabled={isSending}
+                                >
+                                    {s.question}
+                                </button>
+                            )
+                        })}
+                    </div>
                     <div className={styles.controls}>
-                        <input
+                        <textarea
                             className={styles.input}
-                            type="text"
                             placeholder={`Ask ${BOT_NAME}...`}
                             aria-label="Message"
                             value={inputText}
                             onChange={handleInputChange}
                             onKeyDown={handleKeyDown}
                             disabled={isSending}
+                            rows={1}
                         />
                         <button
                             className={styles.sendButton}
-                            onClick={handleSend}
+                            onClick={() => handleSend(inputText.trim())}
                             disabled={isSending || !inputText.trim()}
                             aria-label="Send message"
                             type="button"
@@ -216,7 +255,7 @@ export default function ChatbotWidget({ context }) {
                 {isOpen ? (
                     <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
                         <path d="M6 6l12 12M18 6L6 18" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-                    </svg>
+                    </svg>  
                 ) : (
                     <span className={styles.bubbleLeaf}>🌿</span>
                 )}

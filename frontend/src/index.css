@@ -3,6 +3,6 @@ body, html, #root {
   margin: 0;
   font-family: "Inter", sans-serif;
 }
-button ::hover {
+button :hover {
   cursor: pointer;
 }
