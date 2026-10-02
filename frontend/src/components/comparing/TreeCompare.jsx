@@ -3,7 +3,7 @@ import styles from './TreeChoosing.module.css'
 import list_styles from '../planning/TreePlantingFlow.module.css'
 import {
     canopyAddedRange, canopyCoverAfter, matureCanopyWidthRange,
-    spaceNeededM2, shadeLevel, coolingLevel, priceRange, formatRange, formatPrice,
+    spaceNeededM2, priceRange, formatRange, formatPrice,
 } from './scenarioMetrics'
 
 const SIZES = ['Small', 'Medium', 'Large']
