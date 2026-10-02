@@ -140,7 +140,10 @@ export default function ChatbotWidget({ context }) {
     }
 
     function handleKeyDown(e) {
-        if (e.key === 'Enter') handleSend()
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            handleSend(inputText);
+        }
     }
 
     function handleClearChat() {
