@@ -211,7 +211,7 @@ export default function ChatbotWidget({ context }) {
                                 <button
                                     key={s.id}
                                     type="button"
-                                    onClick={() => handleSend(s.question)}
+                                    onClick={() => handleSend(s.question.trim())}
                                     disabled={isSending}
                                 >
                                     {s.question}
@@ -232,7 +232,7 @@ export default function ChatbotWidget({ context }) {
                         />
                         <button
                             className={styles.sendButton}
-                            onClick={handleSend}
+                            onClick={() => handleSend(inputText.trim())}
                             disabled={isSending || !inputText.trim()}
                             aria-label="Send message"
                             type="button"
